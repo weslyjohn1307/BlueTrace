@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "id": "block-env-exposure",
+        "description": "Block any commands or file reads attempting to expose .env secrets",
+        "condition": "matches",
+        "pattern": "\\.env($|\\s)",
+        "action": "block",
+        "reason": "Security: Direct access or exposure of .env files is forbidden by Rule 5."
+      },
+      {
+        "id": "block-no-verify-git",
+        "description": "Block git commits with --no-verify",
+        "condition": "matches",
+        "pattern": "--no-verify",
+        "action": "block",
+        "reason": "Integrity: Git pre-commit hooks and verification cannot be bypassed."
+      }
+    ],
+    "PostToolUse": [
+      {
+        "id": "post-edit-audit",
+        "description": "Ensure workspace integrity after edits",
+        "action": "log"
+      }
+    ]
+  }
+}
