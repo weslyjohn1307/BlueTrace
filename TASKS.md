@@ -8,27 +8,27 @@
   - Defined coordinate matrix transformations (screen CSS -> PDF pt -> 150 DPI render) and 300x300 px crop specs.
 - [x] **RES-03**: Schedule Table Extraction & Entity Linking (`docs/research/RES-03-SCHEDULE-TO-PLAN-LINKING.md`)
   - Defined equipment schedule JSON schema and plan spatial index heuristics.
-- [ ] **RES-04**: CTD 2026 MEP Design AI & ParseBench Architecture (`docs/research/RES-04-CTD2026-MEP-AGENTIC-ARCHITECTURE.md`)
+- [x] **RES-04**: CTD 2026 MEP Design AI & ParseBench Architecture (`docs/research/RES-04-CTD2026-MEP-AGENTIC-ARCHITECTURE.md`)
   - Document the 4 bounded agent roles and "read cheaply first, reason visually selectively" principle.
-- [ ] **RES-05**: Deterministic Vector Linework & Scale Integrity (`docs/research/RES-05-DETERMINISTIC-VECTOR-GEOMETRY-SCALE.md`)
+- [x] **RES-05**: Deterministic Vector Linework & Scale Integrity (`docs/research/RES-05-DETERMINISTIC-VECTOR-GEOMETRY-SCALE.md`)
   - Document PyMuPDF vector path extraction, double-line duct centerline tracing, and fail-closed scale verification.
-- [ ] **SPEC-01**: Root Project Constitution (`AGENTS.md` and `CLAUDE.md`, strictly < 200 lines).
-- [ ] **SPEC-02**: Product Requirements & Intent (`Overview.md`).
-- [ ] **SPEC-03**: Locked Tech Stack Manifest (`Tech_stack.md`).
-- [ ] **SPEC-04**: Behavioral Technical Specs & Schema Contracts (`Data_models.md`).
-- [ ] **SPEC-05**: User Flows & 5 Mandatory Screen States (`User_flows.md`).
-- [ ] **SPEC-06**: Immutable Design System Contract (`DESIGN.md`).
-- [ ] **SPEC-07**: Architecture Decision Record (`docs/adr/ADR-001-hybrid-mep-architecture.md`).
-- [ ] **MEM-01**: Initialize Manus-Style 3-File Persistent Memory (`task_plan.md`, `findings.md`, `progress.md`, `State.md`).
+- [x] **SPEC-01**: Root Project Constitution (`AGENTS.md` and `CLAUDE.md`, strictly < 200 lines).
+- [x] **SPEC-02**: Product Requirements & Intent (`Overview.md`).
+- [x] **SPEC-03**: Locked Tech Stack Manifest (`Tech_stack.md`).
+- [x] **SPEC-04**: Behavioral Technical Specs & Schema Contracts (`Data_models.md`).
+- [x] **SPEC-05**: User Flows & 5 Mandatory Screen States (`User_flows.md`).
+- [x] **SPEC-06**: Immutable Design System Contract (`DESIGN.md`).
+- [x] **SPEC-07**: Architecture Decision Record (`docs/adr/ADR-001-hybrid-mep-architecture.md`).
+- [x] **MEM-01**: Initialize Manus-Style 3-File Persistent Memory (`task_plan.md`, `findings.md`, `progress.md`, `State.md`).
 
 ---
 
 ## Phase 1: Environment & Scaffolding (G-M1)
 
-- [ ] **ENV-01**: Setup Python virtual environment & dependencies (`pyproject.toml` with `fastapi`, `uvicorn`, `pymupdf`, `shapely`, `networkx`, `httpx`, `openai`, `pydantic`).
+- [x] **ENV-01**: Setup backend manifest (`pyproject.toml` with `fastapi`, `uvicorn`, `pymupdf`, `shapely`, `networkx`, `httpx`, `openai`, `pydantic`).
 - [ ] **ENV-02**: Setup Node.js frontend workspace with React 19, Vite, TypeScript, and Tailwind CSS.
-- [ ] **ENV-03**: Setup environment configuration (`.env.example` with zero secrets committed).
-- [ ] **ENV-04**: Create clean directory structure (`src/api`, `src/core_vector`, `src/meta_services`, `src/document`, `src/models`, `tests`).
+- [x] **ENV-03**: Setup environment configuration (`.env.example` with zero secrets committed).
+- [x] **ENV-04**: Create clean directory structure (`src/api`, `src/core_vector`, `src/meta_services`, `src/document`, `src/models`, `tests`).
 
 ---
 

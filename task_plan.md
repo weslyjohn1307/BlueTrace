@@ -18,10 +18,10 @@
 - [x] MEM-01: Initialize Manus-Style 3-File Persistent Memory (`task_plan.md`, `findings.md`, `progress.md`, `State.md`, `prd.json`)
 
 ### Phase 1: Environment & Scaffolding (G-M1)
-- [ ] ENV-01: Setup Python virtual environment & backend manifest (`pyproject.toml` with `fastapi`, `uvicorn`, `pymupdf`, `shapely`, `networkx`, `httpx`, `openai`, `pydantic`)
+- [x] ENV-01: Setup backend manifest (`pyproject.toml` with `fastapi`, `uvicorn`, `pymupdf`, `shapely`, `networkx`, `httpx`, `openai`, `pydantic`)
 - [ ] ENV-02: Setup React 19 frontend workspace with Vite, TypeScript, and Tailwind CSS (`frontend/`)
-- [ ] ENV-03: Setup environment configuration (`.env.example` with documented keys)
-- [ ] ENV-04: Create clean backend directory structure (`src/api`, `src/core_vector`, `src/meta_services`, `src/document`, `src/models`, `tests`)
+- [x] ENV-03: Setup environment configuration (`.env.example` with documented keys)
+- [x] ENV-04: Create clean backend directory structure (`src/api`, `src/core_vector`, `src/meta_services`, `src/document`, `src/models`, `tests`)
 
 ### Phase 2: Meta Model API Layer (G-M2)
 - [ ] META-01: Base Meta Model Client (`src/meta_services/client.py`) with `https://api.meta.ai/v1` and Bearer auth
