@@ -34,10 +34,10 @@
 ---
 
 ## Test & Quality Gates Summary
-- **Backend Tests**: 24/24 tests passed (`pytest tests/`)
+- **Backend Tests**: 35/35 tests passed (`pytest tests/`)
 - **Backend Lint**: 0 errors (`ruff check src/ tests/ scripts/`)
 - **Backend Type Check**: 0 errors across 12 source files (`mypy`)
-- **Frontend Build**: `tsc -b && vite build` built in 5.88s
+- **Frontend Build**: `tsc -b && vite build` built in 4.75s
 - **Frontend Lint**: 0 errors, 0 warnings (`eslint .`)
 - **Frontend Tests**: 84/84 tests passed (`vitest --run`)
 - **Anti-Leak Audit**: `python scripts/sanitize_import.py --audit` PASSED (0 legacy tokens)
