@@ -17,7 +17,7 @@ export const ModeBanner: React.FC<ModeBannerProps> = ({ mode }) => {
           <span className="inline-block w-2 h-2 rounded-full bg-[#006D84]" aria-hidden="true" />
           <span className="font-semibold tracking-wider">LIVE — Local backend</span>
         </div>
-        <span className="text-slate-500">FastAPI /api/v1</span>
+        <span className="text-slate-500">FastAPI /api</span>
       </div>
     );
   }

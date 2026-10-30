@@ -206,7 +206,7 @@ export const ResolutionSlider: React.FC = () => {
             className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-[#38BDF8]"
           />
           <div className="flex justify-between text-[10px] font-mono text-slate-400 mt-1">
-            <span>20 DPI (Stock YOLO Squeeze)</span>
+            <span>20 DPI (thumbnail squeeze)</span>
             <span>72 DPI (Screen PDF)</span>
             <span>150 DPI (Native Engineering Scan)</span>
           </div>

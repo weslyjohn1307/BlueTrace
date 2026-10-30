@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-describe('Frontend Boundary & Static Content Audit Tests', () => {
+describe('Frontend boundary & static content audit', () => {
   const currentFile = fileURLToPath(import.meta.url);
   const srcDir = path.resolve(path.dirname(currentFile), '..');
 
@@ -26,17 +26,18 @@ describe('Frontend Boundary & Static Content Audit Tests', () => {
 
   const allSourceFiles = getFiles(srcDir);
 
-  it('1. Live mode modules do not import Demo fixtures or Demo data', () => {
-    const liveFiles = allSourceFiles.filter(f => f.includes(`${path.sep}modes${path.sep}live`));
-    for (const file of liveFiles) {
+  it('workspace code never imports demo fixtures or demo data', () => {
+    const workspaceFiles = allSourceFiles.filter((f) => f.includes(`${path.sep}workspace`));
+    expect(workspaceFiles.length).toBeGreaterThan(0);
+    for (const file of workspaceFiles) {
       const content = fs.readFileSync(file, 'utf-8');
       expect(content).not.toMatch(/from ['"].*demoFixtures['"]/);
       expect(content).not.toMatch(/from ['"].*DemoDataProvider['"]/);
     }
   });
 
-  it('2. Demo mode modules do not import the API client', () => {
-    const demoFiles = allSourceFiles.filter(f => f.includes(`${path.sep}modes${path.sep}demo`));
+  it('demo mode modules do not import the API client', () => {
+    const demoFiles = allSourceFiles.filter((f) => f.includes(`${path.sep}modes${path.sep}demo`));
     for (const file of demoFiles) {
       const content = fs.readFileSync(file, 'utf-8');
       expect(content).not.toMatch(/from ['"].*api\/client['"]/);
@@ -44,18 +45,37 @@ describe('Frontend Boundary & Static Content Audit Tests', () => {
     }
   });
 
-  it('3. No frontend source imports dashboard mock data or python engine modules', () => {
+  it('no legacy project/run/job surface survives anywhere', () => {
+    const forbidden = ['/api/v1', 'useAnalysisWorkflow', 'AskTheDrawingDrawer', 'RunViewer', 'LiveApp'];
     for (const file of allSourceFiles) {
       const content = fs.readFileSync(file, 'utf-8');
-      expect(content).not.toContain('dashboard/data.js');
-      expect(content).not.toContain('dashboard/review_data.js');
-      expect(content).not.toContain('mep_ai');
-      expect(content).not.toContain('fitz');
-      expect(content).not.toContain('ultralytics');
+      for (const token of forbidden) {
+        expect(content, `${token} in ${path.basename(file)}`).not.toContain(token);
+      }
     }
   });
 
-  it('4. No known curated extraction values appear hardcoded in frontend source', () => {
+  it('no legacy model branding or detectors survive in UI copy', () => {
+    for (const file of allSourceFiles) {
+      const content = fs.readFileSync(file, 'utf-8');
+      // Story mode may discuss generic detectors historically; product UI must not.
+      if (file.includes(`${path.sep}modes${path.sep}story`)) continue;
+      expect(content, `YOLO in ${path.basename(file)}`).not.toMatch(/YOLO/i);
+      expect(content, `RT-DETR in ${path.basename(file)}`).not.toMatch(/RT-?DETR/i);
+      expect(content, `MEP Design AI in ${path.basename(file)}`).not.toContain('MEP Design AI');
+    }
+  });
+
+  it('no secrets or storage-based keys in frontend source', () => {
+    for (const file of allSourceFiles) {
+      const content = fs.readFileSync(file, 'utf-8');
+      expect(content).not.toMatch(/localStorage\.setItem.*key/i);
+      expect(content).not.toMatch(/sessionStorage\.setItem.*key/i);
+      expect(content).not.toMatch(/sk-[A-Za-z0-9]{8,}/);
+    }
+  });
+
+  it('no known curated extraction values appear hardcoded in frontend source', () => {
     for (const file of allSourceFiles) {
       const content = fs.readFileSync(file, 'utf-8');
       expect(content).not.toContain('31.699');

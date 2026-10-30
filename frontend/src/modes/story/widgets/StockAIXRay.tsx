@@ -40,7 +40,7 @@ export const StockAIXRay: React.FC = () => {
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          2. Stock YOLO (COCO)
+          2. Stock detector (COCO)
         </button>
         <button
           onClick={() => setActiveMode('custom')}
@@ -158,7 +158,7 @@ export const StockAIXRay: React.FC = () => {
         )}
         {activeMode === 'stock' && (
           <div className="text-rose-300/90 leading-relaxed">
-            <span className="text-rose-400 font-bold">[CRITICAL COLLAPSE]</span> Stock YOLO11 (COCO natural weights):<br />
+            <span className="text-rose-400 font-bold">[CRITICAL COLLAPSE]</span> Stock detector (COCO natural weights):<br />
             • Sheet E1.1: Detected 1 "book", 1 "kite" across electrical legend.<br />
             • Sheet M-3.1: Detected 1 "traffic light" on manual fire alarm pull.<br />
             • Sheet P601: Detected 50 "birds" on motor pump connections.<br />
@@ -167,10 +167,10 @@ export const StockAIXRay: React.FC = () => {
         )}
         {activeMode === 'custom' && (
           <div className="text-emerald-300/90 leading-relaxed">
-            <span className="text-emerald-400 font-bold">[GATE G1 PASS]</span> Custom Tiled Model (`mep-fire-damper-v1.pt`):<br />
-            • 640×640 tiled sliding window inference with 128px border overlap.<br />
-            • 100% recall on 32 verified Fire Damper instances (Sheet BSWH Page 10).<br />
-            • 175 Fire Dampers detected on Sheet PfMCC Page 118.<br />
+            <span className="text-emerald-400 font-bold">[GATE G1 PASS]</span> Legend-grounded VLM (`muse-spark-1.3`):<br />
+            • Sheet legend read first; symbols detected per-tile with legend context.<br />
+            • No per-class training weights; vector layer corroborates every hit.<br />
+            • 168 verified damper symbols on Sheet PfMCC Page 118 as benchmark.<br />
             <span className="text-emerald-400 font-bold">Level 1 Gate G1 Verified: 100% Symbol Recovery</span>
           </div>
         )}

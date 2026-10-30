@@ -2,27 +2,37 @@
 
 @layer base {
   :root {
-    --color-vellum: #F8FAFC;
-    --color-paper: #FFFFFF;
-    --color-slate-ink: #0F172A;
-    --color-slate-caption: #475569;
-    --color-slate-muted: #64748B;
-    --color-hairline: #E2E8F0;
-    --color-nested-panel: #F1F5F9;
-    --color-blueprint-teal: #006D84;
-    --color-autodesk-blue: #0696D7;
-    --color-autodesk-slate: #1B242C;
-    --color-autodesk-dark: #10161A;
-    --color-danger: #DC2626;
-    --color-success: #16A34A;
-    --color-warning: #D97706;
+    /* Surfaces & ink (OKLCH — see DESIGN.md token contract) */
+    --color-vellum: oklch(0.984 0.003 247.858);
+    --color-paper: oklch(1 0 0);
+    --color-slate-ink: oklch(0.208 0.042 265.755);
+    --color-slate-caption: oklch(0.446 0.043 257.281);
+    --color-slate-muted: oklch(0.554 0.046 257.417);
+    --color-slate-faint: oklch(0.704 0.04 256.788);
+    --color-slate-strong: oklch(0.372 0.044 257.287);
+    --color-hairline: oklch(0.929 0.013 255.508);
+    --color-line: oklch(0.869 0.022 252.894);
+    --color-nested-panel: oklch(0.968 0.007 247.896);
+
+    /* Brand & workstation chrome */
+    --color-blueprint-teal: oklch(0.553 0.094 205.2);
+    --color-blueprint-teal-deep: oklch(0.482 0.08 205.1);
+    --color-autodesk-blue: oklch(0.648 0.121 240.5);
+    --color-autodesk-slate: oklch(0.269 0.018 251.9);
+    --color-autodesk-edge: oklch(0.341 0.028 251.4);
+    --color-autodesk-dark: oklch(0.22 0.012 245);
+
+    /* Status */
+    --color-danger: oklch(0.577 0.245 27.325);
+    --color-success: oklch(0.648 0.2 131.684);
+    --color-warning: oklch(0.666 0.179 58.318);
 
     /* Category Tokens */
-    --cat-fire-damper: #EA580C;
-    --cat-wshp: #006D84;
-    --cat-linear-grille: #0284C7;
-    --cat-duct-route: #2563EB;
-    --cat-pipe-route: #0D9488;
+    --cat-fire-damper: oklch(0.646 0.222 41.116);
+    --cat-wshp: oklch(0.553 0.094 205.2);
+    --cat-linear-grille: oklch(0.588 0.158 241.966);
+    --cat-duct-route: oklch(0.546 0.245 262.881);
+    --cat-pipe-route: oklch(0.6 0.118 184.704);
   }
 
   body {
@@ -46,15 +56,30 @@
     font-family: 'Inconsolata', monospace;
     font-variant-numeric: tabular-nums;
   }
+
+  :focus-visible {
+    outline: 2px solid var(--color-autodesk-blue);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 /* Autodesk HIG Workstation Component Helpers */
 @layer components {
   .hig-top-bar {
     height: 56px;
-    background-color: #1B242C;
-    border-bottom: 1px solid #2C3844;
-    color: #FFFFFF;
+    background-color: var(--color-autodesk-slate);
+    border-bottom: 1px solid var(--color-autodesk-edge);
+    color: var(--color-paper);
   }
 
   .hig-nav-tab {
@@ -65,7 +90,7 @@
     height: 56px;
     font-size: 14px;
     font-weight: 500;
-    color: #94A3B8;
+    color: var(--color-slate-faint);
     border-bottom: 2px solid transparent;
     transition: color 0.15s ease, border-color 0.15s ease;
     cursor: pointer;
@@ -73,12 +98,12 @@
   }
 
   .hig-nav-tab:hover {
-    color: #F8FAFC;
+    color: var(--color-vellum);
   }
 
   .hig-nav-tab.active {
-    color: #FFFFFF;
-    border-bottom-color: #0696D7;
+    color: var(--color-paper);
+    border-bottom-color: var(--color-autodesk-blue);
     font-weight: 600;
   }
 
@@ -89,8 +114,8 @@
     gap: 0.5rem;
     height: 40px;
     padding: 0 1.25rem;
-    background-color: #006D84;
-    color: #FFFFFF;
+    background-color: var(--color-blueprint-teal);
+    color: var(--color-paper);
     font-size: 13px;
     font-weight: 600;
     border-radius: 6px;
@@ -101,7 +126,7 @@
   }
 
   .btn-primary:hover:not(:disabled) {
-    background-color: #005668;
+    background-color: var(--color-blueprint-teal-deep);
   }
 
   .btn-primary:disabled {
@@ -116,11 +141,11 @@
     gap: 0.5rem;
     height: 40px;
     padding: 0 1.25rem;
-    background-color: #FFFFFF;
-    color: #334155;
+    background-color: var(--color-paper);
+    color: var(--color-slate-strong);
     font-size: 13px;
     font-weight: 500;
-    border: 1px solid #CBD5E1;
+    border: 1px solid var(--color-line);
     border-radius: 6px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
     transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -128,9 +153,9 @@
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background-color: #F8FAFC;
-    border-color: #94A3B8;
-    color: #0F172A;
+    background-color: var(--color-vellum);
+    border-color: var(--color-slate-faint);
+    color: var(--color-slate-ink);
   }
 
   .btn-secondary:disabled {
@@ -139,8 +164,8 @@
   }
 
   .workstation-card {
-    background-color: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    background-color: var(--color-paper);
+    border: 1px solid var(--color-hairline);
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   }

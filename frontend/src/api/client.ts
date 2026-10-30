@@ -1,37 +1,17 @@
 import type {
-  HealthResponse,
-  VersionResponse,
-  ApiClientError,
-  ProjectResponse,
-  ProjectListResponse,
-  ProjectCreateRequest,
-  DrawingResponse,
-  DrawingListResponse,
-  DrawingPreflightResponse,
-  JobResponse,
-  JobListResponse,
-  JobSubmitRequest,
-  RunSummaryItem,
-  RunListResponse,
-  SheetListResponse,
-  ViewDetailResponse,
-  ImageBlobResult,
-  PackageSummaryResponse,
-  RouteListResponse,
-  RouteQueryParams,
-  ObjectListResponse,
-  ObjectQueryParams,
-  ReviewEventListResponse,
-  ReviewEventQueryParams,
-  ReviewEventCreateRequest,
-  ReviewEventResponse,
-  ExportResponse,
-  ExportListResponse,
-  CopilotQueryRequest,
   CopilotQueryResponse,
+  CursorCropResponse,
+  HealthResponse,
+  LedgerSummaryRow,
+  PageTextResponse,
+  ScheduleParseResponse,
+  SegmentResponse,
+  SheetMetadata,
+  TakeoffRecord,
+  UploadResponse,
 } from './contracts';
 
-export class ApiError extends Error implements ApiClientError {
+export class ApiError extends Error {
   status: number;
   details?: unknown;
 
@@ -48,22 +28,34 @@ export interface ApiClientConfig {
   timeoutMs?: number;
 }
 
+function newSessionId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* fall through to Math.random */
+  }
+  return `sess-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
+}
+
 export function createApiClient(config: ApiClientConfig = {}) {
-  const baseUrl = config.baseUrl || import.meta.env.VITE_API_BASE_URL || '/api/v1';
-  const defaultTimeoutMs = config.timeoutMs ?? 10000;
+  // Every endpoint below is an absolute `/api/...` path served by FastAPI.
+  // baseUrl exists only to point at a non-default origin in dev/test.
+  const baseUrl = (config.baseUrl || import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+  const defaultTimeoutMs = config.timeoutMs ?? 30000;
+  const sessionId = newSessionId();
 
   async function request<T>(
     endpoint: string,
     options?: {
       method?: string;
       body?: unknown;
+      rawBody?: BodyInit;
       signal?: AbortSignal;
     }
   ): Promise<T> {
-    const cleanEndpoint = endpoint.replace(/^\/+/, '');
-    const url = cleanEndpoint.startsWith('api/')
-      ? `/${cleanEndpoint}`
-      : `${baseUrl.replace(/\/+$/, '')}/${cleanEndpoint}`;
+    const url = endpoint.startsWith('/') ? endpoint : `${baseUrl}/${endpoint.replace(/^\/+/, '')}`;
     const method = options?.method ?? 'GET';
     const signal = options?.signal;
     let timerId: ReturnType<typeof setTimeout> | undefined;
@@ -78,9 +70,12 @@ export function createApiClient(config: ApiClientConfig = {}) {
     try {
       const headers: Record<string, string> = {
         Accept: 'application/json',
+        'X-Session-ID': sessionId,
       };
-      let bodyContent: string | undefined;
-      if (options?.body !== undefined) {
+      let bodyContent: string | BodyInit | undefined;
+      if (options?.rawBody !== undefined) {
+        bodyContent = options.rawBody;
+      } else if (options?.body !== undefined) {
         headers['Content-Type'] = 'application/json';
         bodyContent = JSON.stringify(options.body);
       }
@@ -113,437 +108,62 @@ export function createApiClient(config: ApiClientConfig = {}) {
       if (err instanceof ApiError) {
         throw err;
       }
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        throw new ApiError(408, 'Request timed out or was aborted');
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ApiError(0, `Request to ${url} timed out after ${defaultTimeoutMs}ms`);
       }
-      const message = err instanceof Error ? err.message : 'Network request failed';
-      throw new ApiError(0, message);
+      throw err;
     } finally {
-      if (timerId !== undefined) {
-        clearTimeout(timerId);
-      }
+      if (timerId) clearTimeout(timerId);
     }
   }
 
-  async function uploadDrawing(
-    projectId: string,
-    file: File,
-    onProgress?: (loaded: number, total: number | null) => void,
-    signal?: AbortSignal
-  ): Promise<DrawingResponse> {
-    const url = `${baseUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(projectId)}/drawings`;
-
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const formData = new FormData();
-      formData.append('file', file);
-
-      if (signal?.aborted) {
-        return reject(new ApiError(408, 'Upload was aborted'));
-      }
-
-      const onAbort = () => {
-        xhr.abort();
-        reject(new ApiError(408, 'Upload was aborted'));
-      };
-
-      if (signal) {
-        signal.addEventListener('abort', onAbort, { once: true });
-      }
-
-      if (xhr.upload && onProgress) {
-        xhr.upload.onprogress = (event: ProgressEvent) => {
-          onProgress(event.loaded, event.lengthComputable ? event.total : null);
-        };
-      }
-
-      xhr.onload = () => {
-        if (signal) {
-          signal.removeEventListener('abort', onAbort);
-        }
-        let responseData: unknown;
-        try {
-          responseData = JSON.parse(xhr.responseText);
-        } catch {
-          // non-json response
-        }
-
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(responseData as DrawingResponse);
-        } else {
-          const detail =
-            responseData && typeof responseData === 'object' && 'detail' in responseData
-              ? typeof (responseData as { detail: unknown }).detail === 'string'
-                ? (responseData as { detail: string }).detail
-                : JSON.stringify((responseData as { detail: unknown }).detail)
-              : `Upload failed with status ${xhr.status}: ${xhr.statusText || 'Error'}`;
-          reject(new ApiError(xhr.status, detail, responseData));
-        }
-      };
-
-      xhr.onerror = () => {
-        if (signal) {
-          signal.removeEventListener('abort', onAbort);
-        }
-        reject(new ApiError(0, 'Network error during file upload'));
-      };
-
-      xhr.open('POST', url);
-      xhr.setRequestHeader('Accept', 'application/json');
-      xhr.send(formData);
+  async function requestBlob(endpoint: string, accept: string, signal?: AbortSignal): Promise<Blob> {
+    const url = endpoint.startsWith('/') ? endpoint : `${baseUrl}/${endpoint.replace(/^\/+/, '')}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: accept, 'X-Session-ID': sessionId },
+      signal,
     });
-  }
-
-  async function fetchBlob(
-    endpoint: string,
-    signal?: AbortSignal
-  ): Promise<ImageBlobResult> {
-    const url = `${baseUrl.replace(/\/+$/, '')}/${endpoint.replace(/^\/+/, '')}`;
-    let timerId: ReturnType<typeof setTimeout> | undefined;
-    let effectiveSignal = signal;
-
-    if (!signal) {
-      const controller = new AbortController();
-      timerId = setTimeout(() => controller.abort(), defaultTimeoutMs);
-      effectiveSignal = controller.signal;
+    if (!res.ok) {
+      throw new ApiError(res.status, `Download failed: ${res.statusText}`);
     }
-
-    try {
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: { Accept: 'image/png' },
-        signal: effectiveSignal,
-      });
-
-      if (!res.ok) {
-        let errDetails: unknown;
-        try {
-          errDetails = await res.json();
-        } catch {
-          // ignore non-json error payloads
-        }
-        const errorMsg =
-          errDetails && typeof errDetails === 'object' && 'detail' in errDetails
-            ? typeof (errDetails as { detail: unknown }).detail === 'string'
-              ? (errDetails as { detail: string }).detail
-              : JSON.stringify((errDetails as { detail: unknown }).detail)
-            : `HTTP error ${res.status}: ${res.statusText}`;
-        throw new ApiError(res.status, errorMsg, errDetails);
-      }
-
-      const widthHeader = res.headers.get('X-Image-Width');
-      const heightHeader = res.headers.get('X-Image-Height');
-      const width = widthHeader ? parseInt(widthHeader, 10) : undefined;
-      const height = heightHeader ? parseInt(heightHeader, 10) : undefined;
-      const blob = await res.blob();
-
-      return {
-        blob,
-        width: typeof width === 'number' && !Number.isNaN(width) ? width : undefined,
-        height: typeof height === 'number' && !Number.isNaN(height) ? height : undefined,
-      };
-    } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        throw err;
-      }
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        throw new ApiError(408, 'Request timed out or was aborted');
-      }
-      const message = err instanceof Error ? err.message : 'Network request failed';
-      throw new ApiError(0, message);
-    } finally {
-      if (timerId !== undefined) {
-        clearTimeout(timerId);
-      }
-    }
+    return res.blob();
   }
 
   return {
+    sessionId,
+
     async getHealth(signal?: AbortSignal): Promise<HealthResponse> {
-      return request<HealthResponse>('/health', { signal });
-    },
-    async getVersion(signal?: AbortSignal): Promise<VersionResponse> {
-      return request<VersionResponse>('/version', { signal });
-    },
-    async listProjects(signal?: AbortSignal): Promise<ProjectListResponse> {
-      return request<ProjectListResponse>('/projects', { signal });
-    },
-    async createProject(data: ProjectCreateRequest, signal?: AbortSignal): Promise<ProjectResponse> {
-      return request<ProjectResponse>('/projects', { method: 'POST', body: data, signal });
-    },
-    async getProject(projectId: string, signal?: AbortSignal): Promise<ProjectResponse> {
-      return request<ProjectResponse>(`/projects/${encodeURIComponent(projectId)}`, { signal });
-    },
-    async listDrawings(projectId: string, signal?: AbortSignal): Promise<DrawingListResponse> {
-      return request<DrawingListResponse>(`/projects/${encodeURIComponent(projectId)}/drawings`, { signal });
-    },
-    uploadDrawing,
-    async getDrawing(projectId: string, sourceId: string, signal?: AbortSignal): Promise<DrawingResponse> {
-      return request<DrawingResponse>(
-        `/projects/${encodeURIComponent(projectId)}/drawings/${encodeURIComponent(sourceId)}`,
-        { signal }
-      );
-    },
-    async getDrawingPreflight(projectId: string, sourceId: string, signal?: AbortSignal): Promise<DrawingPreflightResponse> {
-      return request<DrawingPreflightResponse>(
-        `/projects/${encodeURIComponent(projectId)}/drawings/${encodeURIComponent(sourceId)}/preflight`,
-        { signal }
-      );
-    },
-    getPageThumbnailUrl(projectId: string, sourceId: string, pageNumber: number): string {
-      return `${baseUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(projectId)}/drawings/${encodeURIComponent(sourceId)}/pages/${pageNumber}/thumbnail`;
-    },
-    async submitJob(projectId: string, data: JobSubmitRequest, signal?: AbortSignal): Promise<JobResponse> {
-      return request<JobResponse>(`/projects/${encodeURIComponent(projectId)}/jobs`, {
-        method: 'POST',
-        body: data,
-        signal,
-      });
-    },
-    async listJobs(projectId: string, signal?: AbortSignal): Promise<JobListResponse> {
-      return request<JobListResponse>(`/projects/${encodeURIComponent(projectId)}/jobs`, { signal });
-    },
-    async getJob(projectId: string, jobId: string, signal?: AbortSignal): Promise<JobResponse> {
-      return request<JobResponse>(
-        `/projects/${encodeURIComponent(projectId)}/jobs/${encodeURIComponent(jobId)}`,
-        { signal }
-      );
-    },
-    async listAllRuns(limit?: number, signal?: AbortSignal): Promise<RunListResponse> {
-      const endpoint = limit ? `/runs?limit=${limit}` : '/runs';
-      return request<RunListResponse>(endpoint, { signal });
-    },
-    async getRunById(runId: string, signal?: AbortSignal): Promise<RunSummaryItem> {
-      return request<RunSummaryItem>(`/runs/${encodeURIComponent(runId)}`, { signal });
-    },
-    async getRun(projectId: string, runId: string, signal?: AbortSignal): Promise<RunSummaryItem> {
-      return request<RunSummaryItem>(
-        `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}`,
-        { signal }
-      );
-    },
-    async listSheets(projectId: string, runId: string, signal?: AbortSignal): Promise<SheetListResponse> {
-      return request<SheetListResponse>(
-        `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/sheets`,
-        { signal }
-      );
-    },
-    async getView(projectId: string, runId: string, viewId: string, signal?: AbortSignal): Promise<ViewDetailResponse> {
-      return request<ViewDetailResponse>(
-        `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/views/${encodeURIComponent(viewId)}`,
-        { signal }
-      );
-    },
-    async getPageImageBlob(projectId: string, runId: string, pageId: string, signal?: AbortSignal): Promise<ImageBlobResult> {
-      return fetchBlob(
-        `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/pages/${encodeURIComponent(pageId)}/image`,
-        signal
-      );
-    },
-    async getPageThumbnailBlob(projectId: string, runId: string, pageId: string, signal?: AbortSignal): Promise<ImageBlobResult> {
-      return fetchBlob(
-        `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/pages/${encodeURIComponent(pageId)}/thumbnail`,
-        signal
-      );
-    },
-    getSourcePdfUrl(projectId: string, sourceId: string): string {
-      return `${baseUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(projectId)}/drawings/${encodeURIComponent(sourceId)}/source`;
-    },
-    async getRunSummary(projectId: string, runId: string, signal?: AbortSignal): Promise<PackageSummaryResponse> {
-      return request<PackageSummaryResponse>(
-        `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/summary`,
-        { signal }
-      );
-    },
-    async getRoutes(projectId: string, runId: string, params?: RouteQueryParams, signal?: AbortSignal): Promise<RouteListResponse> {
-      const searchParams = new URLSearchParams();
-      if (params?.sheet_id) searchParams.set('sheet_id', params.sheet_id);
-      if (params?.view_id) searchParams.set('view_id', params.view_id);
-      if (params?.object_type) searchParams.set('object_type', params.object_type);
-      if (params?.continuity_status) searchParams.set('continuity_status', params.continuity_status);
-      if (params?.representation_state) searchParams.set('representation_state', params.representation_state);
-      if (params?.review_status) searchParams.set('review_status', params.review_status);
-      if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
-      if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
-      const qs = searchParams.toString();
-      const endpoint = `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/routes${qs ? `?${qs}` : ''}`;
-      return request<RouteListResponse>(endpoint, { signal });
-    },
-    async getObjects(projectId: string, runId: string, params?: ObjectQueryParams, signal?: AbortSignal): Promise<ObjectListResponse> {
-      const searchParams = new URLSearchParams();
-      if (params?.sheet_id) searchParams.set('sheet_id', params.sheet_id);
-      if (params?.view_id) searchParams.set('view_id', params.view_id);
-      if (params?.object_type) searchParams.set('object_type', params.object_type);
-      if (params?.representation_state) searchParams.set('representation_state', params.representation_state);
-      if (params?.review_status) searchParams.set('review_status', params.review_status);
-      if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
-      if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
-      const qs = searchParams.toString();
-      const endpoint = `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/objects${qs ? `?${qs}` : ''}`;
-      return request<ObjectListResponse>(endpoint, { signal });
-    },
-    async getReviewEvents(projectId: string, runId: string, params?: ReviewEventQueryParams, signal?: AbortSignal): Promise<ReviewEventListResponse> {
-      const searchParams = new URLSearchParams();
-      if (params?.target_type) searchParams.set('target_type', params.target_type);
-      if (params?.target_id) searchParams.set('target_id', params.target_id);
-      const qs = searchParams.toString();
-      const endpoint = `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/review-events${qs ? `?${qs}` : ''}`;
-      return request<ReviewEventListResponse>(endpoint, { signal });
-    },
-    async appendReviewEvent(projectId: string, runId: string, data: ReviewEventCreateRequest, signal?: AbortSignal): Promise<ReviewEventResponse> {
-      return request<ReviewEventResponse>(
-        `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/review-events`,
-        {
-          method: 'POST',
-          body: data,
-          signal,
-        }
-      );
-    },
-    async getPageOverlaySvg(projectId: string, runId: string, pageId: string, signal?: AbortSignal): Promise<string> {
-      const url = `${baseUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/pages/${encodeURIComponent(pageId)}/overlay`;
-      const res = await fetch(url, {
-        headers: { Accept: 'image/svg+xml' },
-        signal,
-      });
-      if (!res.ok) {
-        throw new ApiError(res.status, `Failed to fetch overlay: ${res.statusText}`);
-      }
-      return res.text();
-    },
-    async createExport(projectId: string, runId: string, signal?: AbortSignal): Promise<ExportResponse> {
-      return request<ExportResponse>(
-        `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/exports`,
-        {
-          method: 'POST',
-          signal,
-        }
-      );
-    },
-    async listExports(projectId: string, runId: string, signal?: AbortSignal): Promise<ExportListResponse> {
-      return request<ExportListResponse>(
-        `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/exports`,
-        { signal }
-      );
-    },
-    async downloadExport(
-      projectId: string,
-      runId: string,
-      exportId: string,
-      signal?: AbortSignal
-    ): Promise<Blob> {
-      const url = `${baseUrl.replace(/\/+$/, '')}/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/exports/${encodeURIComponent(exportId)}`;
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: { Accept: 'application/zip' },
-        signal,
-      });
-      if (!res.ok) {
-        throw new ApiError(res.status, `Failed to download export bundle: ${res.statusText}`);
-      }
-      return res.blob();
-    },
-    async queryCopilot(
-      projectId: string,
-      runId: string,
-      payload: CopilotQueryRequest,
-      signal?: AbortSignal
-    ): Promise<CopilotQueryResponse> {
-      try {
-        const live = await request<{
-          answer: string;
-          cited_coordinates: number[][];
-          referenced_item_ids: string[];
-          scale_verified: boolean;
-          model_used?: boolean;
-        }>('/api/copilot', {
-          method: 'POST',
-          body: {
-            sheet_id: payload.sheet_id,
-            query: payload.query,
-          },
-          signal,
-        });
-        return {
-          request_id: `copilot-${Date.now()}`,
-          mode: 'local',
-          mode_label: 'BlueTraceAI Live Reasoning Copilot',
-          external_model_used: live.model_used === true,
-          project_id: projectId,
-          run_id: runId,
-          sheet_id: payload.sheet_id,
-          view_id: payload.view_id,
-          target_id: payload.target_id,
-          deterministic_intent: 'engineering_query',
-          response_status: 'complete',
-          answer: live.answer,
-          numerical_value: null,
-          unit: null,
-          canonical_result_ids: live.referenced_item_ids || [],
-          canonical_result_count: live.referenced_item_ids?.length || 0,
-          highlight_result_ids: live.referenced_item_ids || [],
-          safe_evidence_references: (live.cited_coordinates || []).map((coords, i) => ({
-            artifact_type: 'drawing_coordinate',
-            locator: coords.join(','),
-            page_number: 1,
-            rule_id: `evidence_${i + 1}`,
-          })),
-          bounded_tool_call_trace: [
-            {
-              tool_name: 'TakeoffStore.query',
-              purpose: 'Inspect active takeoff ledger & linework',
-              duration_ms: 12,
-              evidence_count: live.cited_coordinates?.length || 0,
-            },
-          ],
-        };
-      } catch {
-        return request<CopilotQueryResponse>(
-          `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/copilot/query`,
-          {
-            method: 'POST',
-            body: payload,
-            signal,
-          }
-        );
-      }
+      return request<HealthResponse>('/api/health', { signal });
     },
 
-    // -------------------------------------------------------------
-    // BlueTraceAI Live Point-of-Need & Meta Model API Endpoints
-    // -------------------------------------------------------------
-    async getMetaHealth(signal?: AbortSignal): Promise<{
-      status: string;
-      service: string;
-      version: string;
-      meta_model_api_configured: boolean;
-      models: Record<string, string>;
-    }> {
-      return request('/api/health', { signal });
+    async uploadDrawing(file: File, signal?: AbortSignal): Promise<UploadResponse> {
+      // Backend accepts raw PDF bytes (no python-multipart dependency by design);
+      // filename travels as a query param. See src/api/routes.py:upload_drawing.
+      const endpoint = `/api/upload?filename=${encodeURIComponent(file.name)}`;
+      return request<UploadResponse>(endpoint, { method: 'POST', rawBody: file, signal });
     },
 
-    async scanSheet(
-      pdfPath: string,
-      pageIndex = 0,
-      signal?: AbortSignal
-    ): Promise<{
-      sheet_id: string;
-      page_index: number;
-      sheet_number: string;
-      sheet_title: string;
-      discipline: string;
-      scale_raw?: string | null;
-      scale_ratio?: number | null;
-      scale_status: 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED';
-      width_pt: number;
-      height_pt: number;
-      dpi: number;
-    }> {
-      return request('/api/sheet-scan', {
+    async scanSheet(pdfPath: string, pageIndex = 0, signal?: AbortSignal): Promise<SheetMetadata> {
+      return request<SheetMetadata>('/api/sheet-scan', {
         method: 'POST',
         body: { pdf_path: pdfPath, page_index: pageIndex },
         signal,
       });
+    },
+
+    getPageImageUrl(pdfPath: string, pageIndex = 0, dpi = 150): string {
+      const sp = new URLSearchParams({
+        pdf_path: pdfPath,
+        page_index: String(pageIndex),
+        dpi: String(dpi),
+      });
+      return `/api/page-image?${sp.toString()}`;
+    },
+
+    async getPageText(pdfPath: string, pageIndex = 0, signal?: AbortSignal): Promise<PageTextResponse> {
+      const sp = new URLSearchParams({ pdf_path: pdfPath, page_index: String(pageIndex) });
+      return request<PageTextResponse>(`/api/page-text?${sp.toString()}`, { signal });
     },
 
     async extractCropOcr(
@@ -554,19 +174,8 @@ export function createApiClient(config: ApiClientConfig = {}) {
         image_base64: string;
       },
       signal?: AbortSignal
-    ): Promise<{
-      latency_ms: number;
-      detected_text: string;
-      parsed_dimension?: {
-        width_in: number;
-        height_in?: number | null;
-        shape: string;
-      } | null;
-      confidence: number;
-      badge_text: string;
-      review_required: boolean;
-    }> {
-      return request('/api/crop-ocr', {
+    ): Promise<CursorCropResponse> {
+      return request<CursorCropResponse>('/api/crop-ocr', {
         method: 'POST',
         body: payload,
         signal,
@@ -582,12 +191,8 @@ export function createApiClient(config: ApiClientConfig = {}) {
         page_text_blocks?: [string, number[]][];
       },
       signal?: AbortSignal
-    ): Promise<{
-      scheduled_items_total: number;
-      linked_takeoff_records: number;
-      unplaced_ghost_pins: unknown[];
-    }> {
-      return request('/api/schedule/parse', {
+    ): Promise<ScheduleParseResponse> {
+      return request<ScheduleParseResponse>('/api/schedule/parse', {
         method: 'POST',
         body: payload,
         signal,
@@ -598,48 +203,130 @@ export function createApiClient(config: ApiClientConfig = {}) {
       imageBase64: string,
       conceptPrompt = 'mechanical equipment boundary',
       signal?: AbortSignal
-    ): Promise<{
-      concept: string;
-      masks: unknown[];
-      polygons: number[][][];
-      confidence: number;
-      mock?: boolean;
-    }> {
-      return request('/api/segment', {
+    ): Promise<SegmentResponse> {
+      return request<SegmentResponse>('/api/segment', {
         method: 'POST',
         body: { image_base64: imageBase64, concept_prompt: conceptPrompt },
         signal,
       });
     },
 
-    async queryLiveCopilot(
+    async queryCopilot(
       query: string,
       sheetId?: string | null,
       selectionBbox?: number[] | null,
       signal?: AbortSignal
-    ): Promise<{
-      answer: string;
-      cited_coordinates: number[][];
-      referenced_item_ids: string[];
-      scale_verified: boolean;
-    }> {
-      return request('/api/copilot', {
+    ): Promise<CopilotQueryResponse> {
+      return request<CopilotQueryResponse>('/api/copilot', {
         method: 'POST',
-        body: { query, sheet_id: sheetId, selection_bbox: selectionBbox },
+        body: { query, sheet_id: sheetId ?? undefined, selection_bbox: selectionBbox ?? undefined },
         signal,
       });
+    },
+
+    async streamCopilot(
+      query: string,
+      sheetId: string | null | undefined,
+      onChunk: (text: string, done: boolean) => void,
+      signal?: AbortSignal
+    ): Promise<CopilotQueryResponse> {
+      const res = await fetch('/api/copilot/stream', {
+        method: 'POST',
+        headers: {
+          Accept: 'text/event-stream',
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionId,
+        },
+        body: JSON.stringify({ query, sheet_id: sheetId ?? undefined }),
+        signal,
+      });
+      if (!res.ok || !res.body) {
+        throw new ApiError(res.status, `Copilot stream failed: ${res.statusText}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let full = '';
+      let terminal: CopilotQueryResponse | null = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() ?? '';
+        for (const event of events) {
+          for (const line of event.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            try {
+              const payload = JSON.parse(trimmed.slice(5).trim()) as {
+                chunk?: string;
+                done?: boolean;
+                answer?: string;
+                cited_coordinates?: number[][];
+                referenced_item_ids?: string[];
+                scale_verified?: boolean;
+                model_used?: boolean;
+              };
+              if (payload.chunk) {
+                full += payload.chunk;
+                onChunk(full, false);
+              }
+              if (payload.done) {
+                terminal = {
+                  answer: payload.answer ?? full,
+                  cited_coordinates: payload.cited_coordinates ?? [],
+                  referenced_item_ids: payload.referenced_item_ids ?? [],
+                  scale_verified: payload.scale_verified ?? false,
+                  model_used: payload.model_used ?? false,
+                };
+                onChunk(terminal.answer, true);
+              }
+            } catch {
+              // ignore malformed SSE frames
+            }
+          }
+        }
+      }
+      if (!terminal) {
+        throw new ApiError(0, 'Copilot stream ended without a terminal event');
+      }
+      return terminal;
     },
 
     async listTakeoffItems(
       params?: { project_id?: string; sheet_id?: string; status?: string },
       signal?: AbortSignal
-    ): Promise<unknown[]> {
+    ): Promise<TakeoffRecord[]> {
       const sp = new URLSearchParams();
       if (params?.project_id) sp.set('project_id', params.project_id);
       if (params?.sheet_id) sp.set('sheet_id', params.sheet_id);
       if (params?.status) sp.set('status', params.status);
       const qs = sp.toString() ? `?${sp.toString()}` : '';
-      return request(`/api/takeoff/items${qs}`, { signal });
+      return request<TakeoffRecord[]>(`/api/takeoff/items${qs}`, { signal });
+    },
+
+    async createTakeoffItem(
+      item: {
+        project_id: string;
+        sheet_id: string;
+        category: string;
+        system?: string;
+        dimension_label?: string;
+        status?: string;
+        source?: string;
+        total_length_ft?: number;
+        count?: number;
+        geometry?: Record<string, unknown> | unknown[];
+        confidence?: number | null;
+      },
+      signal?: AbortSignal
+    ): Promise<TakeoffRecord> {
+      return request<TakeoffRecord>('/api/takeoff/items', {
+        method: 'POST',
+        body: item,
+        signal,
+      });
     },
 
     async updateTakeoffStatus(
@@ -658,12 +345,28 @@ export function createApiClient(config: ApiClientConfig = {}) {
     async getTakeoffSummary(
       params?: { project_id?: string; sheet_id?: string },
       signal?: AbortSignal
-    ): Promise<unknown[]> {
+    ): Promise<LedgerSummaryRow[]> {
       const sp = new URLSearchParams();
       if (params?.project_id) sp.set('project_id', params.project_id);
       if (params?.sheet_id) sp.set('sheet_id', params.sheet_id);
       const qs = sp.toString() ? `?${sp.toString()}` : '';
-      return request(`/api/takeoff/summary${qs}`, { signal });
+      return request<LedgerSummaryRow[]>(`/api/takeoff/summary${qs}`, { signal });
+    },
+
+    async exportTakeoffCsv(params?: { project_id?: string; sheet_id?: string }): Promise<Blob> {
+      const sp = new URLSearchParams();
+      if (params?.project_id) sp.set('project_id', params.project_id);
+      if (params?.sheet_id) sp.set('sheet_id', params.sheet_id);
+      const qs = sp.toString() ? `?${sp.toString()}` : '';
+      return requestBlob(`/api/takeoff/export/csv${qs}`, 'text/csv');
+    },
+
+    async exportTakeoffJson(params?: { project_id?: string; sheet_id?: string }): Promise<Blob> {
+      const sp = new URLSearchParams();
+      if (params?.project_id) sp.set('project_id', params.project_id);
+      if (params?.sheet_id) sp.set('sheet_id', params.sheet_id);
+      const qs = sp.toString() ? `?${sp.toString()}` : '';
+      return requestBlob(`/api/takeoff/export/json${qs}`, 'application/json');
     },
 
     async configureByok(
@@ -687,4 +390,4 @@ export function createApiClient(config: ApiClientConfig = {}) {
 }
 
 export const apiClient = createApiClient();
-
+export type ApiClient = ReturnType<typeof createApiClient>;
