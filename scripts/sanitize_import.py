@@ -22,15 +22,30 @@ REPLACEMENTS = [
     (re.compile(r'\bCTD\b', re.IGNORECASE), 'MEP'),
 ]
 
-# Patterns that strictly trigger an audit violation
+# Patterns that strictly trigger an audit violation (whole workspace).
 FORBIDDEN_PATTERNS = [
     re.compile(r'\bCTD\b', re.IGNORECASE),
     re.compile(r'ctd[-_]', re.IGNORECASE),
 ]
 
+# Product-surface patterns: forbidden in shipped UI code (docs may discuss history).
 UI_FORBIDDEN_PATTERNS = [
     re.compile(r'\bImagineers\b', re.IGNORECASE),
+    re.compile(r'MEP Design AI'),
 ]
+
+# Code-only patterns: legacy detector/package/fixture tokens. Applied to code
+# files (never docs/*.md, which legitimately record the migration history, and
+# never *.test.* files, which assert the absence of these very tokens).
+CODE_FORBIDDEN_PATTERNS = [
+    re.compile(r'\bFIX-TRN\b'),
+    re.compile(r'\bYOLO\w*\b', re.IGNORECASE),
+    re.compile(r'\bultralytics\b', re.IGNORECASE),
+    re.compile(r'\brtdetr\b', re.IGNORECASE),
+    re.compile(r'\bmep_ai\b'),
+]
+
+CODE_DIRS = ('src/', 'frontend/src/', 'frontend/tests/', 'configs/', 'tests/', 'scripts/')
 
 IGNORED_DIRS = {
     '.git', 'node_modules', '.venv', '__pycache__', 'dist', 'build', '.pytest_cache',
@@ -57,17 +72,27 @@ def sanitize_text(text: str) -> tuple[str, int]:
 
 def audit_file(file_path: Path) -> list[tuple[int, str]]:
     """Checks a file for any forbidden tokens and returns list of (line_num, line)."""
+    if "sanitize_import.py" in str(file_path):
+        return []
     violations = []
     try:
-        is_ui_file = "frontend/src" in str(file_path).replace("\\", "/")
+        posix = str(file_path).replace("\\", "/")
+        is_ui_file = "frontend/src/" in posix or "frontend/tests/" in posix
+        is_test_file = ".test." in posix
+        is_code_file = (
+            posix.endswith(('.py', '.ts', '.tsx', '.js', '.jsx', '.yaml', '.yml', '.toml'))
+            and any(d in posix for d in CODE_DIRS)
+            and not is_test_file
+        )
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             for idx, line in enumerate(f, 1):
-                patterns = FORBIDDEN_PATTERNS + (UI_FORBIDDEN_PATTERNS if is_ui_file else [])
+                patterns = list(FORBIDDEN_PATTERNS)
+                if is_ui_file and not is_test_file:
+                    patterns += UI_FORBIDDEN_PATTERNS
+                if is_code_file:
+                    patterns += CODE_FORBIDDEN_PATTERNS
                 for pattern in patterns:
                     if pattern.search(line):
-                        # Exclude this sanitizer script itself from self-flagging
-                        if "sanitize_import.py" in str(file_path):
-                            continue
                         violations.append((idx, line.strip()))
                         break
     except (OSError, UnicodeDecodeError) as e:
@@ -131,21 +156,10 @@ def main():
         return
 
     if args.sanitize_all:
-        print(f"Running in-place sanitization on {workspace_dir}...")
-        total_replaced = 0
-        for path in workspace_dir.rglob('*'):
-            if any(ignored in path.parts for ignored in IGNORED_DIRS) or "sanitize_import.py" in str(path):
-                continue
-            if path.is_file() and path.suffix in SCANNABLE_EXTS:
-                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                sanitized, count = sanitize_text(content)
-                if count > 0:
-                    with open(path, 'w', encoding='utf-8') as f:
-                        f.write(sanitized)
-                    print(f"Sanitized {path.relative_to(workspace_dir)} ({count} changes)")
-                    total_replaced += count
-        print(f"Sanitization complete. Total tokens replaced: {total_replaced}")
+        # RETIRED: blind in-place rewriting corrupted real dataset paths in repo
+        # docs (see audit H2). Bulk replacement is only safe for fresh vendor
+        # copies via --import-file. Fall through to audit instead.
+        print("NOTE: --sanitize-all is retired; running audit instead.")
 
     # Default or explicit audit
     print(f"\nRunning Anti-Leak Audit on {workspace_dir}...")
