@@ -74,7 +74,27 @@ Upload PDF ──► SheetScan ──► Canvas (150 DPI) ──► Hover badge 
 5. **Ask** — question the sheet in plain language; answers cite the items and coordinates they came from, and say so when they came from the offline template instead of the model.
 6. **Export** — download the reviewed takeoff as CSV or JSON.
 
-> **Visual proof:** _Planning stage — demo GIF/screenshots land here before first public release. Capture guide: [`docs/specs/UI-UX-FLOWS.md`](docs/specs/UI-UX-FLOWS.md); Playwright visual suite: `frontend/tests/playwright/`._
+## Demo — the real application
+
+Screenshots below are captured from the running app (Avexis fixture sheet, Playwright suite in `frontend/tests/playwright/`), not mockups. Captured *without* an API key, so they show the honest offline behaviour: scale unverified, suggestions flagged for review, nothing auto-approved.
+
+![QuickDraw hover badge on a real sheet — offline mode shows a review-required badge with no Accept button](docs/assets/demo-hover-badge.png)
+
+*Point-of-need dimensioning: hover a duct run and the badge appears at your cursor. In offline mode it is amber and cannot be accepted — fail-closed, by design.*
+
+![Takeoff workspace: sheet directory, 150 DPI canvas, and empty-ledger guidance](docs/assets/demo-workspace.png)
+
+*The workspace: sheet tree (left), canvas (center), ledger/schedule (right). The amber banner is the scale gate doing its job.*
+
+![Copilot drawer answering with provenance labels over the rendered sheet](docs/assets/demo-copilot.png)
+
+*Ask the drawing: answers carry provenance (`offline template` vs the live model) and a scale warning when applicable.*
+
+### Design concept (not the shipped UI)
+
+![Stitch-generated concept exploration for a telemetry-style takeoff dashboard](docs/assets/concept-stitch-telemetry.jpg)
+
+*Concept exploration generated with Stitch (`stitch_bluetrace_precision_takeoff_suite`). This is a design study — invented metrics, light theme, features we do not ship (pricing, Revit export). The shipped UI is the dark workspace above; the concept informs layout ideas only. Reproduce or re-capture real shots any time with the Playwright visual suite (`frontend/tests/playwright/ui-states.spec.ts`).*
 
 ## Capabilities — honest status per component
 
