@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, MessageSquareText } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { AlertTriangle, CheckCircle2, PanelLeft, PanelRight, Sparkles } from 'lucide-react';
 import { GlobalTopNav } from '../app/GlobalTopNav';
 import { ModeBanner } from '../components/ModeBanner';
 import { useTakeoffSession } from './hooks/useTakeoffSession';
@@ -27,6 +27,8 @@ export const TakeoffWorkspace: React.FC = () => {
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [byokOpen, setByokOpen] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('ledger');
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
 
   useEffect(() => {
     void checkBackend();
@@ -78,7 +80,7 @@ export const TakeoffWorkspace: React.FC = () => {
     }
   };
 
-  const acceptBadge = async () => {
+  const acceptBadge = useCallback(async () => {
     if (!badge || !badgeCursor || !activeSheet || badge.review_required) return;
     const parsed = badge.parsed_dimension;
     const label = parsed
@@ -103,7 +105,37 @@ export const TakeoffWorkspace: React.FC = () => {
     } catch {
       setBadge(null);
     }
-  };
+  }, [badge, badgeCursor, activeSheet, state.projectName, refreshLedger]);
+
+  // Global Keyboard Shortcuts ([, ], Cmd+K, Esc, Enter)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in an input
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+
+      if (e.key === '[') {
+        e.preventDefault();
+        setLeftSidebarOpen((prev) => !prev);
+      } else if (e.key === ']') {
+        e.preventDefault();
+        setRightSidebarOpen((prev) => !prev);
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setCopilotOpen((prev) => !prev);
+      } else if (e.key === 'Escape') {
+        if (copilotOpen) setCopilotOpen(false);
+        if (badge) setBadge(null);
+      } else if (e.key === 'Enter' && badge && !badge.review_required) {
+        e.preventDefault();
+        void acceptBadge();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [copilotOpen, badge, acceptBadge]);
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -117,10 +149,12 @@ export const TakeoffWorkspace: React.FC = () => {
   };
 
   const showWorkspace = activeSheet !== null;
-  const scaleOk = activeSheet && (activeSheet.meta.scale_status === 'VERIFIED' || activeSheet.meta.scale_status === 'CALIBRATED');
+  const scaleOk =
+    activeSheet &&
+    (activeSheet.meta.scale_status === 'VERIFIED' || activeSheet.meta.scale_status === 'CALIBRATED');
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-200">
+    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-200 select-none">
       <ModeBanner mode="live" />
       <GlobalTopNav
         modelReady={state.backendOnline}
@@ -142,28 +176,64 @@ export const TakeoffWorkspace: React.FC = () => {
           />
         </main>
       ) : (
-        <main className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
-          <aside className="w-64 shrink-0 hidden md:block" aria-label="Sheet directory">
-            <SheetTree sheets={treeSheets} activeSheetId={state.activeSheetId} onSelectSheet={selectSheet} />
-          </aside>
+        <main className="flex-1 flex overflow-hidden relative" style={{ minHeight: 0 }}>
+          {/* Left Sheet Tree Sidebar (Progressive Disclosure) */}
+          {leftSidebarOpen && (
+            <aside className="w-64 shrink-0 hidden md:flex flex-col border-r border-slate-800" aria-label="Sheet directory">
+              <SheetTree sheets={treeSheets} activeSheetId={state.activeSheetId} onSelectSheet={selectSheet} />
+            </aside>
+          )}
 
-          <section className="flex-1 flex flex-col overflow-hidden" aria-label="Sheet canvas">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border-b border-slate-800 text-[11px] font-mono">
-              <span className="text-slate-300 truncate">
-                {activeSheet.meta.sheet_number} — {activeSheet.meta.sheet_title}
-              </span>
-              {scaleOk ? (
-                <span className="flex items-center space-x-1 text-emerald-400 shrink-0 ml-2">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{activeSheet.meta.scale_raw}</span>
+          {/* Central CAD Workstation Viewport */}
+          <section className="flex-1 flex flex-col overflow-hidden relative" aria-label="Sheet canvas">
+            {/* Workstation Header Bar */}
+            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 text-[11px] font-mono z-20 backdrop-blur-md">
+              <div className="flex items-center space-x-2 truncate">
+                <button
+                  type="button"
+                  onClick={() => setLeftSidebarOpen((prev) => !prev)}
+                  className={`p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer hidden md:block ${
+                    !leftSidebarOpen ? 'text-cyan-400 bg-cyan-950/60' : ''
+                  }`}
+                  title="Toggle Sheet Directory [[]"
+                >
+                  <PanelLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-slate-200 font-semibold truncate">
+                  {activeSheet.meta.sheet_number} — {activeSheet.meta.sheet_title}
                 </span>
-              ) : (
-                <span className="flex items-center space-x-1 text-amber-400 shrink-0 ml-2">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Scale unverified — measurements need review</span>
+                <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                  {activeSheet.meta.discipline}
                 </span>
-              )}
+              </div>
+
+              <div className="flex items-center space-x-2 shrink-0">
+                {scaleOk ? (
+                  <span className="flex items-center space-x-1.5 text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-[10px]">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>{activeSheet.meta.scale_raw}</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center space-x-1.5 text-amber-400 font-medium px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/30 text-[10px] animate-pulse">
+                    <AlertTriangle className="w-3 h-3" />
+                    <span>Scale Unverified // Review Required</span>
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setRightSidebarOpen((prev) => !prev)}
+                  className={`p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer hidden lg:block ${
+                    !rightSidebarOpen ? 'text-cyan-400 bg-cyan-950/60' : ''
+                  }`}
+                  title="Toggle Ledger & Schedule []]"
+                >
+                  <PanelRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
+
+            {/* Canvas Viewport */}
             <div className="flex-1 relative" style={{ minHeight: 0 }}>
               <SheetCanvas
                 imageUrl={apiClient.getPageImageUrl(activeSheet.pdfPath, activeSheet.pageIndex, 150)}
@@ -183,7 +253,7 @@ export const TakeoffWorkspace: React.FC = () => {
                       latencyMs={badge.latency_ms}
                       confidence={badge.confidence}
                       reviewRequired={badge.review_required}
-                      onAccept={badge.review_required ? undefined : acceptBadge}
+                      onAccept={badge.review_required ? undefined : () => void acceptBadge()}
                       onReject={() => setBadge(null)}
                     />
                   ) : badgeBusy ? (
@@ -194,67 +264,82 @@ export const TakeoffWorkspace: React.FC = () => {
             </div>
           </section>
 
-          <aside className="w-80 shrink-0 hidden lg:flex flex-col border-l border-slate-800" aria-label="Ledger and schedule">
-            <div className="flex bg-slate-900 border-b border-slate-800 text-[11px] font-semibold uppercase tracking-wider">
-              <button
-                type="button"
-                onClick={() => setRightTab('ledger')}
-                className={`flex-1 px-3 py-2 cursor-pointer ${rightTab === 'ledger' ? 'text-cyan-300 border-b-2 border-cyan-400' : 'text-slate-500'}`}
-              >
-                Ledger
-              </button>
-              <button
-                type="button"
-                onClick={() => setRightTab('schedule')}
-                className={`flex-1 px-3 py-2 cursor-pointer ${rightTab === 'schedule' ? 'text-cyan-300 border-b-2 border-cyan-400' : 'text-slate-500'}`}
-              >
-                Schedule
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
-              {rightTab === 'ledger' ? (
-                <LedgerPanel
-                  items={state.items}
-                  summary={state.summary}
-                  loading={state.itemsLoading}
-                  onAccept={(id) => void setItemStatus(id, 'ACCEPTED')}
-                  onReject={(id) => void setItemStatus(id, 'REJECTED')}
-                  onExportCsv={() =>
-                    void apiClient
-                      .exportTakeoffCsv({ project_id: state.projectName, sheet_id: state.activeSheetId ?? undefined })
-                      .then((blob) => downloadBlob(blob, 'bluetrace_takeoff.csv'))
-                  }
-                  onExportJson={() =>
-                    void apiClient
-                      .exportTakeoffJson({ project_id: state.projectName, sheet_id: state.activeSheetId ?? undefined })
-                      .then((blob) => downloadBlob(blob, 'bluetrace_takeoff.json'))
-                  }
-                />
-              ) : (
-                <SchedulePanel
-                  projectName={state.projectName}
-                  sheetId={state.activeSheetId}
-                  pdfPath={activeSheet.pdfPath}
-                  pageIndex={activeSheet.pageIndex}
-                  onGhostPins={setGhostPins}
-                  onLinked={() => void refreshLedger()}
-                />
-              )}
-            </div>
-          </aside>
+          {/* Right Ledger & Schedule Sidebar (Progressive Disclosure) */}
+          {rightSidebarOpen && (
+            <aside className="w-84 shrink-0 hidden lg:flex flex-col border-l border-slate-800 bg-slate-900" aria-label="Ledger and schedule">
+              <div className="flex bg-slate-950 border-b border-slate-800 text-[11px] font-mono font-semibold uppercase tracking-wider">
+                <button
+                  type="button"
+                  onClick={() => setRightTab('ledger')}
+                  className={`flex-1 px-3 py-2.5 cursor-pointer transition-colors ${
+                    rightTab === 'ledger'
+                      ? 'text-cyan-300 border-b-2 border-cyan-400 bg-slate-900'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  Takeoff Ledger
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab('schedule')}
+                  className={`flex-1 px-3 py-2.5 cursor-pointer transition-colors ${
+                    rightTab === 'schedule'
+                      ? 'text-cyan-300 border-b-2 border-cyan-400 bg-slate-900'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  Equipment Schedule
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
+                {rightTab === 'ledger' ? (
+                  <LedgerPanel
+                    items={state.items}
+                    summary={state.summary}
+                    loading={state.itemsLoading}
+                    onAccept={(id) => void setItemStatus(id, 'ACCEPTED')}
+                    onReject={(id) => void setItemStatus(id, 'REJECTED')}
+                    onExportCsv={() =>
+                      void apiClient
+                        .exportTakeoffCsv({ project_id: state.projectName, sheet_id: state.activeSheetId ?? undefined })
+                        .then((blob) => downloadBlob(blob, 'bluetrace_takeoff.csv'))
+                    }
+                    onExportJson={() =>
+                      void apiClient
+                        .exportTakeoffJson({ project_id: state.projectName, sheet_id: state.activeSheetId ?? undefined })
+                        .then((blob) => downloadBlob(blob, 'bluetrace_takeoff.json'))
+                    }
+                  />
+                ) : (
+                  <SchedulePanel
+                    projectName={state.projectName}
+                    sheetId={state.activeSheetId}
+                    pdfPath={activeSheet.pdfPath}
+                    pageIndex={activeSheet.pageIndex}
+                    onGhostPins={setGhostPins}
+                    onLinked={() => void refreshLedger()}
+                  />
+                )}
+              </div>
+            </aside>
+          )}
         </main>
       )}
 
+      {/* Persistent Bottom-Right Copilot Quick Trigger */}
       <button
         type="button"
         onClick={() => setCopilotOpen(true)}
-        className="fixed bottom-4 right-4 z-40 flex items-center space-x-2 px-4 py-2.5 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-xl cursor-pointer"
+        className="fixed bottom-4 right-4 z-40 flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_8px_25px_rgba(8,145,178,0.4)] cursor-pointer transition-all border border-cyan-400/40 font-mono text-xs"
         aria-label="Open copilot"
       >
-        <MessageSquareText className="w-4 h-4" />
-        <span className="text-xs font-semibold">Ask the drawing</span>
+        <Sparkles className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
+        <span className="font-semibold">Copilot</span>
+        <span className="text-[10px] bg-cyan-700 px-1.5 py-0.2 rounded text-cyan-200">⌘K</span>
       </button>
 
+      {/* Flyout Copilot Drawer */}
       <CopilotDrawer
         open={copilotOpen}
         onClose={() => setCopilotOpen(false)}
@@ -270,6 +355,8 @@ export const TakeoffWorkspace: React.FC = () => {
           )
         }
       />
+
+      {/* BYOK Meta API Key Dialog */}
       <ByokDialog
         open={byokOpen}
         onClose={() => setByokOpen(false)}

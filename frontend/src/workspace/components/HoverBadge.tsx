@@ -26,40 +26,40 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
 }) => {
   return (
     <div
-      className="absolute z-50 pointer-events-auto transform -translate-x-1/2 -translate-y-full mb-3"
+      className="absolute z-50 pointer-events-auto transform -translate-x-1/2 -translate-y-full mb-3 select-none"
       style={{ left: `${x}px`, top: `${y}px` }}
       data-testid="hover-badge"
     >
       <div
-        className={`px-3 py-2 rounded-lg shadow-xl backdrop-blur-md border text-xs flex items-center space-x-2.5 transition-all ${
+        className={`px-3 py-2 rounded-xl shadow-[0_12px_36px_rgba(0,0,0,0.6)] backdrop-blur-md border text-xs flex items-center space-x-2.5 transition-all ${
           reviewRequired
-            ? 'bg-amber-950/90 border-amber-500/50 text-amber-200'
-            : 'bg-slate-900/90 border-cyan-500/40 text-slate-100'
+            ? 'bg-amber-950/95 border-amber-500/60 text-amber-200 ring-1 ring-amber-500/30'
+            : 'bg-slate-900/95 border-cyan-500/50 text-slate-100 ring-1 ring-cyan-500/20'
         }`}
       >
         <div className="flex items-center space-x-1.5">
           {reviewRequired ? (
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
           ) : (
             <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
           )}
-          <span className="font-semibold tracking-wide font-mono">
-            {detectedText || (reviewRequired ? 'Review Required' : 'Dimensioning...')}
+          <span className="font-semibold tracking-wide font-mono text-xs">
+            {detectedText || (reviewRequired ? 'Scale Review Required' : 'Dimensioning…')}
           </span>
         </div>
 
-        <div className="flex items-center space-x-1 text-[10px] opacity-75 font-mono border-l border-slate-700 pl-2">
-          <Clock className="w-2.5 h-2.5" />
+        <div className="flex items-center space-x-1 text-[10px] opacity-75 font-mono border-l border-slate-700/80 pl-2">
+          <Clock className="w-2.5 h-2.5 text-slate-400" />
           <span>{latencyMs}ms</span>
         </div>
 
         {!reviewRequired && confidence > 0 && (
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-700 text-cyan-300">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/30 text-cyan-300 font-bold">
             {Math.round(confidence * 100)}%
           </span>
         )}
 
-        <div className="flex items-center space-x-1 pl-1 border-l border-slate-700">
+        <div className="flex items-center space-x-1.5 pl-2 border-l border-slate-700/80">
           {onAccept && (
             <button
               type="button"
@@ -67,11 +67,12 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
                 e.stopPropagation();
                 onAccept();
               }}
-              className="p-1 rounded bg-emerald-600/80 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
-              title="Accept Dimension"
+              className="flex items-center space-x-1 px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-[10px] transition-colors cursor-pointer shadow-xs"
+              title="Accept Dimension [Enter]"
               aria-label="Accept"
             >
               <Check className="w-3 h-3" />
+              <span>Accept</span>
             </button>
           )}
           {onReject && (
@@ -81,8 +82,8 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
                 e.stopPropagation();
                 onReject();
               }}
-              className="p-1 rounded bg-rose-600/80 hover:bg-rose-500 text-white transition-colors cursor-pointer"
-              title="Reject Dimension"
+              className="p-1 rounded-md bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              title="Dismiss [Esc]"
               aria-label="Reject"
             >
               <X className="w-3 h-3" />
@@ -95,7 +96,7 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
                 e.stopPropagation();
                 onClose();
               }}
-              className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
               aria-label="Close"
             >
               <X className="w-3 h-3" />
@@ -103,8 +104,8 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
           )}
         </div>
       </div>
-      {/* Downward triangle pointer */}
-      <div className="w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-900/90 mx-auto" />
+      {/* Downward pointer caret */}
+      <div className="w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-900 mx-auto" />
     </div>
   );
 };
