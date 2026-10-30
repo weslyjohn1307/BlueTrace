@@ -82,4 +82,4 @@
 - [x] **UI-03**: 150 DPI hardware-accelerated canvas viewer with synchronized page navigation and highlighted evidence.
 - [x] **VER-01**: Backend suite (39 tests) + frontend suite (25 tests) green; `ruff check src/ tests/ scripts/`, `mypy` (configured scope in `pyproject.toml`, 12 files — not `mypy src/`), `tsc`, `eslint`, sanitizer audit clean. Verified 2026-10-30 in Round-3 audit (`docs/AUDIT-2026-10-30-prompt-compliance.md` §13). Note: TestClient/async tests need loopback sockets and cannot run in fully locked-down sandboxes.
 - [ ] **VER-02**: 3-minute video walkthrough demonstrating live takeoff workflow.
-- [ ] **SUBMIT**: Remote git push, final leak audit verification, and submission to Cerebral Valley.
+- [ ] **SUBMIT**: Submission to Cerebral Valley. (Remote git push ✅ done 2026-10-30 to `weslyjohn1307/BlueTrace`; final leak/history audit ✅ done — copyright purge + guard `6e195d2` lineage; submission itself pending. See `docs/PLAN-STATUS.md` L-8…L-13.)

@@ -69,4 +69,4 @@
 - [x] UI-03: 150 DPI canvas + sheet tree + evidence pins (`TakeoffWorkspace.tsx`)
 - [x] VER-01: Suites green (39 backend / 25 frontend) + lint/type/audit gates
 - [ ] VER-02: 3-minute video walkthrough demonstrating live takeoff workflow
-- [ ] SUBMIT: Remote git push, final leak audit verification, submission to Cerebral Valley
+- [ ] SUBMIT: Submission to Cerebral Valley (remote push + leak/history audit done 2026-10-30; see `docs/PLAN-STATUS.md`)

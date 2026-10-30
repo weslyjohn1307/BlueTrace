@@ -23,7 +23,7 @@
 | **Slice 3 / G-M1** | Frontend Workspace & Point-of-Need UI | **COMPLETE** | New single flow (`TakeoffWorkspace`: upload→scan→canvas→ledger→copilot); legacy `/api/v1` UI deleted; 25 vitest green |
 | **Slice 4 / G-M2-5**| Meta Model Online Layer | **COMPLETE** | SheetScan, live crop-OCR, schedule linking (SUGGESTED default), grounded copilot + SSE; `/api/segment` endpoint (no canvas trigger yet) |
 | **Slice 5 / G-M0** | BYOK Secure Interface & Audit Compliance | **COMPLETE** | Session-scoped BYOK with expiry; contained file endpoints; hardened anti-leak audit passes |
-| **Slice 6 / G-M6** | Startup Track Demo Packaging | Pending | 3-minute Avexis HVAC takeoff workflow rehearsal, submission checklist |
+| **Slice 6 / G-M6** | Startup Track Demo Packaging | In progress | Repo pushed (`weslyjohn1307/BlueTrace`), real demo screenshots in README; left: 3-min video (VER-02), CI check, submission — see `docs/PLAN-STATUS.md` |
 
 ---
 
@@ -39,7 +39,7 @@
 ---
 
 ## Test & Quality Gates Summary
-- **Backend Tests**: 39 passed (`pytest tests/`; TestClient/async tests need loopback sockets)
+- **Backend Tests**: 44 passed (`pytest tests/`, incl. 5 copyright-guard tests; TestClient/async tests need loopback sockets)
 - **Backend Lint**: 0 errors (`ruff check src/ tests/ scripts/`)
 - **Backend Type Check**: 0 errors (`mypy`)
 - **Frontend Build**: `tsc -b && vite build` clean
