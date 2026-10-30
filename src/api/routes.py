@@ -494,7 +494,7 @@ async def export_takeoff_csv(
     sheet_id: str | None = None,
     include_items: bool = False,
 ):
-    """Export standard Estimating / DesktopT compatible CSV takeoff file."""
+    """Export standard Estimating compatible CSV takeoff file."""
     csv_content = await store.export_csv(project_id=project_id, sheet_id=sheet_id, include_items=include_items)
     return Response(
         content=csv_content,

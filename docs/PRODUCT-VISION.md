@@ -5,7 +5,7 @@
 
 ## The product in one paragraph
 
-BlueTraceAI is a DesktopT-grade Windows takeoff application with an AI layer:
+BlueTraceAI is a professional-grade Windows takeoff application with an AI layer:
 an estimator drops in a drawing set and works the sheet itself — hovering to
 dimension, linking schedules to plan tags, asking questions in plain language —
 while deterministic geometry does the measuring and vision models do the

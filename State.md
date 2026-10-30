@@ -7,7 +7,7 @@
 - **Key decisions**:
   - 8 Developer Swarm Agents in `.opencode/agents/` (Lead Orchestrator, Vector Geometry Eng, Meta Model Eng, CAD Canvas Craftsman, Takeoff Domain Expert, Silent Failure Hunter, Anti-Slop UX QA, Desktop Packaging Eng).
   - Terminal Muse execution enabled via the `muse` CLI on PATH (machine-local install; absolute path intentionally not recorded).
-  - Comprehensive Knowledge Corpus in `docs/knowledge/` (SMACNA, ASHRAE, Title Blocks & Scales, ParseBench arXiv:2604.08538, Incumbent & DesktopT workflows).
+  - Comprehensive Knowledge Corpus in `docs/knowledge/` (SMACNA, ASHRAE, Title Blocks & Scales, ParseBench arXiv:2604.08538, incumbent takeoff workflows).
   - Research completed: BYOK Application Patterns (`RES-08`), 60 FPS CAD Canvas & Weave HIG (`RES-09`).
   - Scraper utility: `scripts/fetch_knowledge.py` with Obscura CDP engine support (:9222).
 

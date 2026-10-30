@@ -60,7 +60,7 @@
 
 | Law | Core Rule | BlueTraceAI Enforcement |
 |:---|:---|:---|
-| **Jakob's Law** | Users expect software to behave like tools they already know. | Follows industry-standard Desktop Tools / AutoCAD shortcuts: Space+Drag pan, Mouse Wheel zoom, Escape deselect, standard estimating table headers. |
+| **Jakob's Law** | Users expect software to behave like tools they already know. | Follows industry-standard CAD shortcuts: Space+Drag pan, Mouse Wheel zoom, Escape deselect, standard estimating table headers. |
 | **Visibility of System Status** | Always keep user informed about what is happening within reasonable time. | Top navigation surfaces live backend health, active Meta API model status (`muse-spark-1.3`, `sam-3.1`, `muse-wonder-1.0`), and scale calibration badges. |
 | **Doherty Threshold** | System response $<400$ ms keeps user attention and flow. | QuickDraw cursor hover crop processing runs in $<350$ ms; centerline vector math executes locally in $<50$ ms; streaming copilot yields initial tokens in $<600$ ms. |
 | **Postel's Law (Robustness)** | Be liberal in what you accept, conservative in what you produce. | VLM shape parser coerces loose casing and colloquial terms (`"circular"`, `"square"`, `"flat-oval"`) safely into canonical shapes; outputs strict fail-closed JSON. |

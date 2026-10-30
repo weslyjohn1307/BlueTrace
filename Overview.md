@@ -2,7 +2,7 @@
 
 ## 1. Problem Statement
 Commercial Mechanical, Electrical, and Plumbing (MEP) contractors bid on complex multi-million dollar projects under severe time constraints. Estimators manually review 50 to 500-page architectural and engineering drawing sets in PDF format.
-- Manual takeoff in legacy tools (e.g. PlanSwift, DesktopT) requires clicking every single duct segment, pipe fitting, and diffuser by hand, taking 40–80 hours per bid.
+- Manual takeoff in legacy desktop tools requires clicking every single duct segment, pipe fitting, and diffuser by hand, taking 40–80 hours per bid.
 - Pure AI / VLM batch processors fail because they hallucinate linear dimensions, misinterpret multi-scale sheets, or act as disconnected chatbots that don't ground their answers in the physical drawing.
 
 ## 2. Product Solution

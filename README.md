@@ -111,7 +111,7 @@ Full per-screen behaviour, including all five screen states (loading / empty / e
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Design decisions are recorded, not remembered: [ADR-001 hybrid architecture](docs/adr/ADR-001-hybrid-mep-architecture.md) · [ADR-002 offline-engine reuse](docs/adr/ADR-002-reusing-offline-engine-and-incumbent-ux.md) · [ADR-003 VLM replaces YOLO](docs/adr/ADR-003-vlm-detection-replaces-yolo.md).
+Design decisions are recorded, not remembered: [ADR-001 hybrid architecture](docs/adr/ADR-001-hybrid-mep-architecture.md) · [ADR-002 offline-engine reuse](docs/adr/ADR-002-reusing-offline-engine-and-point-of-need-ux.md) · [ADR-003 VLM replaces YOLO](docs/adr/ADR-003-vlm-detection-replaces-yolo.md).
 
 ## Quickstart
 

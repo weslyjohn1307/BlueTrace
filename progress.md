@@ -35,7 +35,7 @@
 - Next: Slice 0 fixtures + Slice 1 offline-core migration on user `go` (superseded: slices executed, see below).
 
 ## 2026-10-30: Standalone packaging research (RES-06)
-- Researched feasible paths to ship BlueTrace as a DesktopT-style standalone Windows app (user request).
+- Researched feasible paths to ship BlueTrace as a desktop-style standalone Windows app (user request).
 - Consensus from production apps + Tauri/electron-builder docs: desktop shell + PyInstaller-frozen FastAPI sidecar.
 - Recommended Electron + sidecar (P0 portable ZIP → P1 NSIS → P2 signed/auto-update); Tauri as fallback, pywebview for spikes only.
 - Flagged PyMuPDF AGPL/commercial licensing checkpoint before any paid distribution.

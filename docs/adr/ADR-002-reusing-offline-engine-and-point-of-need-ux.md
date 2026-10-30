@@ -1,4 +1,4 @@
-# ADR-002: Reusing Offline Foundation & Evolving to Point-of-Need Multi-Agent Architecture (Incumbent-Style UX)
+# ADR-002: Reusing Offline Foundation & Evolving to Point-of-Need Multi-Agent Architecture
 
 ## Status
 Accepted
@@ -15,7 +15,7 @@ In our predecessor engineering project (`D:\Imagineers`), we developed and valid
 
 However, the predecessor operated primarily as a **batch processor** (upload -> queue full-page background extraction -> view static numbers in a table).
 
-In the real world of mechanical estimating (exemplified by modern state-of-the-art tools like **Incumbent AI** at `https://incumbent.ai/`), estimators do not want to wait for slow full-sheet batch processing or interact with disconnected chat windows. **The drawing sheet is the interface**. Estimators need intelligence delivered directly at the point of need:
+In the real world of mechanical estimating (exemplified by modern state-of-the-art point-of-need takeoff tools), estimators do not want to wait for slow full-sheet batch processing or interact with disconnected chat windows. **The drawing sheet is the interface**. Estimators need intelligence delivered directly at the point of need:
 1. **QuickDraw**: Hovering near a duct run or holding a key (e.g., `Q`) renders a floating badge with one-click dimension application.
 2. **Scheduled Item Predictions**: Parsing equipment tables (diffusers, VAV boxes) and projecting candidate matches onto the floor plan with one-click accept/reject.
 3. **SheetScan**: Instantly recognizing sheet numbers, disciplines, and scale ratios on upload to build a navigable plan directory.

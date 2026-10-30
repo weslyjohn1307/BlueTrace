@@ -1,4 +1,4 @@
-# RES-06: Standalone Application Packaging (DesktopT-style + AI layer)
+# RES-06: Standalone Application Packaging (Desktop CAD Workstation + AI layer)
 
 > Researched 2026-10-30. Question: how do we ship BlueTrace as one installable
 > desktop app — offline PDF engine plus Meta AI agents — that an estimator can
@@ -8,7 +8,7 @@
 
 - Estimators work on Windows laptops, often on-site with bad network. A browser
   tab plus `uvicorn` plus `vite` is a demo, not a product.
-- DesktopT won this market as a fast local app. Our edge is the same local feel
+- Desktop CAD and markup tools won this market as fast local apps. Our edge is the same local feel
   plus AI agents (SheetScan, QuickDraw, schedule linking, copilot) that work on
   the PDF in front of the user.
 - Local-first also matches our architecture: vectors, scale math, and SQLite
@@ -124,7 +124,7 @@ Electron shell slips — never as the flagship.
 
 - Installed size: ~250–400 MB (Electron ~120 + frozen Python/PyMuPDF/torch-free
   deps ~100–200 + frontend ~10). Portable ZIP similar. Acceptable for a CAD
-  tool (DesktopT is larger).
+  tool (traditional CAD suites are larger).
 - Effort: P0 ~2–3 days, P1 ~1–2 weeks, P2 ~1 week + cert procurement.
 - Money: code-signing cert (~$100–500/yr depending on OV/EV); CI minutes
   (GitHub-hosted Windows runners); Meta API spend stays on user keys.

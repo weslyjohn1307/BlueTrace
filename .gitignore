@@ -28,3 +28,7 @@ docs/meta_api/*.txt
 # Agent Scratch & Logs
 .muse/
 *.log
+
+# Internal-only research (third-party product material — never committed)
+internal-research/
+.scrape-cache/

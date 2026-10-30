@@ -18,7 +18,7 @@
 
 ### Scales (where estimates die)
 - Floor plans: 1/8"=1'-0" (large commercial), 1/4"=1'-0" (small), 3/16" compromise; enlarged plans/details up to 1-1/2"=1'. Site/civil use engineer scale; metric uses 1:100/1:50/1:20.
-- Failure modes: **multiple scales per sheet** (plan + details + risers, some NTS), wrong embedded scale in scanned PDFs, reduced ARCH D→C prints. Every scale region needs independent calibration. DesktopT doctrine: calibrate gridline-to-gridline, never trust printed scale.
+- Failure modes: **multiple scales per sheet** (plan + details + risers, some NTS), wrong embedded scale in scanned PDFs, reduced ARCH D→C prints. Every scale region needs independent calibration. Estimating doctrine: calibrate gridline-to-gridline, never trust printed scale.
 - **BlueTrace implication:** per-viewport scale detection with fail-closed `review_required` on conflict is the highest-leverage feature in the product (see §4).
 
 ### Symbols, tags, schedules
@@ -27,8 +27,8 @@
 - Tags are **foreign keys**: plan tag → schedule row → manufacturer model + CFM + accessories + labor. Schedules key on TAG (VAV schedule: max/min CFM, inlet, reheat, ESP, NC; diffuser schedule: neck/face, CFM, pattern, model). Schedules span sheets, continue across pages, and change by addendum.
 - **BlueTrace implication:** tag→schedule join is the product's second engine. Losing a tag breaks pricing even when the count is right.
 
-### Manual takeoff today (DesktopT / PlanSwift)
-- **Desktop Tools**: per-region calibration, Viewports for multi-scale sheets, Count + VisualSearch symbol find, measure tools, Markups List → Excel.
+### Manual takeoff today (Traditional Desktop PDF Viewers / PlanSwift)
+- **Standard Desktop Takeoff Tools**: per-region calibration, viewports for multi-scale sheets, count + symbol-search find, measure tools, markups list → spreadsheet.
 - **PlanSwift**: point-and-click digitizing, assemblies/formulas (duct run auto-adds hangers), trade templates, overlay compare.
 - Both still force the estimator to read legends, calibrate every viewport, classify every symbol/run, hand-link tags to schedules, and re-check addenda. Hours go to counting and measuring, not pricing. That manual core is what we automate.
 
@@ -36,7 +36,7 @@
 
 | Product | What it automates |
 |---|---|
-| Desktop Tools | Manual digital takeoff: calibrated measure/count, VisualSearch, markups-to-Excel; estimator classifies everything |
+| Standard Desktop Takeoff Tools | Manual digital takeoff: calibrated measure/count, symbol search, markups-to-spreadsheet; estimator classifies everything |
 | PlanSwift | Manual 2D digitizing with assemblies/formulas and trade templates; no auto-detect |
 | STACK | Cloud takeoff + estimating with AI-accelerated measure/count and bid management |
 | Autodesk Takeoff / ACC | 2D + 3D (Revit/BIM) takeoff synced to cost; quantities from model objects + sheets |
@@ -51,7 +51,7 @@
 | ConWize | Tender-phase bidding platform: pipeline, sub-bid automation, analytics |
 | eTakeoff Dimension (+ SnapAI) | Veteran Windows takeoff with AI-assisted auto-count/measure |
 
-Nobody owns the combination we target: **local-first deterministic geometry + legend-grounded VLM + estimator-in-the-loop review on the sheet itself.** Cloud auto-takeoff tools (Togal, Kreo, STACK) black-box the quantities; services (Beam) are slow loops; manual tools (DesktopT, PlanSwift) automate nothing.
+Nobody owns the combination we target: **local-first deterministic geometry + legend-grounded VLM + estimator-in-the-loop review on the sheet itself.** Cloud auto-takeoff tools (Togal, Kreo, STACK) black-box the quantities; services (Beam) are slow loops; manual tools (PlanSwift, legacy PDF markup tools) automate nothing.
 
 ## 3. Methods & papers that matter
 

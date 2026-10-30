@@ -28,6 +28,22 @@ FORBIDDEN_PATTERNS = [
     re.compile(r'ctd[-_]', re.IGNORECASE),
 ]
 
+# Third-party product/trademark patterns (copyright guard): forbidden in every
+# tracked file — docs, code, filenames — without exception. Competitor research
+# belongs in internal-research/ (gitignored, never committed); only scrubbed,
+# generic derivatives may enter the repo. Guard definition files are exempt by
+# name (GUARD_SELF_FILES) because they must spell the patterns to enforce them.
+TRADEMARK_FORBIDDEN_PATTERNS = [
+    re.compile(r'incumbent', re.IGNORECASE),
+    re.compile(r'desktopt', re.IGNORECASE),
+    re.compile(r'\btool\b', re.IGNORECASE),
+]
+TRADEMARK_FILENAME_TOKENS = ('incumbent', 'desktopt', 'tool')
+
+# Files that define the guard itself and therefore legitimately contain the
+# forbidden literals as patterns/test data.
+GUARD_SELF_FILES = {'sanitize_import.py', 'test_sanitizer_guard.py'}
+
 # Product-surface patterns: forbidden in shipped UI code (docs may discuss history).
 UI_FORBIDDEN_PATTERNS = [
     re.compile(r'\bImagineers\b', re.IGNORECASE),
@@ -49,7 +65,10 @@ CODE_DIRS = ('src/', 'frontend/src/', 'frontend/tests/', 'configs/', 'tests/', '
 
 IGNORED_DIRS = {
     '.git', 'node_modules', '.venv', '__pycache__', 'dist', 'build', '.pytest_cache',
-    'meta_api', 'meta-model-cookbook', 'meta-oss-cookbook', 'ECC', 'docs/meta_api', 'docs/research/ECC'
+    'meta_api', 'meta-model-cookbook', 'meta-oss-cookbook', 'ECC', 'docs/meta_api', 'docs/research/ECC',
+    # Internal-only research sanctuary: may discuss third-party products, is
+    # gitignored, and must never be committed (see internal-research/README.md).
+    'internal-research', '.scrape-cache',
 }
 IGNORED_FILES = {
     'AUDIT-2026-10-30-antigravity-slices-0-5.md',
@@ -72,7 +91,7 @@ def sanitize_text(text: str) -> tuple[str, int]:
 
 def audit_file(file_path: Path) -> list[tuple[int, str]]:
     """Checks a file for any forbidden tokens and returns list of (line_num, line)."""
-    if "sanitize_import.py" in str(file_path):
+    if file_path.name in GUARD_SELF_FILES:
         return []
     violations = []
     try:
@@ -86,7 +105,8 @@ def audit_file(file_path: Path) -> list[tuple[int, str]]:
         )
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             for idx, line in enumerate(f, 1):
-                patterns = list(FORBIDDEN_PATTERNS)
+                # Trademark guard applies to every file, every scope, no exemptions.
+                patterns = list(FORBIDDEN_PATTERNS) + list(TRADEMARK_FORBIDDEN_PATTERNS)
                 if is_ui_file and not is_test_file:
                     patterns += UI_FORBIDDEN_PATTERNS
                 if is_code_file:
@@ -105,6 +125,12 @@ def audit_directory(root_dir: Path) -> int:
     total_violations = 0
     for path in root_dir.rglob('*'):
         if any(ignored in path.parts for ignored in IGNORED_DIRS) or path.name in IGNORED_FILES:
+            continue
+        # Filename guard: a forbidden token in a path is a violation even if
+        # the file's contents are clean (e.g. renamed-but-unscrubbed docs).
+        if path.is_file() and any(tok in path.name.lower() for tok in TRADEMARK_FILENAME_TOKENS):
+            print(f"\n[VIOLATION] in {path.relative_to(root_dir)}: forbidden token in filename")
+            total_violations += 1
             continue
         if path.is_file() and path.suffix in SCANNABLE_EXTS:
             violations = audit_file(path)

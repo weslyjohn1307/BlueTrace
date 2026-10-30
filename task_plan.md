@@ -18,7 +18,7 @@
 - [x] RES-09: 60 FPS CAD Canvas Architecture & Weave Design HIG (`docs/research/RES-09-UI-COMPONENTS-AND-WEAVE-HIG.md`)
 - [x] SWARM-01: Scaffold 8 Developer Swarm Agents in `.opencode/agents/` (Lead, Vector, Meta, Canvas, Takeoff, Silent Hunter, UX QA, Desktop)
 - [x] SWARM-02: Antigravity Workspace Harness in `.agents/` (Hooks, Rules, Skills)
-- [x] KNOW-01: Domain Knowledge Corpus in `docs/knowledge/` (SMACNA, Title Blocks & Scales, ParseBench arXiv:2604.08538, Incumbent & DesktopT)
+- [x] KNOW-01: Domain Knowledge Corpus in `docs/knowledge/` (SMACNA, Title Blocks & Scales, ParseBench arXiv:2604.08538, incumbent takeoff workflows)
 - [x] TOOL-01: Knowledge Scraper & Obscura CDP Utility (`scripts/fetch_knowledge.py`)
 - [x] CLI-01: Terminal Muse CLI execution verified (`muse` on PATH; machine-local path not recorded)
 - [x] SPEC-01: Root Project Constitutions (`AGENTS.md` and `CLAUDE.md`, strictly < 200 lines)
