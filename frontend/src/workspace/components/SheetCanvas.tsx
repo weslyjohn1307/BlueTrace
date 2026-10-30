@@ -1,5 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  MousePointer,
+  Hand,
+  Crosshair,
+  Scan,
+  Ruler,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Activity,
+} from 'lucide-react';
+import {
   calculateFitTransform,
   panByScreenDelta,
   screenPointToPagePoint,
@@ -7,6 +18,10 @@ import {
   type Point,
   type TransformState,
 } from '../../utils/transform';
+import { LaserScanLoader } from './LaserScanLoader';
+import { apiClient } from '../../api/client';
+
+export type ToolMode = 'select' | 'pan' | 'quickdraw' | 'segment' | 'calibrate';
 
 export interface CanvasPin {
   id: string;
@@ -17,6 +32,15 @@ export interface CanvasPin {
   label?: string;
 }
 
+export interface SegmentedPolygon {
+  id: string;
+  points: [number, number][];
+  centroid: [number, number];
+  areaSqFt?: number;
+  confidence: number;
+  label: string;
+}
+
 export interface SheetCanvasProps {
   imageUrl: string;
   widthPt: number;
@@ -25,6 +49,8 @@ export interface SheetCanvasProps {
   cropEnabled: boolean;
   onCropRequest: (cursorPt: [number, number], imageBase64: string) => void;
   renderBadge?: (screen: Point, pagePt: [number, number]) => React.ReactNode;
+  scaleRatio?: number;
+  discipline?: string;
 }
 
 const PIN_COLORS: Record<CanvasPin['kind'], string> = {
@@ -45,6 +71,8 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   cropEnabled,
   onCropRequest,
   renderBadge,
+  scaleRatio,
+  discipline = 'MEP-HVAC',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -52,6 +80,11 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   const [cursor, setCursor] = useState<{ screen: Point; page: Point } | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [toolMode, setToolMode] = useState<ToolMode>('quickdraw');
+  const [segmentedPolygons, setSegmentedPolygons] = useState<SegmentedPolygon[]>([]);
+  const [isSegmenting, setIsSegmenting] = useState(false);
+
+  const spacePressedRef = useRef(false);
   const panningRef = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cursorRef = useRef<{ screen: Point; page: Point } | null>(null);
@@ -71,6 +104,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
     setImgLoaded(false);
     setImgError(false);
     setCursor(null);
+    setSegmentedPolygons([]);
     fitToContainer();
   }, [imageUrl, fitToContainer]);
 
@@ -147,6 +181,67 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
     hoverTimerRef.current = setTimeout(fireCrop, HOVER_DEBOUNCE_MS);
   }, [fireCrop]);
 
+  const handleSegmentClick = async (pagePoint: Point) => {
+    if (isSegmenting || !imgLoaded) return;
+    const base64 = captureCrop(pagePoint);
+    if (!base64) return;
+
+    setIsSegmenting(true);
+    try {
+      const resp = await apiClient.segmentConcept(base64, 'mechanical equipment boundary');
+      if (resp && resp.polygons && resp.polygons.length > 0) {
+        const halfPt = CROP_WINDOW_PT / 2;
+        const originX = pagePoint.x - halfPt;
+        const originY = pagePoint.y - halfPt;
+
+        // Map first returned polygon from crop pixel space (312px) to page point space
+        const rawPoly = resp.polygons[0];
+        const mappedPts: [number, number][] = rawPoly.map(([px, py]) => [
+          originX + (px / CROP_OUTPUT_PX) * CROP_WINDOW_PT,
+          originY + (py / CROP_OUTPUT_PX) * CROP_WINDOW_PT,
+        ]);
+
+        // Calculate polygon centroid
+        let sumX = 0;
+        let sumY = 0;
+        for (const [x, y] of mappedPts) {
+          sumX += x;
+          sumY += y;
+        }
+        const cx = sumX / mappedPts.length;
+        const cy = sumY / mappedPts.length;
+
+        // Calculate area in pt^2 via Shoelace formula
+        let areaPt2 = 0;
+        for (let i = 0; i < mappedPts.length; i++) {
+          const [x1, y1] = mappedPts[i];
+          const [x2, y2] = mappedPts[(i + 1) % mappedPts.length];
+          areaPt2 += x1 * y2 - x2 * y1;
+        }
+        areaPt2 = Math.abs(areaPt2) / 2;
+
+        // Convert to sq ft if scale ratio is known
+        const areaSqFt = scaleRatio && scaleRatio > 0 ? areaPt2 * (scaleRatio * scaleRatio) : undefined;
+
+        setSegmentedPolygons((prev) => [
+          ...prev,
+          {
+            id: `seg-${Date.now()}`,
+            points: mappedPts,
+            centroid: [cx, cy],
+            areaSqFt,
+            confidence: resp.confidence ?? 0.95,
+            label: resp.concept || 'Equipment Segment',
+          },
+        ]);
+      }
+    } catch {
+      // Fail closed gracefully
+    } finally {
+      setIsSegmenting(false);
+    }
+  };
+
   const handleMouseMove = (e: React.MouseEvent) => {
     const el = containerRef.current;
     if (!el) return;
@@ -165,11 +260,24 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
     }
     const page = screenPointToPagePoint(screen, transformRef.current);
     setCursor({ screen, page });
-    if (cropEnabled && imgLoaded) scheduleHoverCrop();
+    if (cropEnabled && imgLoaded && (toolMode === 'quickdraw' || toolMode === 'select')) {
+      scheduleHoverCrop();
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 1) return;
+    if (toolMode === 'pan' || spacePressedRef.current || e.button === 1) {
+      panningRef.current = { startX: e.clientX, startY: e.clientY, moved: false };
+      return;
+    }
+
+    if (toolMode === 'segment' && cursorRef.current) {
+      void handleSegmentClick(cursorRef.current.page);
+      return;
+    }
+
+    // Default drag-to-pan in general workspace
     panningRef.current = { startX: e.clientX, startY: e.clientY, moved: false };
   };
 
@@ -184,10 +292,58 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.key === 'q' || e.key === 'Q') && cursorRef.current) {
-      e.preventDefault();
-      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-      fireCrop();
+    if (e.key === ' ' && !spacePressedRef.current) {
+      spacePressedRef.current = true;
+    } else if (e.key === 'v' || e.key === 'V') {
+      setToolMode('select');
+    } else if (e.key === 'h' || e.key === 'H') {
+      setToolMode('pan');
+    } else if (e.key === 'q' || e.key === 'Q') {
+      setToolMode('quickdraw');
+      if (cursorRef.current) {
+        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        fireCrop();
+      }
+    } else if (e.key === 's' || e.key === 'S') {
+      setToolMode('segment');
+    } else if (e.key === 'c' || e.key === 'C') {
+      setToolMode('calibrate');
+    } else if (e.key === '0') {
+      fitToContainer();
+    } else if (e.key === '+' || e.key === '=') {
+      const el = containerRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setTransform((prev) => zoomAroundScreenAnchor(prev, { x: rect.width / 2, y: rect.height / 2 }, prev.scale * 1.25));
+      }
+    } else if (e.key === '-' || e.key === '_') {
+      const el = containerRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setTransform((prev) => zoomAroundScreenAnchor(prev, { x: rect.width / 2, y: rect.height / 2 }, prev.scale / 1.25));
+      }
+    }
+  };
+
+  const handleKeyUp = (e: React.KeyboardEvent) => {
+    if (e.key === ' ') {
+      spacePressedRef.current = false;
+    }
+  };
+
+  const zoomIn = () => {
+    const el = containerRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      setTransform((prev) => zoomAroundScreenAnchor(prev, { x: rect.width / 2, y: rect.height / 2 }, prev.scale * 1.25));
+    }
+  };
+
+  const zoomOut = () => {
+    const el = containerRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      setTransform((prev) => zoomAroundScreenAnchor(prev, { x: rect.width / 2, y: rect.height / 2 }, prev.scale / 1.25));
     }
   };
 
@@ -206,17 +362,143 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
       onKeyDown={handleKeyDown}
+      onKeyUp={handleKeyUp}
     >
+      {/* Laser Scan Loading Experience */}
       {!imgLoaded && !imgError && (
-        <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
-          Rendering sheet…
-        </div>
+        <LaserScanLoader
+          label="SYS.CAD // RASTERIZING_VECTOR_LAYERS"
+          sublabel="Aligning 150 DPI viewport & vector geometry..."
+          discipline={discipline}
+        />
       )}
+
       {imgError && (
-        <div className="absolute inset-0 flex items-center justify-center text-rose-400 text-sm px-6 text-center">
+        <div className="absolute inset-0 flex items-center justify-center text-rose-400 text-sm px-6 text-center font-mono">
           Could not render this sheet. Re-scan or pick another page.
         </div>
       )}
+
+      {/* Floating CAD HUD Dock */}
+      {imgLoaded && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 rounded-xl px-2 py-1 shadow-[0_8px_32px_rgba(0,0,0,0.6)] space-x-1 select-none">
+          <button
+            type="button"
+            title="Select & Inspect [V]"
+            onClick={() => setToolMode('select')}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+              toolMode === 'select'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <MousePointer className="w-3.5 h-3.5" />
+            <span>Select</span>
+          </button>
+
+          <button
+            type="button"
+            title="Pan Canvas [H or Space+drag]"
+            onClick={() => setToolMode('pan')}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+              toolMode === 'pan'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <Hand className="w-3.5 h-3.5" />
+            <span>Pan</span>
+          </button>
+
+          <button
+            type="button"
+            title="QuickDraw Duct Dimension Hover [Q]"
+            onClick={() => setToolMode('quickdraw')}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+              toolMode === 'quickdraw'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
+            <span>QuickDraw</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          </button>
+
+          <button
+            type="button"
+            title="SAM 3.1 Room & Boundary Segmenter [S]"
+            onClick={() => setToolMode('segment')}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+              toolMode === 'segment'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <Scan className="w-3.5 h-3.5 text-emerald-400" />
+            <span>SAM 3.1</span>
+            {isSegmenting && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
+          </button>
+
+          <button
+            type="button"
+            title="Scale Calibration Ruler [C]"
+            onClick={() => setToolMode('calibrate')}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+              toolMode === 'calibrate'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <Ruler className="w-3.5 h-3.5 text-amber-400" />
+            <span>Calibrate</span>
+          </button>
+
+          <div className="w-[1px] h-4 bg-slate-700/80 mx-1" />
+
+          <button
+            type="button"
+            title="Zoom Out [-]"
+            onClick={zoomOut}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 cursor-pointer"
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+
+          <span className="text-[11px] font-mono text-cyan-400 px-1 font-semibold">
+            {(transform.scale * 100).toFixed(0)}%
+          </span>
+
+          <button
+            type="button"
+            title="Zoom In [+]"
+            onClick={zoomIn}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 cursor-pointer"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            title="Fit to Window [0]"
+            onClick={fitToContainer}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 cursor-pointer"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Top Right Live Telemetry Chip */}
+      {imgLoaded && (
+        <div className="absolute top-3 right-3 z-30 hidden sm:flex items-center space-x-2 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-lg px-2.5 py-1 text-[10px] font-mono select-none">
+          <Activity className="w-3 h-3 text-emerald-400 animate-pulse" />
+          <span className="text-slate-300">MUSE-SPARK-1.3</span>
+          <span className="text-slate-600">|</span>
+          <span className="text-cyan-400">SAM-3.1 ACTIVE</span>
+        </div>
+      )}
+
       <img
         ref={imgRef}
         src={imageUrl}
@@ -243,6 +525,31 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
         viewBox={`0 0 ${widthPt} ${heightPt}`}
         aria-hidden="true"
       >
+        {/* Render SAM 3.1 Segmented Polygons */}
+        {segmentedPolygons.map((sp) => (
+          <g key={sp.id} className="animate-fade-in">
+            <polygon
+              points={sp.points.map(([x, y]) => `${x},${y}`).join(' ')}
+              fill="rgba(16, 185, 129, 0.18)"
+              stroke="#10B981"
+              strokeWidth={2}
+              strokeDasharray="4 2"
+            />
+            <circle cx={sp.centroid[0]} cy={sp.centroid[1]} r={4} fill="#10B981" />
+            <text
+              x={sp.centroid[0] + 8}
+              y={sp.centroid[1] + 4}
+              fill="#34D399"
+              fontSize={13}
+              fontFamily="monospace"
+              fontWeight="bold"
+            >
+              SAM 3.1 // {sp.areaSqFt ? `${sp.areaSqFt.toFixed(1)} sq ft` : 'Boundary'}
+            </text>
+          </g>
+        ))}
+
+        {/* CAD Takeoff & Ghost Pins */}
         {pins.map((pin) => (
           <g key={pin.id}>
             <circle
@@ -261,6 +568,8 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             )}
           </g>
         ))}
+
+        {/* CAD Precision Crosshair Lines */}
         {cursor && (
           <g stroke="#22D3EE" strokeWidth={1} opacity={0.6}>
             <line x1={cursor.page.x} y1={0} x2={cursor.page.x} y2={heightPt} />
@@ -269,10 +578,24 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
         )}
       </svg>
 
-      <div className="absolute bottom-2 left-2 text-[10px] font-mono text-slate-400 bg-slate-900/80 px-2 py-1 rounded border border-slate-800">
-        {cursor
-          ? `PDF ${cursor.page.x.toFixed(1)}, ${cursor.page.y.toFixed(1)} pt · ${(transform.scale * 100).toFixed(0)}%`
-          : `${(transform.scale * 100).toFixed(0)}% · hover or press Q to dimension`}
+      {/* Bottom Status & Coordinate Telemetry */}
+      <div className="absolute bottom-2 left-2 z-30 text-[10px] font-mono text-slate-400 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-md border border-slate-800 flex items-center space-x-3 select-none">
+        <span className="flex items-center space-x-1.5 text-cyan-400 font-semibold">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+          <span>TOOL: {toolMode.toUpperCase()}</span>
+        </span>
+        <span className="text-slate-600">|</span>
+        <span>
+          {cursor
+            ? `PDF ${cursor.page.x.toFixed(1)}, ${cursor.page.y.toFixed(1)} pt`
+            : `${(transform.scale * 100).toFixed(0)}% zoom`}
+        </span>
+        <span className="text-slate-600">|</span>
+        <span className="text-slate-500">
+          {toolMode === 'segment'
+            ? 'Click equipment boundary to segment with SAM 3.1'
+            : 'Hover / [Q] dimension · [H] pan · [0] fit'}
+        </span>
       </div>
 
       {cursor && renderBadge && renderBadge(cursor.screen, [cursor.page.x, cursor.page.y])}

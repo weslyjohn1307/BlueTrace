@@ -171,6 +171,8 @@ export const TakeoffWorkspace: React.FC = () => {
                 heightPt={activeSheet.meta.height_pt}
                 pins={[...itemPins, ...ghostPins, ...evidencePins]}
                 cropEnabled={true}
+                scaleRatio={activeSheet.meta.scale_ratio ?? undefined}
+                discipline={activeSheet.meta.discipline}
                 onCropRequest={(pt, b64) => void handleCrop(pt, b64)}
                 renderBadge={(screen) =>
                   badge ? (
