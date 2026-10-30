@@ -1,10 +1,15 @@
 # BlueTraceAI: Living Workspace State (State.md)
 
-## Current Status: Continuation of D:\Imagineers (offline core) + Meta Online Layer
-- **Active Phase**: R-1 migration done (single `/api` flow, legacy UI deleted); pre-demo packaging next. Direction: `docs/CONTINUATION-PLAN.md`; real flows: `docs/specs/UI-UX-FLOWS.md`; vision: `docs/PRODUCT-VISION.md`.
-- **Baseline Date**: 2026-10-30 (re-audit remediation finished; see `docs/FIXLOG-2026-10-30-reaudit-remediation.md`)
-- **Predecessor**: `D:\Imagineers` verified read-only (level2 engine, backend, viewer, 65 test files, training dataset).
-- **Key decisions**: VLM detection replaces YOLO (`docs/adr/ADR-003-*`); BYOK server-side-only & session-scoped (`docs/specs/BYOK-SECURE-INTERFACE.md`); Q&A in `Questions.md` (all answered).
+## Current Status: Multi-Agent Harness, Knowledge Base & Pre-Demo Preparation
+- **Active Phase**: Multi-Agent Developer Swarm (.opencode/ + .agents/) & Knowledge Base initialized. Direction: `docs/CONTINUATION-PLAN.md`; flows: `docs/specs/UI-UX-FLOWS.md`; vision: `docs/PRODUCT-VISION.md`.
+- **Baseline Date**: 2026-10-30 (Harness, Research & Knowledge Corpus completed)
+- **Predecessor**: `D:\Imagineers` verified read-only (offline vector core).
+- **Key decisions**:
+  - 8 Developer Swarm Agents in `.opencode/agents/` (Lead Orchestrator, Vector Geometry Eng, Meta Model Eng, CAD Canvas Craftsman, Takeoff Domain Expert, Silent Failure Hunter, Anti-Slop UX QA, Desktop Packaging Eng).
+  - Terminal Muse execution enabled via the `muse` CLI on PATH (machine-local install; absolute path intentionally not recorded).
+  - Comprehensive Knowledge Corpus in `docs/knowledge/` (SMACNA, ASHRAE, Title Blocks & Scales, ParseBench arXiv:2604.08538, Incumbent & DesktopT workflows).
+  - Research completed: BYOK Application Patterns (`RES-08`), 60 FPS CAD Canvas & Weave HIG (`RES-09`).
+  - Scraper utility: `scripts/fetch_knowledge.py` with Obscura CDP engine support (:9222).
 
 ---
 
