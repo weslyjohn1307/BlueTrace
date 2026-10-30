@@ -13,7 +13,7 @@
   - `User_flows.md`: 5 mandatory screen states (Loading, Empty, Error, Success, Offline).
   - `DESIGN.md`: High-density engineering UI contract, OKLCH tokens, 10-point anti-slop rules.
   - `docs/adr/ADR-001-hybrid-mep-architecture.md`: Architecture decision record for hybrid division.
-  - `docs/research/RES-04-CTD2026-MEP-AGENTIC-ARCHITECTURE.md`: ParseBench analysis and 4 bounded agent roles.
+  - `docs/research/RES-04-MEP-AGENTIC-ARCHITECTURE.md`: ParseBench analysis and 4 bounded agent roles.
   - `docs/research/RES-05-DETERMINISTIC-VECTOR-GEOMETRY-SCALE.md`: Vector extraction and fail-closed scale verification.
 - Initialized Manus-style persistent memory: `task_plan.md`, `findings.md`, `progress.md`, `State.md`, `prd.json`.
 

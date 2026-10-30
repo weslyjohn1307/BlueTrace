@@ -6,7 +6,7 @@
 - [x] RES-01: Meta Model API Interface Specifications (`docs/research/RES-01-META-MODEL-INTERFACES.md`)
 - [x] RES-02: Point-of-Need Viewport & Cursor Crop UX (`docs/research/RES-02-POINT-OF-NEED-UX.md`)
 - [x] RES-03: Schedule Table Extraction & Entity Linking (`docs/research/RES-03-SCHEDULE-TO-PLAN-LINKING.md`)
-- [x] RES-04: CTD 2026 MEP Design AI & ParseBench Architecture (`docs/research/RES-04-CTD2026-MEP-AGENTIC-ARCHITECTURE.md`)
+- [x] RES-04: BlueTraceAI MEP Agentic Architecture & ParseBench (`docs/research/RES-04-MEP-AGENTIC-ARCHITECTURE.md`)
 - [x] RES-05: Deterministic Vector Linework & Scale Integrity (`docs/research/RES-05-DETERMINISTIC-VECTOR-GEOMETRY-SCALE.md`)
 - [x] SPEC-01: Root Project Constitutions (`AGENTS.md` and `CLAUDE.md`, strictly < 200 lines)
 - [x] SPEC-02: Product Requirements Document (`Overview.md`)

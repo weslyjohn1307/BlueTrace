@@ -8,7 +8,7 @@
   - Defined coordinate matrix transformations (screen CSS -> PDF pt -> 150 DPI render) and 300x300 px crop specs.
 - [x] **RES-03**: Schedule Table Extraction & Entity Linking (`docs/research/RES-03-SCHEDULE-TO-PLAN-LINKING.md`)
   - Defined equipment schedule JSON schema and plan spatial index heuristics.
-- [x] **RES-04**: CTD 2026 MEP Design AI & ParseBench Architecture (`docs/research/RES-04-CTD2026-MEP-AGENTIC-ARCHITECTURE.md`)
+- [x] **RES-04**: BlueTraceAI MEP Agentic Architecture & ParseBench (`docs/research/RES-04-MEP-AGENTIC-ARCHITECTURE.md`)
   - Document the 4 bounded agent roles and "read cheaply first, reason visually selectively" principle.
 - [x] **RES-05**: Deterministic Vector Linework & Scale Integrity (`docs/research/RES-05-DETERMINISTIC-VECTOR-GEOMETRY-SCALE.md`)
   - Document PyMuPDF vector path extraction, double-line duct centerline tracing, and fail-closed scale verification.

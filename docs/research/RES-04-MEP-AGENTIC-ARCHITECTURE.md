@@ -1,4 +1,4 @@
-# RES-04: CTD 2026 MEP Design AI Architecture & ParseBench Analysis
+# RES-04: BlueTraceAI MEP Design Architecture & ParseBench Analysis
 
 ## 1. Executive Summary & Context
 
