@@ -1382,8 +1382,8 @@ def _extract_fixture_id(candidate: dict[str, Any]) -> str:
     if len(parts) >= 5 and parts[0] == "CAND" and parts[1] == "FIX":
         return "-".join(parts[1:5])
     if candidate.get("discipline") == "mechanical":
-        return "FIX-TRN-MECH-022"
-    return "FIX-TRN-PLUM-105"
+        return "avexis_page_22"
+    return "p104_1_plumbing_level4"
 
 
 def classify_representation(

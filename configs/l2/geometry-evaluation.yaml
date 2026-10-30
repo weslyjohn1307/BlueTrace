@@ -1,0 +1,39 @@
+schema_version: "1.0.0"
+task_id: "L2-05"
+
+evidence_classification:
+  TRAINING_FIXTURE_DEVELOPMENT_EVIDENCE
+
+coordinate_space:
+  PDF_USER_SPACE_POINTS
+
+reference_comparison:
+  primary_distance_tolerance_pt: 1.0
+  secondary_distance_tolerance_pt: 2.0
+  sampling_step_pt: 0.5
+  endpoint_order_invariant: true
+  exact_duplicate_reference_reporting: true
+  reversed_duplicate_reference_reporting: true
+
+reference_connectivity_diagnostic:
+  enabled_for_plumbing: true
+  endpoint_tolerance_pt: 1.0
+  physical_connectivity_claim: false
+
+mechanical_adapter:
+  reference_meaning: SUPPLIED_BOUNDARY_OR_STROKE_EVIDENCE
+  direct_midpoint_to_boundary_recall_forbidden: true
+  require_both_source_boundaries_supported: true
+
+plumbing_adapter:
+  reference_meaning: SUPPLIED_SINGLE_LINE_PIPE_EVIDENCE
+  direct_path_comparison_allowed: true
+
+scale:
+  status: NOT_EVALUATED
+
+physical_length:
+  allowed: false
+  value: null
+
+testing_used: false

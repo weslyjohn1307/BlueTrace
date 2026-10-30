@@ -1,0 +1,155 @@
+# Route Representation Configuration — L2-03
+# Frozen before the first real representation run.
+# All thresholds are derived from OBSERVED L2-02 candidate population
+# (fixtures: avexis_page_22, p104_1_plumbing_level4; 12,547 candidates).
+# DO NOT modify without updating ADR evidence and re-running representation.
+
+# --- Evidence anchor ---
+# Input file: outputs/autonomous-execution/L2-02/preflight/semantic-candidates.jsonl
+# SHA-256:    514038a7f28bed3560bd1a18b2cafdb572e8dd8bdae4e73714abae1846c17662
+
+# =============================================================================
+# MECHANICAL DUCT BOUNDARY PARAMETERS
+# =============================================================================
+# Context: Mechanical candidates have three observed stroke widths:
+#   0.840 pt (1,368 segs) — duct outer boundary lines
+#   1.320 pt (4,484 segs) — duct boundary lines (primary population)
+#   2.160 pt (570 segs)   — fitting/transition connectors
+# Paired boundary heuristic is based on two anti-parallel (or co-parallel)
+# strokes at the same angle, at a perpendicular separation within duct-width range.
+mechanical:
+  # Stroke width bands that carry duct boundary geometry (from OBSERVED population)
+  boundary_stroke_widths_pt: [0.84, 1.32]   # excludes 2.16 (fittings)
+  fitting_stroke_widths_pt: [2.16]           # heavy connecting geometry
+
+  # Paired boundary detection: two segments are considered a boundary pair when:
+  #   1. Angle agreement within angle_tolerance_deg (undirected, 0-180 range)
+  #   2. Perpendicular offset between lines <= max_pair_separation_pt
+  #   3. Lateral overlap fraction >= min_overlap_fraction
+  #   4. Both segments have equal length within length_match_tolerance_pt
+  paired_boundary:
+    angle_tolerance_deg: 5.0        # degrees — tight for CAD-drafted geometry
+    max_pair_separation_pt: 80.0    # pt — physical duct max ~600mm at 1/8"=1' scale
+    min_pair_separation_pt: 2.0     # pt — minimum meaningful duct width
+    min_overlap_fraction: 0.50      # fraction — segments must share >50% projected length
+    length_match_tolerance_pt: 5.0  # pt — paired strokes may differ slightly at ends
+
+  # Centerline derivation: midpoint between paired boundaries
+  # State emitted: PAIRED_BOUNDARY_DERIVED
+  # When pair not resolvable: BOUNDARY_UNRESOLVED (individual boundaries)
+  # When fitting geometry only: BOUNDARY_UNRESOLVED
+  unresolved_state: "BOUNDARY_UNRESOLVED"
+
+  # Minimum segment length to participate in pairing (not a micro-sliver)
+  min_pairing_length_pt: 0.50
+
+  # Maximum closed-polygon perimeter to classify as NON_ROUTE (fittings that
+  # form a closed shape, e.g. circular damper symbols)
+  # NOTE: at L2-03 we do NOT connect geometry; closed-ring detection is
+  #       limited to shared-endpoint rings detectable from single candidates
+  closed_polygon_perimeter_max_pt: 200.0   # placeholder — not triggered without topology
+
+# =============================================================================
+# PLUMBING PIPE PARAMETERS
+# =============================================================================
+# Context: All plumbing candidates are 0.24 pt black strokes (single consistent value).
+# Plumbing is treated as SINGLE_LINE_ROUTE evidence — no paired boundary detection.
+# L2-02 already removed reversed/exact duplicates; the very-close parallel pairs
+# observed (2.6 pt separation) are double-stroked PDF artifacts of a single pipe
+# centre line and will be handled as SINGLE_LINE_ROUTE (each independently).
+plumbing:
+  pipe_stroke_width_pt: 0.24    # OBSERVED: only value present in L2-02 candidates
+
+  # State emitted for all plumbing candidates
+  default_state: "SINGLE_LINE_ROUTE"
+
+  # Plumbing does not perform paired boundary detection.
+  # Double-stroke close pairs (< close_pair_threshold_pt lateral offset) that
+  # represent the same pipe line are recorded as SINGLE_LINE_ROUTE per segment;
+  # downstream topology (L2-04+) will deduplicate if needed.
+  # close_pair_threshold_pt is for documentation only at L2-03.
+  close_pair_threshold_pt: 5.0   # pt — pairs closer than this are noted in provenance
+
+# =============================================================================
+# REPRESENTATION STATE ENUMERATION
+# =============================================================================
+# Every candidate lands in exactly one of these states (100% accountability).
+#
+# EXPLICIT_CENTERLINE      — A segment already drawn as a centerline by the drafter
+#                            (single-line, not paired). Plumbing primary state.
+# SINGLE_LINE_ROUTE        — Promoted single-line pipe/duct run evidence.
+#                            Functionally identical to EXPLICIT_CENTERLINE for output;
+#                            distinguished by source (discipline-known single-line route).
+# PAIRED_BOUNDARY_DERIVED  — Mechanical duct: two parallel boundary strokes resolved
+#                            to a centerline midpoint geometry. One fragment per pair.
+# BOUNDARY_UNRESOLVED      — Mechanical duct boundary line with no found pair.
+#                            Not yet paired; retained for downstream topology work.
+# NON_ROUTE                — Geometry determined to be a symbol, annotation, or
+#                            fitting outline that is not a route length contributor.
+# REVIEW_REQUIRED          — Ambiguous geometry that cannot be classified without
+#                            visual human inspection (e.g. diagonal splicing, curved segs).
+#
+representation_states:
+  - EXPLICIT_CENTERLINE
+  - SINGLE_LINE_ROUTE
+  - PAIRED_BOUNDARY_DERIVED
+  - BOUNDARY_UNRESOLVED
+  - NON_ROUTE
+  - REVIEW_REQUIRED
+
+# =============================================================================
+# DISCIPLINE-STATE MAPPING (authoritative default assignment)
+# =============================================================================
+discipline_defaults:
+  mechanical: "BOUNDARY_UNRESOLVED"   # until paired; then upgraded to PAIRED_BOUNDARY_DERIVED
+  plumbing: "SINGLE_LINE_ROUTE"       # all plumbing is single-line pipe evidence
+
+# =============================================================================
+# CURVE HANDLING
+# =============================================================================
+# Candidates with source_item_type == 'c' (Bézier chord approximation) are
+# treated as REVIEW_REQUIRED at L2-03 since the chord may not represent the
+# true arc path reliably for paired-boundary decisions.
+curve_source_state: "REVIEW_REQUIRED"
+
+# =============================================================================
+# MINIMUM LENGTH FOR ROUTE FRAGMENT EMISSION
+# =============================================================================
+# Discipline-specific minimum lengths.
+#
+# MECHANICAL: 0.50 pt — eliminates micro-slivers while retaining short fittings.
+#   Observed mechanical min segment = 0.11 pt (true sliver); median = 1.20-2.45 pt.
+#   0.50 pt is a conservative floor that retains all meaningful duct boundary strokes.
+#
+# PLUMBING: 0.12 pt — matches the OBSERVED minimum plumbing segment length.
+#   EXP-001 §8B: plumbing micro-segments start at 0.12 pt (sub-pixel at 150 DPI).
+#   The stroke_width is 0.24 pt; segments as short as 0.12 pt are legitimate pipe
+#   segments (half-stroke-width gap fillers, corner joints). Using 0.50 pt would
+#   incorrectly discard 91.2% of L2-02 plumbing candidates.
+#   Setting 0.10 pt provides a safe floor while retaining all observed plumbing segments.
+min_route_fragment_length_pt: 0.50          # pt — mechanical default
+min_route_fragment_length_plumbing_pt: 0.10 # pt — plumbing (EXP-001 §8B: micro-segs from 0.12 pt)
+
+# =============================================================================
+# STRATEGY SELECTION & RECONSTRUCTION PARAMETERS
+# =============================================================================
+strategy: "legacy_1to1"
+
+reconstruction:
+  corridor:
+    angle_tolerance_deg: 5.0
+    min_separation_pt: 2.0
+    max_separation_pt: 80.0
+    min_overlap_fraction: 0.30
+    ambiguity_distance_margin_pt: 8.0
+  single_line:
+    endpoint_gap_max_pt: 2.5
+    angle_tolerance_deg: 35.0
+
+# =============================================================================
+# CONFIG VERSION AND HASH ANCHOR
+# =============================================================================
+config_version: "1.1.0"
+task: "L2-03-PRODUCTION-INTEGRATION"
+frozen: true
+

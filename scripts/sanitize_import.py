@@ -6,12 +6,10 @@ Strictly detects, strips, and prevents any mentions of legacy naming (e.g. 'CTD'
 or writing to frontend/backend.
 """
 
-import os
-import sys
-import re
 import argparse
+import re
+import sys
 from pathlib import Path
-from typing import List, Tuple
 
 # Exact replacement mappings (ordered by specificity)
 REPLACEMENTS = [
@@ -30,11 +28,22 @@ FORBIDDEN_PATTERNS = [
     re.compile(r'ctd[-_]', re.IGNORECASE),
 ]
 
-IGNORED_DIRS = {'.git', 'node_modules', '.venv', '__pycache__', 'dist', 'build', '.pytest_cache'}
+UI_FORBIDDEN_PATTERNS = [
+    re.compile(r'\bImagineers\b', re.IGNORECASE),
+]
+
+IGNORED_DIRS = {
+    '.git', 'node_modules', '.venv', '__pycache__', 'dist', 'build', '.pytest_cache',
+    'meta_api', 'meta-model-cookbook', 'meta-oss-cookbook', 'ECC', 'docs/meta_api', 'docs/research/ECC'
+}
+IGNORED_FILES = {
+    'AUDIT-2026-10-30-antigravity-slices-0-5.md',
+    'AUDIT-2026-10-30-prompt-compliance.md',
+}
 SCANNABLE_EXTS = {'.py', '.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.html', '.css', '.toml', '.yaml', '.yml'}
 
 
-def sanitize_text(text: str) -> Tuple[str, int]:
+def sanitize_text(text: str) -> tuple[str, int]:
     """Replaces all forbidden legacy strings with clean BlueTrace equivalents."""
     modified_text = text
     replacement_count = 0
@@ -46,20 +55,22 @@ def sanitize_text(text: str) -> Tuple[str, int]:
     return modified_text, replacement_count
 
 
-def audit_file(file_path: Path) -> List[Tuple[int, str]]:
+def audit_file(file_path: Path) -> list[tuple[int, str]]:
     """Checks a file for any forbidden tokens and returns list of (line_num, line)."""
     violations = []
     try:
+        is_ui_file = "frontend/src" in str(file_path).replace("\\", "/")
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             for idx, line in enumerate(f, 1):
-                for pattern in FORBIDDEN_PATTERNS:
+                patterns = FORBIDDEN_PATTERNS + (UI_FORBIDDEN_PATTERNS if is_ui_file else [])
+                for pattern in patterns:
                     if pattern.search(line):
                         # Exclude this sanitizer script itself from self-flagging
                         if "sanitize_import.py" in str(file_path):
                             continue
                         violations.append((idx, line.strip()))
                         break
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         print(f"Warning: Failed to read {file_path}: {e}")
     return violations
 
@@ -68,14 +79,15 @@ def audit_directory(root_dir: Path) -> int:
     """Scans directory and returns total violations count."""
     total_violations = 0
     for path in root_dir.rglob('*'):
-        if any(ignored in path.parts for ignored in IGNORED_DIRS):
+        if any(ignored in path.parts for ignored in IGNORED_DIRS) or path.name in IGNORED_FILES:
             continue
         if path.is_file() and path.suffix in SCANNABLE_EXTS:
             violations = audit_file(path)
             if violations:
                 print(f"\n[VIOLATION] in {path.relative_to(root_dir)}:")
                 for line_num, line in violations[:5]:
-                    print(f"   L{line_num}: {line}")
+                    safe_line = line.encode('ascii', errors='replace').decode('ascii')
+                    print(f"   L{line_num}: {safe_line}")
                 total_violations += len(violations)
     return total_violations
 

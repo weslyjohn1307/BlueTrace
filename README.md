@@ -57,7 +57,7 @@ Rather than treating plan review as a static, disconnected batch extraction job,
    - One-click zero-shot polygon boundary segmentation for rooms, zones, and equipment footprints using Meta's `sam-3.1`.
 5. **Deterministic Linear Linework Engine (Offline Core)**
    - Sub-pixel native PDF vector extraction and paired double-line duct centerline tracing to ensure takeoff footages remain mathematically exact. Never guess or hallucinate dimensions.
-6. **Conversational Estimating Copilot (Cooper-Style)**
+6. **Conversational Estimating Copilot (Natural Language Takeoff Assistant)**
    - Natural language drawing interrogation and takeoff calculations powered by `muse-wonder-1.0` with structured tool calling and highlighted coordinate pins.
 
 ---
@@ -96,18 +96,23 @@ python scripts/sanitize_import.py --import-file /path/to/source.py src/target.py
 
 ```text
 bluetrace-ai/
+├── configs/                   # Routing thresholds and classification rules
 ├── docs/                      # Architectural specs, research, and design guides
-│   ├── adr/                   # Architecture Decision Records (ADR-001, ADR-002)
+│   ├── adr/                   # Architecture Decision Records (ADR-001, ADR-002, ADR-003)
 │   ├── hackathon/             # Hackathon rules, tracks, and submission guidelines
-│   └── research/              # Dedicated research investigations (RES-01 to RES-05)
+│   ├── meta_api/              # Curated Meta Model API documentation & index
+│   ├── research/              # Dedicated research investigations (RES-01 to RES-05)
+│   └── specs/                 # Technical specifications (BYOK, Point-of-Need UX)
+├── fixtures/                  # Ground-truth MEP blueprint test sheets & annotations
 ├── frontend/                  # React 19 interactive canvas application
 ├── scripts/                   # Sanitization guardian and tooling scripts
 │   └── sanitize_import.py     # Anti-leak validator & clean-importer
 ├── src/                       # FastAPI backend & core algorithms
-│   ├── api/                   # REST & streaming endpoints
+│   ├── api/                   # REST endpoints & request contracts
 │   ├── core_vector/           # Deterministic vector linework & scale engine
 │   ├── meta_services/         # Meta Model API integration layer
-│   └── models/                # Pydantic v2 domain schemas
+│   ├── models/                # Pydantic v2 domain schemas
+│   └── store/                 # SQLite transactional takeoff store & rollup
 ├── tests/                     # Automated unit and integration test suite
 ├── PLAN.md                    # Capability-based milestone roadmap
 ├── TASKS.md                   # Live task tracking matrix

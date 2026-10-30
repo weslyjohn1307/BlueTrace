@@ -1,0 +1,52 @@
+schema_version: "1.0.0"
+task_id: "L2-04"
+
+input:
+  route_fragments:
+    path: outputs/autonomous-execution/L2-03-C1/representation/route-fragments.jsonl
+    sha256: 1470CC8AC5B5511E9930138F495E13AF4EB396967E0409017890A6DBBEC9623F
+
+eligibility:
+  require_same_fixture: true
+  require_same_page: true
+  require_same_viewport: true
+  require_same_discipline: true
+  require_same_representation_family: true
+
+collinear_splice:
+  angle_tolerance_deg: 5.0
+  lateral_offset_max_pt: 0.5
+  longitudinal_gap_max_pt: 2.0
+  allow_overlap_union: true
+
+bounded_gap_bridge:
+  enabled: true
+  gap_min_exclusive_pt: 2.0
+  gap_max_inclusive_pt: 10.0
+  angle_tolerance_deg: 5.0
+  lateral_offset_max_pt: 0.5
+  require_unique_candidate: true
+  reject_competing_endpoint: true
+  reject_conflicting_intersection: true
+
+endpoint_clustering:
+  tolerance_pt: 1.5
+
+bend:
+  minimum_angle_deg: 30.0
+  maximum_angle_deg: 150.0
+
+junctions:
+  preserve_t_junction_as_candidate: true
+  preserve_crossing_as_candidate: true
+  crossing_turns_forbidden: true
+  collinear_pass_through_only: true
+  ambiguous_relation_requires_review: true
+
+measurement:
+  geometry_length_unit: PDF_POINT_DIAGNOSTIC_ONLY
+  physical_length: null
+  physical_length_unit: null
+  scale_status: NOT_EVALUATED
+
+testing_used: false

@@ -1,0 +1,360 @@
+{
+  "info": {
+    "description": "Quantifiable-object detection dataset for construction MEP drawings",
+    "version": "1.0"
+  },
+  "licenses": [],
+  "images": [
+    {
+      "id": 1,
+      "file_name": "3) Architecture and Mechanical_IFC Set_Avexis_page_22.png",
+      "width": 6300,
+      "height": 4500
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1652.25,
+        1638.41,
+        43.25,
+        52.62
+      ],
+      "area": 2275.82,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52818"
+    },
+    {
+      "id": 2,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1655.13,
+        1906.0,
+        39.65,
+        41.09
+      ],
+      "area": 1629.22,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52819"
+    },
+    {
+      "id": 3,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1652.25,
+        1380.19,
+        40.37,
+        53.34
+      ],
+      "area": 2153.34,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52820"
+    },
+    {
+      "id": 4,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1652.25,
+        1134.66,
+        43.97,
+        43.25
+      ],
+      "area": 1901.7,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52821"
+    },
+    {
+      "id": 5,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1671.71,
+        875.72,
+        40.37,
+        51.9
+      ],
+      "area": 2095.2,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52822"
+    },
+    {
+      "id": 6,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1669.55,
+        687.14,
+        43.97,
+        42.53
+      ],
+      "area": 1870.04,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52823"
+    },
+    {
+      "id": 7,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1849.77,
+        391.29,
+        25.95,
+        57.67
+      ],
+      "area": 1496.54,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52824"
+    },
+    {
+      "id": 8,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1013.09,
+        536.06,
+        49.86,
+        29.38
+      ],
+      "area": 1464.89,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52825"
+    },
+    {
+      "id": 9,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1011.75,
+        795.58,
+        97.04,
+        28.04
+      ],
+      "area": 2721.0,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52826"
+    },
+    {
+      "id": 10,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1013.09,
+        1050.75,
+        94.37,
+        28.49
+      ],
+      "area": 2688.6,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52827"
+    },
+    {
+      "id": 11,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1011.75,
+        1288.55,
+        94.82,
+        29.83
+      ],
+      "area": 2828.48,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52828"
+    },
+    {
+      "id": 12,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1011.31,
+        1559.29,
+        96.6,
+        30.27
+      ],
+      "area": 2924.08,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52829"
+    },
+    {
+      "id": 13,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1012.2,
+        1814.1,
+        97.04,
+        29.38
+      ],
+      "area": 2851.04,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52830"
+    },
+    {
+      "id": 14,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1010.42,
+        2067.84,
+        95.71,
+        32.94
+      ],
+      "area": 3152.69,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52831"
+    },
+    {
+      "id": 15,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1013.53,
+        2663.19,
+        72.56,
+        28.49
+      ],
+      "area": 2067.23,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52832"
+    },
+    {
+      "id": 16,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1011.75,
+        3116.27,
+        78.79,
+        28.04
+      ],
+      "area": 2209.27,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52833"
+    },
+    {
+      "id": 17,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        2385.86,
+        1461.72,
+        161.15,
+        32.5
+      ],
+      "area": 5237.38,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52834"
+    },
+    {
+      "id": 18,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        2498.96,
+        1140.71,
+        57.73,
+        20.4
+      ],
+      "area": 1177.69,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52835"
+    },
+    {
+      "id": 19,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        2512.41,
+        719.27,
+        44.27,
+        23.44
+      ],
+      "area": 1037.69,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52836"
+    },
+    {
+      "id": 20,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        2442.78,
+        364.83,
+        29.83,
+        58.2
+      ],
+      "area": 1736.11,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52837"
+    },
+    {
+      "id": 21,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        1465.99,
+        2733.84,
+        25.51,
+        68.03
+      ],
+      "area": 1735.45,
+      "iscrowd": 0,
+      "score": 1.0,
+      "trade": "HVAC",
+      "orig_detection_id": "52838"
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "Flexible Duct (Flex Duct)",
+      "supercategory": "Ductwork"
+    }
+  ]
+}

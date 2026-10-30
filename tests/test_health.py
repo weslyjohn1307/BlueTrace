@@ -1,4 +1,3 @@
-import pytest
 from src.core_vector.scale_validator import ScaleValidator
 from src.meta_services.client import MetaModelClient
 

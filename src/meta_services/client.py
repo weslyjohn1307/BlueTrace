@@ -1,4 +1,6 @@
+import json
 import os
+import re
 import time
 from typing import Any
 
@@ -9,7 +11,7 @@ try:
     HAS_OPENAI = True
 except ImportError:
     HAS_OPENAI = False
-    OpenAI = None
+    OpenAI = None  # type: ignore[assignment, misc]
 
 
 class MetaModelClient:
@@ -21,6 +23,8 @@ class MetaModelClient:
     - muse-wonder-1.0 (Reasoning Copilot & Structured Tool Calling)
     - Files API (/v1/files for blueprint document caching)
     """
+
+    client: Any
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None):
         self.api_key = api_key or os.environ.get("MODEL_API_KEY", "")
@@ -38,6 +42,45 @@ class MetaModelClient:
     def is_configured(self) -> bool:
         """Returns True if a real API key has been provided."""
         return bool(self.api_key and self.api_key != "mock_key_unconfigured" and not self.api_key.startswith("your_"))
+
+    @staticmethod
+    def _extract_crop_json(content: str) -> dict[str, Any]:
+        """Parses JSON from VLM response or returns fail-closed review_required dict."""
+        clean = content.strip()
+        if "```" in clean:
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", clean, re.DOTALL)
+            if match:
+                clean = match.group(1)
+        try:
+            data = json.loads(clean)
+            if isinstance(data, dict):
+                dim_text = data.get("dimension_text") or data.get("text")
+                width = float(data["width"]) if data.get("width") is not None else None
+                height = float(data["height"]) if data.get("height") is not None else None
+                shape = str(data.get("shape", "RECTANGULAR")).upper()
+                if width and width > 0:
+                    badge = f"{int(width)}x{int(height)} Rectangular Duct" if height else f'{int(width)}" Round Duct'
+                    return {
+                        "detected_text": str(dim_text or f"{int(width)}x{int(height or 0)}"),
+                        "width": width,
+                        "height": height,
+                        "shape": shape,
+                        "confidence": 0.92,
+                        "badge_text": badge,
+                        "review_required": False,
+                    }
+        except (json.JSONDecodeError, ValueError, KeyError, TypeError):
+            pass
+
+        return {
+            "detected_text": "",
+            "width": None,
+            "height": None,
+            "shape": "UNKNOWN",
+            "confidence": 0.0,
+            "badge_text": "Review Required (Unparsed Dimension)",
+            "review_required": True,
+        }
 
     def parse_crop_ocr(self, base64_image: str, prompt: str | None = None) -> dict[str, Any]:
         """Extracts text, duct dimensions, and callout labels from a 300x300 px crop using muse-spark-1.3."""
@@ -59,7 +102,8 @@ class MetaModelClient:
                 "confidence": 0.95,
                 "badge_text": "24x12 Rectangular Duct (Mock)",
                 "latency_ms": latency_ms,
-                "mock": True
+                "mock": True,
+                "review_required": False,
             }
 
         # Live request using either OpenAI SDK or httpx
@@ -113,10 +157,71 @@ class MetaModelClient:
                 content = data["choices"][0]["message"]["content"]
 
         latency_ms = int((time.time() - start_time) * 1000)
+        parsed = self._extract_crop_json(content)
+        parsed["raw_content"] = content
+        parsed["latency_ms"] = latency_ms
+        parsed["mock"] = False
+        return parsed
+
+    def query_reasoning(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Queries muse-wonder-1.0 for engineering reasoning and copilot assistance."""
+        if not self.is_configured():
+            return {
+                "content": "Meta Model API is not configured (offline mode).",
+                "mock": True,
+            }
+
+        sys_msg = (
+            system_prompt
+            or "You are BlueTraceAI Copilot, an expert MEP engineering takeoff assistant. "
+            "INVARIANT: Never hallucinate dimensions, counts, or scale ratios. "
+            "If a scale is unverified or unknown, explicitly state that calibration is required."
+        )
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": sys_msg},
+        ]
+        if context:
+            messages.append({
+                "role": "user",
+                "content": f"Context data:\n{json.dumps(context, indent=2)}\n\nUser Question:\n{prompt}",
+            })
+        else:
+            messages.append({"role": "user", "content": prompt})
+
+        if self.client:
+            response = self.client.chat.completions.create(
+                model="muse-wonder-1.0",
+                messages=messages,
+                temperature=0.2,
+                max_tokens=600,
+            )
+            content = response.choices[0].message.content or ""
+        else:
+            url = f"{self.base_url.rstrip('/')}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": "muse-wonder-1.0",
+                "messages": messages,
+                "temperature": 0.2,
+                "max_tokens": 600,
+            }
+            with httpx.Client(timeout=30.0) as http_client:
+                resp = http_client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"]
+
         return {
-            "raw_content": content,
-            "latency_ms": latency_ms,
-            "mock": False
+            "content": content,
+            "mock": False,
         }
 
     async def segment_concept_async(self, base64_image: str, concept_prompt: str = "mechanical equipment boundary") -> dict[str, Any]:

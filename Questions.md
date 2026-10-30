@@ -6,7 +6,7 @@
 
 ## Q1. Predecessor offline system (BLOCKER)
 
-No offline multi-agent implementation exists in this repo today (only the 4 bounded-agent concept in `docs/research/RES-04-*` and the backend skeleton in `src/`). To continue it rather than rebuild blind:
+The predecessor project is located at `D:\Imagineers`. BlueTraceAI has now successfully migrated the offline core into `src/core_vector/` and built the live Meta Model API layer in `src/meta_services/`. To continue it rather than rebuild blind:
 
 - [x] **Q1.1 Where is the existing offline project? (repo path / URL / zip / demo)**
   - **Answer**: The predecessor project is located locally at **`D:\Imagineers`**. It is a fully operational, test-verified codebase containing the complete offline pipeline:
@@ -108,11 +108,11 @@ No offline multi-agent implementation exists in this repo today (only the 4 boun
       - Multimodal copilot integration using `muse-wonder-1.0`.
 
 - [x] **Q3.2 Can you share 1–2 sample MEP PDFs plus expected takeoff outputs from the predecessor? (needed to validate vectors, scale, schedule linking)**
-  - **Answer**: Available immediately in `D:\Imagineers\mep_dataset\`:
-    - `Training/Mechanical/FIX-TRN-MECH-022.pdf` (Avexis p22 HVAC floor plan with double-line duct runs, VAV boxes, and diffusers — 329 verified route runs).
-    - `Training/Mechanical/PfMCC_p118.pdf` (Mechanical floor plan with fire dampers — 175 verified symbols).
-    - `Training/Plumbing/FIX-TRN-PLUM-105.pdf` (Plumbing floor plan with water lines and fixtures).
-    - We will copy `FIX-TRN-MECH-022.pdf` directly into `D:\bluetrace-ai\fixtures\` as our primary development and demonstration drawing.
+  - **Answer**: Reused from predecessor training datasets and now hosted locally in `D:\bluetrace-ai\fixtures\`:
+    - `fixtures/mechanical/avexis_page_22.pdf` (Avexis p22 HVAC floor plan with double-line duct runs, VAV boxes, and diffusers — 329 verified route runs).
+    - `fixtures/mechanical/pfmcc_page_118.pdf` (Mechanical floor plan with fire dampers — 168 verified GT symbols).
+    - `fixtures/plumbing/p104_1_plumbing_level4.pdf` (Plumbing floor plan with water lines and fixtures).
+    - Primary development and demonstration drawing: `fixtures/mechanical/avexis_page_22.pdf`.
 
 - [x] **Q3.3 Hackathon track: indie or startup? What is the 3-minute demo story (one sheet, one trade, one workflow)?**
   - **Answer**:

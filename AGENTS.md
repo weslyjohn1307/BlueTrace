@@ -20,6 +20,12 @@
 - `src/core_vector/`: Deterministic vector linework, centerline tracing, and scale math.
 - `src/meta_services/`: Meta Model API clients (`muse-spark-1.3`, `sam-3.1`, `muse-wonder-1.0`, Files API).
 - `src/document/`: Document reconnaissance, sheet classification, and title block parsing.
+- `src/store/`: SQLite transactional takeoff store, ledger rollup, and review events.
+- `src/models/`: Pydantic request/response schemas and domain data models.
+- `configs/`: Pipeline thresholds, routing rules, and discipline classifications.
+- `scripts/`: Data ingestion, sanitization, and documentation helpers.
+- `fixtures/`: Verified test drawings, ground-truth annotations, and sample sheets.
+- `data/`: Local SQLite databases and transient caches (gitignored).
 - `frontend/`: React 19 interactive canvas application.
 - `docs/`: Specs, research, and architecture decision records (`docs/adr/`).
 

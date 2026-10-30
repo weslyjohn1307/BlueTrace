@@ -1,0 +1,147 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-vellum: #F8FAFC;
+    --color-paper: #FFFFFF;
+    --color-slate-ink: #0F172A;
+    --color-slate-caption: #475569;
+    --color-slate-muted: #64748B;
+    --color-hairline: #E2E8F0;
+    --color-nested-panel: #F1F5F9;
+    --color-blueprint-teal: #006D84;
+    --color-autodesk-blue: #0696D7;
+    --color-autodesk-slate: #1B242C;
+    --color-autodesk-dark: #10161A;
+    --color-danger: #DC2626;
+    --color-success: #16A34A;
+    --color-warning: #D97706;
+
+    /* Category Tokens */
+    --cat-fire-damper: #EA580C;
+    --cat-wshp: #006D84;
+    --cat-linear-grille: #0284C7;
+    --cat-duct-route: #2563EB;
+    --cat-pipe-route: #0D9488;
+  }
+
+  body {
+    background-color: var(--color-vellum);
+    color: var(--color-slate-ink);
+    font-family: 'Libre Franklin', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, .font-heading {
+    font-family: 'STIX Two Text', Georgia, serif;
+    letter-spacing: -0.015em;
+  }
+
+  .font-mono, code, kbd, samp, pre, .tabular-nums {
+    font-family: 'Inconsolata', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Autodesk HIG Workstation Component Helpers */
+@layer components {
+  .hig-top-bar {
+    height: 56px;
+    background-color: #1B242C;
+    border-bottom: 1px solid #2C3844;
+    color: #FFFFFF;
+  }
+
+  .hig-nav-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 1rem;
+    height: 56px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #94A3B8;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .hig-nav-tab:hover {
+    color: #F8FAFC;
+  }
+
+  .hig-nav-tab.active {
+    color: #FFFFFF;
+    border-bottom-color: #0696D7;
+    font-weight: 600;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 40px;
+    padding: 0 1.25rem;
+    background-color: #006D84;
+    color: #FFFFFF;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: background-color 0.15s ease, transform 0.1s ease;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background-color: #005668;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 40px;
+    padding: 0 1.25rem;
+    background-color: #FFFFFF;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background-color: #F8FAFC;
+    border-color: #94A3B8;
+    color: #0F172A;
+  }
+
+  .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .workstation-card {
+    background-color: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+}

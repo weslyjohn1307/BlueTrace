@@ -1,0 +1,42 @@
+schema_version: "1.0.0"
+task_id: "L2-06"
+parser_version: "l2-06-view-bound-scale-1.0.0"
+coordinate_transform_id: "PDF_PAGE_USER_SPACE"
+
+evidence_classification: TRAINING_FIXTURE_DEVELOPMENT_EVIDENCE
+
+physical_route_length:
+  allowed: false
+  value: null
+
+testing: prohibited
+ocr: prohibited
+filename_as_scale_evidence: false
+default_scale: false
+llm_scale_inference: false
+
+supported_text_formats:
+  - architectural_imperial_fraction_equals_feet_inches
+  - metric_ratio_1_to_N_with_scale_token
+
+fail_closed_indicators:
+  - NTS
+  - NOT TO SCALE
+  - SCALE: N/A
+  - RISER
+  - P&ID
+
+cross_check:
+  required_for_conversion: true
+  relative_error_limit: 0.05
+  types:
+    - KNOWN_DIMENSION
+    - GRAPHIC_SCALE_BAR
+
+title_block:
+  right_margin_fraction: 0.62
+  unique_bind_requires_one_eligible_plan_view: true
+
+graphic_scale:
+  implemented: false
+  fail_closed_when_only_evidence: true

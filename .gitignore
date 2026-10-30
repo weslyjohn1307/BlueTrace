@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 .venv/
+.pytest_cache/
+pytest-of-*/
 
 # Node
 node_modules/
@@ -10,3 +12,19 @@ dist/
 # Env
 .env
 !.env.example
+
+# Local Data & SQLite
+data/
+*.db
+*.sqlite3
+
+# External Offline Research Repos & Large Downloads
+docs/meta_api/meta-model-cookbook/
+docs/meta_api/meta-oss-cookbook/
+docs/research/ECC/
+docs/meta_api/*.raw
+docs/meta_api/*.txt
+
+# Agent Scratch & Logs
+.muse/
+*.log
