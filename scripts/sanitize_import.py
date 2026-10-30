@@ -34,11 +34,11 @@ FORBIDDEN_PATTERNS = [
 # generic derivatives may enter the repo. Guard definition files are exempt by
 # name (GUARD_SELF_FILES) because they must spell the patterns to enforce them.
 TRADEMARK_FORBIDDEN_PATTERNS = [
-    re.compile(r'incumbent', re.IGNORECASE),
-    re.compile(r'desktopt', re.IGNORECASE),
-    re.compile(r'\btool\b', re.IGNORECASE),
+    re.compile(r'canaveral', re.IGNORECASE),
+    re.compile(r'bluebeam', re.IGNORECASE),
+    re.compile(r'\brevu\b', re.IGNORECASE),
 ]
-TRADEMARK_FILENAME_TOKENS = ('incumbent', 'desktopt', 'tool')
+TRADEMARK_FILENAME_TOKENS = ('canaveral', 'bluebeam', 'revu')
 
 # Files that define the guard itself and therefore legitimately contain the
 # forbidden literals as patterns/test data.
