@@ -19,7 +19,7 @@
 | **Store** | SQLite WAL + FK + `busy_timeout`, `created_at`-preserving upserts, review-event audit, CSV/JSON export with coordinates |
 | **Security** | Session-scoped BYOK (expiry, per-session opt-out), contained PDF paths, upload magic-byte checks, no secrets in git |
 | **Copyright guard** | Third-party product names purged from tree *and history* pre-push; sanitizer + pytest guard + internal-research sanctuary prevent return |
-| **Agent harness** | 8 swarm agents (`.opencode/agents/`), `.agents/` hooks/rules/skills, knowledge corpus (`docs/knowledge/`) |
+| **Agent harness & knowledge** | 8 swarm agents wired to required knowledge packs via `docs/knowledge/INDEX.md` (10 packs), `.agents/` hooks + rules 01–06 (fail-closed, dependency, anti-slop, knowledge-first, copyright, evidence), 4 skills |
 | **Demo & repo** | Real-app screenshots in README (`docs/assets/`, Playwright-captured), Stitch concept labelled as concept; CI workflow committed; **pushed to GitHub** (`master` tracking `origin/master`) |
 | **Gates (last verified)** | Backend **44 passed**, frontend **25 passed**, Playwright smoke 3 passed, `ruff`/`mypy`/`eslint`/`tsc`/build/sanitizer all clean |
 
