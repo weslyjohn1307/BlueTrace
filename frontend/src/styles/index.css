@@ -169,4 +169,93 @@
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   }
+
+  /* Architectural CAD Dot-Grid Canvas Texture (from Stitch / Behance CAD Tool) */
+  .cad-dot-grid {
+    background-color: #f8fafc;
+    background-image: 
+      radial-gradient(circle, #94a3b8 1px, transparent 1px),
+      radial-gradient(circle, #cbd5e1 0.75px, transparent 0.75px);
+    background-size: 40px 40px, 8px 8px;
+    background-position: 0 0, 0 0;
+  }
+
+  .cad-dot-grid-dark {
+    background-color: #0b1326;
+    background-image: 
+      radial-gradient(circle, #334155 1px, transparent 1px),
+      radial-gradient(circle, #1e293b 0.75px, transparent 0.75px);
+    background-size: 40px 40px, 8px 8px;
+    background-position: 0 0, 0 0;
+  }
+
+  /* High-end Frosted Glass Telemetry HUD */
+  .glass-hud {
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 12px 36px -4px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .glass-hud-dark {
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(51, 65, 85, 0.8);
+    box-shadow: 0 16px 40px -6px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(14, 165, 233, 0.15);
+  }
+
+  .glass-hud-active {
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(14, 165, 233, 0.4);
+    box-shadow: 0 16px 40px -6px rgba(14, 165, 233, 0.14), 0 0 0 1px rgba(14, 165, 233, 0.25);
+  }
+
+  /* Vector Airflow & Telemetry Keyframe Animations */
+  @keyframes ductFlow {
+    0% {
+      stroke-dashoffset: 60;
+    }
+    100% {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .animate-duct-flow {
+    stroke-dasharray: 6 3;
+    animation: ductFlow 1.2s linear infinite;
+  }
+
+  @keyframes scanRadar {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-radar-sweep {
+    animation: scanRadar 3.5s linear infinite;
+  }
+
+  .cad-crosshair {
+    cursor: crosshair;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
 }
