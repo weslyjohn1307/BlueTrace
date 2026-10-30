@@ -126,7 +126,7 @@ async def test_copilot_coordinate_grounding(tmp_path: Path):
     assert res_sc_cal.scale_verified is True
 
 
-def test_api_meta_services_endpoints():
+def test_api_meta_services_endpoints(isolated_takeoff_store):
     client = TestClient(app)
 
     # 1. SheetScan endpoint on real fixture

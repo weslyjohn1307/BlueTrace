@@ -201,7 +201,7 @@ async def test_ledger_rollup_and_exports(tmp_path: Path):
     assert len(json_data["line_items"]) == 4
 
 
-def test_api_takeoff_routes():
+def test_api_takeoff_routes(isolated_takeoff_store):
     client = TestClient(app)
 
     # Create item via API
