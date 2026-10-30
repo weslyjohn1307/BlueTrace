@@ -81,7 +81,7 @@ export function useTakeoffSession() {
     async (pdfPath: string, fileName: string, pageIndex: number, projectName: string) => {
       setState((prev) => ({ ...prev, stage: 'scanning', error: null }));
       try {
-        const meta = await apiClient.scanSheet(pdfPath, pageIndex);
+        const meta = await apiClient.scanSheet(pdfPath, pageIndex, { projectId: projectName });
         const entry: ScannedSheet = { pdfPath, fileName, pageIndex, meta };
         setState((prev) => {
           const sheets = [...prev.sheets.filter((s) => s.meta.sheet_id !== meta.sheet_id), entry];
@@ -107,6 +107,42 @@ export function useTakeoffSession() {
     [refreshLedger]
   );
 
+  const scanAll = useCallback(
+    async (pdfPath: string, fileName: string, projectName: string) => {
+      setState((prev) => ({ ...prev, stage: 'scanning', error: null }));
+      try {
+        const result = await apiClient.scanAllSheets(pdfPath, { projectId: projectName });
+        const sheets: ScannedSheet[] = result.sheets.map((meta) => ({
+          pdfPath,
+          fileName,
+          pageIndex: meta.page_index,
+          meta,
+        }));
+        const activeSheetId = sheets[0]?.meta.sheet_id ?? null;
+        setState((prev) => ({
+          ...prev,
+          stage: 'ready',
+          projectName,
+          sheets,
+          activeSheetId,
+          error: result.errors.length > 0 ? result.errors.join('; ') : null,
+        }));
+        if (activeSheetId) {
+          await refreshLedger(projectName, activeSheetId);
+        }
+        return result;
+      } catch (err: unknown) {
+        setState((prev) => ({
+          ...prev,
+          stage: 'failed',
+          error: err instanceof Error ? err.message : 'Sheet scan failed',
+        }));
+        return null;
+      }
+    },
+    [refreshLedger]
+  );
+
   const selectFile = useCallback(
     async (file: File) => {
       if (!file.name.toLowerCase().endsWith('.pdf')) {
@@ -117,13 +153,13 @@ export function useTakeoffSession() {
       setState((prev) => ({ ...EMPTY_STATE, stage: 'uploading', projectName, backendOnline: prev.backendOnline, aiConfigured: prev.aiConfigured }));
       try {
         const uploaded = await apiClient.uploadDrawing(file);
-        await scanPage(uploaded.file_path, uploaded.filename, 0, projectName);
+        await scanAll(uploaded.file_path, uploaded.filename, projectName);
       } catch (err: unknown) {
         const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Upload failed';
         setState((prev) => ({ ...prev, stage: 'failed', error: message }));
       }
     },
-    [scanPage]
+    [scanAll]
   );
 
   const openFixture = useCallback(
@@ -131,9 +167,9 @@ export function useTakeoffSession() {
       const fileName = pdfPath.split('/').pop() ?? pdfPath;
       const projectName = projectNameFromFile(fileName);
       setState((prev) => ({ ...EMPTY_STATE, stage: 'scanning', projectName, backendOnline: prev.backendOnline, aiConfigured: prev.aiConfigured }));
-      await scanPage(pdfPath, fileName, 0, projectName);
+      await scanAll(pdfPath, fileName, projectName);
     },
-    [scanPage]
+    [scanAll]
   );
 
   const selectSheet = useCallback(
@@ -173,6 +209,7 @@ export function useTakeoffSession() {
     selectFile,
     openFixture,
     scanPage,
+    scanAll,
     selectSheet,
     refreshLedger: () => refreshLedger(state.projectName, state.activeSheetId),
     setItemStatus,

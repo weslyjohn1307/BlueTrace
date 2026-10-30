@@ -4,7 +4,7 @@ import { GlobalTopNav } from '../app/GlobalTopNav';
 import { ModeBanner } from '../components/ModeBanner';
 import { useTakeoffSession } from './hooks/useTakeoffSession';
 import { UploadCard } from './components/UploadCard';
-import { SheetCanvas, type CanvasPin } from './components/SheetCanvas';
+import { SheetCanvas, type CanvasPin, type VectorRun } from './components/SheetCanvas';
 import { HoverBadge } from './components/HoverBadge';
 import { SheetTree, type SheetItemData } from './components/SheetTree';
 import { LedgerPanel } from './components/LedgerPanel';
@@ -45,6 +45,39 @@ export const TakeoffWorkspace: React.FC = () => {
     scale_status: s.meta.scale_status,
     page_index: s.meta.page_index,
   }));
+
+  const vectorRuns: VectorRun[] = state.items.flatMap((item) => {
+    if (state.activeSheetId && item.sheet_id !== state.activeSheetId) return [];
+    const geometry = item.geometry as { points?: unknown };
+    if (
+      geometry === null ||
+      typeof geometry !== 'object' ||
+      !Array.isArray(geometry.points) ||
+      geometry.points.length < 2
+    ) {
+      return [];
+    }
+    const points = geometry.points.filter(
+      (pt): pt is [number, number] =>
+        Array.isArray(pt) &&
+        pt.length >= 2 &&
+        typeof pt[0] === 'number' &&
+        typeof pt[1] === 'number' &&
+        Number.isFinite(pt[0]) &&
+        Number.isFinite(pt[1])
+    ) as [number, number][];
+    if (points.length < 2) return [];
+    return [
+      {
+        id: item.item_id,
+        points,
+        system: item.system,
+        status: item.status,
+        label: item.dimension_label,
+        length_ft: item.total_length_ft,
+      },
+    ];
+  });
 
   const itemPins: CanvasPin[] = state.items
     .filter((item) => {
@@ -177,6 +210,17 @@ export const TakeoffWorkspace: React.FC = () => {
         </main>
       ) : (
         <main className="flex-1 flex overflow-hidden relative" style={{ minHeight: 0 }}>
+          {/* Partial-failure banner: per-sheet scan / ledger errors stay visible in-workspace */}
+          {state.error && (
+            <div
+              role="alert"
+              className="absolute top-2 left-1/2 -translate-x-1/2 z-40 flex items-center space-x-2 max-w-xl px-3 py-2 rounded-lg bg-amber-950/90 backdrop-blur-md border border-amber-500/40 text-amber-200 text-[11px] font-mono shadow-lg"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span className="truncate">{state.error}</span>
+            </div>
+          )}
+
           {/* Left Sheet Tree Sidebar (Progressive Disclosure) */}
           {leftSidebarOpen && (
             <aside className="w-64 shrink-0 hidden md:flex flex-col border-r border-slate-800" aria-label="Sheet directory">
@@ -240,6 +284,7 @@ export const TakeoffWorkspace: React.FC = () => {
                 widthPt={activeSheet.meta.width_pt}
                 heightPt={activeSheet.meta.height_pt}
                 pins={[...itemPins, ...ghostPins, ...evidencePins]}
+                vectorRuns={vectorRuns}
                 cropEnabled={true}
                 scaleRatio={activeSheet.meta.scale_ratio ?? undefined}
                 discipline={activeSheet.meta.discipline}

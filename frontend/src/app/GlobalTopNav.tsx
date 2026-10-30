@@ -83,6 +83,22 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
         </div>
       </div>
 
+      {/* Center Active Agent Runtime Strip (Direct from Stitch Screen 3 & 4) */}
+      <div className="hidden 2xl:flex items-center gap-2 select-none" data-purpose="agent-runtime-strip">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] font-mono">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-slate-200">3 Agents Active</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-[11px] font-mono text-cyan-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+          <span>VectorTrace 99.8%</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-950/60 border border-amber-500/30 text-[11px] font-mono text-amber-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          <span>ScheduleLink [SYNC]</span>
+        </div>
+      </div>
+
       <div className="flex items-center space-x-2 text-xs">
         <span
           className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg font-mono text-[11px] border ${

@@ -82,6 +82,30 @@ describe('SheetCanvas hover-to-crop', () => {
     expect(cursorPt[1]).toBeGreaterThanOrEqual(0);
   });
 
+  it('renders vector runs in system colors with airflow animation', () => {
+    const { container } = render(
+      <SheetCanvas
+        imageUrl="/api/page-image?x=1"
+        widthPt={3024}
+        heightPt={2160}
+        pins={[]}
+        vectorRuns={[
+          { id: 'r1', points: [[10, 10], [200, 10]], system: 'Supply Air', status: 'ACCEPTED' },
+          { id: 'r2', points: [[10, 40], [200, 40]], system: 'Return Air', status: 'SUGGESTED' },
+          { id: 'r3', points: [[10, 70], [200, 70]], system: 'Exhaust Air', status: 'SUGGESTED' },
+        ]}
+        cropEnabled={false}
+        onCropRequest={() => {}}
+      />
+    );
+    const runs = container.querySelectorAll('[data-testid="vector-run"]');
+    expect(runs).toHaveLength(3);
+    expect(runs[0].getAttribute('stroke')).toBe('#0099ff');
+    expect(runs[1].getAttribute('stroke')).toBe('#10b981');
+    expect(runs[2].getAttribute('stroke')).toBe('#f59e0b');
+    expect(runs[0].getAttribute('class')).toContain('animate-duct-flow');
+  });
+
   it('renders pins as labeled markers', () => {
     render(
       <SheetCanvas

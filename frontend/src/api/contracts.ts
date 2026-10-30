@@ -97,8 +97,26 @@ export interface TakeoffRecord {
   count: number;
   geometry: Record<string, unknown> | unknown[];
   confidence?: number | null;
+  review_required?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface SheetTakeoffOutcome {
+  sheet_id: string;
+  run_count: number;
+  items_created: number;
+  accepted_count: number;
+  suggested_count: number;
+}
+
+export interface SheetScanAllResponse {
+  pdf_path: string;
+  project_id: string;
+  total_pages: number;
+  sheets: SheetMetadata[];
+  takeoff: SheetTakeoffOutcome[];
+  errors: string[];
 }
 
 export interface LedgerSummaryRow {

@@ -7,6 +7,7 @@ import type {
   ScheduleParseResponse,
   SegmentResponse,
   SheetMetadata,
+  SheetScanAllResponse,
   TakeoffRecord,
   UploadResponse,
 } from './contracts';
@@ -144,11 +145,30 @@ export function createApiClient(config: ApiClientConfig = {}) {
       return request<UploadResponse>(endpoint, { method: 'POST', rawBody: file, signal });
     },
 
-    async scanSheet(pdfPath: string, pageIndex = 0, signal?: AbortSignal): Promise<SheetMetadata> {
+    async scanSheet(
+      pdfPath: string,
+      pageIndex = 0,
+      options?: { projectId?: string; signal?: AbortSignal }
+    ): Promise<SheetMetadata> {
+      const body: Record<string, unknown> = { pdf_path: pdfPath, page_index: pageIndex };
+      if (options?.projectId) body.project_id = options.projectId;
       return request<SheetMetadata>('/api/sheet-scan', {
         method: 'POST',
-        body: { pdf_path: pdfPath, page_index: pageIndex },
-        signal,
+        body,
+        signal: options?.signal,
+      });
+    },
+
+    async scanAllSheets(
+      pdfPath: string,
+      options?: { projectId?: string; signal?: AbortSignal }
+    ): Promise<SheetScanAllResponse> {
+      const body: Record<string, unknown> = { pdf_path: pdfPath };
+      if (options?.projectId) body.project_id = options.projectId;
+      return request<SheetScanAllResponse>('/api/sheets/scan-all', {
+        method: 'POST',
+        body,
+        signal: options?.signal,
       });
     },
 

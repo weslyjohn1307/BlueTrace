@@ -115,7 +115,7 @@ export const SheetTree: React.FC<SheetTreeProps> = ({
 
           {/* Quick Discipline Filter Chips */}
           <div className="flex flex-wrap gap-1 font-mono text-[10px]">
-            {(['ALL', 'MECHANICAL', 'PLUMBING'] as DisciplineTab[]).map((tab) => (
+            {(['ALL', 'MECHANICAL', 'PLUMBING', 'ELECTRICAL'] as DisciplineTab[]).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -126,7 +126,13 @@ export const SheetTree: React.FC<SheetTreeProps> = ({
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                 }`}
               >
-                {tab === 'ALL' ? 'All' : tab === 'MECHANICAL' ? 'Mech' : 'Plumb'}
+                {tab === 'ALL'
+                  ? 'All'
+                  : tab === 'MECHANICAL'
+                    ? 'Mechanical'
+                    : tab === 'PLUMBING'
+                      ? 'Plumbing'
+                      : 'Electrical'}
               </button>
             ))}
           </div>

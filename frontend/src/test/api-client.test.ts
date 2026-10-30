@@ -54,6 +54,20 @@ describe('api client', () => {
     });
   });
 
+  it('posts scan-all with the project id', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total_pages: 2, sheets: [] }));
+    const client = createApiClient();
+    await client.scanAllSheets('data/uploads/set.pdf', { projectId: 'set' });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/sheets/scan-all');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({
+      pdf_path: 'data/uploads/set.pdf',
+      project_id: 'set',
+    });
+  });
+
   it('uploads drawings as raw PDF bytes with filename query param', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ file_path: 'data/uploads/x.pdf' }));
     const client = createApiClient();
