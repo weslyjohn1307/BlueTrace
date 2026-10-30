@@ -25,11 +25,11 @@ export const StoryHeader: React.FC<StoryHeaderProps> = ({
             className="flex items-center space-x-2 text-white hover:opacity-90 transition-opacity no-underline"
           >
             <div className="w-7 h-7 rounded bg-[#006D84] text-white flex items-center justify-center font-mono font-bold text-xs border border-teal-500/30">
-              MEP
+              BT
             </div>
             <div>
               <div className="flex items-center space-x-1.5">
-                <span className="font-heading font-bold text-sm text-white">MEP Design AI</span>
+                <span className="font-heading font-bold text-sm text-white">BlueTraceAI</span>
                 <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-800">
                   Explorable Story
                 </span>

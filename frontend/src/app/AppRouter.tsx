@@ -19,7 +19,7 @@ const NotFoundScreen: React.FC = () => {
         404 — Page Not Found
       </h1>
       <p className="text-sm text-slate-600 max-w-md mb-6 leading-relaxed">
-        The requested MEP Design AI route does not exist. Please return to the drawing workspace.
+        The requested BlueTraceAI route does not exist. Please return to the drawing workspace.
       </p>
     </div>
   );

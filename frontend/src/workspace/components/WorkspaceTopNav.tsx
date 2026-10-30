@@ -82,12 +82,12 @@ export const WorkspaceTopNav: React.FC<WorkspaceTopNavProps> = ({
       <div className="flex items-center space-x-3">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 rounded-md bg-[#006D84] text-white flex items-center justify-center font-bold font-mono text-sm tracking-tighter">
-            MEP
+            BT
           </div>
           <div>
             <div className="flex items-center space-x-1.5">
               <span className="font-heading font-bold text-sm text-slate-900 tracking-tight">
-                MEP Design AI
+                BlueTraceAI
               </span>
               <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-600 border border-slate-200">
                 2D Drawing Intelligence

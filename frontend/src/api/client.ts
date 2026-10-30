@@ -455,6 +455,7 @@ export function createApiClient(config: ApiClientConfig = {}) {
           cited_coordinates: number[][];
           referenced_item_ids: string[];
           scale_verified: boolean;
+          model_used?: boolean;
         }>('/api/copilot', {
           method: 'POST',
           body: {
@@ -467,7 +468,7 @@ export function createApiClient(config: ApiClientConfig = {}) {
           request_id: `copilot-${Date.now()}`,
           mode: 'local',
           mode_label: 'BlueTraceAI Live Reasoning Copilot',
-          external_model_used: true,
+          external_model_used: live.model_used === true,
           project_id: projectId,
           run_id: runId,
           sheet_id: payload.sheet_id,

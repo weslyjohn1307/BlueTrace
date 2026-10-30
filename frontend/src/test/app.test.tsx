@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import { App } from '../app/App';
 import { apiClient } from '../api/client';
 
-describe('MEP Design AI — UI-01 Application Shell Tests', () => {
+describe('BlueTraceAI — UI-01 Application Shell Tests', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     window.history.pushState({}, 'Test', '/');
@@ -17,7 +17,7 @@ describe('MEP Design AI — UI-01 Application Shell Tests', () => {
   it('1. / renders the canonical workspace with upload drop zone', async () => {
     vi.spyOn(apiClient, 'getHealth').mockResolvedValue({
       status: 'ok',
-      service_name: 'MEP Design AI',
+      service_name: 'BlueTraceAI',
       api_version: 'v1',
       result_schema_version: '1.0.0',
       engine_available: true,
@@ -35,7 +35,7 @@ describe('MEP Design AI — UI-01 Application Shell Tests', () => {
 
     await waitFor(() => {
       expect(
-        screen.getAllByText(/MEP Design AI/i).length
+        screen.getAllByText(/BlueTraceAI/i).length
       ).toBeGreaterThan(0);
     });
   });
@@ -44,7 +44,7 @@ describe('MEP Design AI — UI-01 Application Shell Tests', () => {
     window.history.pushState({}, 'Test', '/live');
     vi.spyOn(apiClient, 'getHealth').mockResolvedValue({
       status: 'ok',
-      service_name: 'MEP Design AI',
+      service_name: 'BlueTraceAI',
       api_version: 'v1',
       result_schema_version: '1.0.0',
       engine_available: true,
@@ -63,7 +63,7 @@ describe('MEP Design AI — UI-01 Application Shell Tests', () => {
     // /live redirects to / (WorkspaceApp) — "LIVE — Local backend" label no longer shown
     // After redirect, workspace is rendered
     await waitFor(() => {
-      expect(screen.getAllByText(/MEP Design AI/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/BlueTraceAI/i).length).toBeGreaterThan(0);
     });
     // Old LiveApp label must NOT be shown (it was removed from routing)
     expect(screen.queryByText(/LIVE — Local backend/i)).not.toBeInTheDocument();
@@ -82,7 +82,7 @@ describe('MEP Design AI — UI-01 Application Shell Tests', () => {
   it('4. Workspace at / calls health and version endpoints on load', async () => {
     const healthSpy = vi.spyOn(apiClient, 'getHealth').mockResolvedValue({
       status: 'ok',
-      service_name: 'MEP Design AI',
+      service_name: 'BlueTraceAI',
       api_version: 'v1',
       result_schema_version: '1.0.0',
       engine_available: true,
@@ -111,7 +111,7 @@ describe('MEP Design AI — UI-01 Application Shell Tests', () => {
 
     // The workspace should show the upload area in idle/selected state
     await waitFor(() => {
-      expect(screen.getAllByText(/MEP Design AI/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/BlueTraceAI/i).length).toBeGreaterThan(0);
     });
   });
 
@@ -128,10 +128,10 @@ describe('MEP Design AI — UI-01 Application Shell Tests', () => {
     expect(versionSpy).not.toHaveBeenCalled();
   });
 
-  it('7. Workspace landing has MEP Design AI brand heading and upload trigger', async () => {
+  it('7. Workspace landing has BlueTraceAI brand heading and upload trigger', async () => {
     render(<App />);
 
-    expect(screen.getAllByText(/MEP Design AI/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/BlueTraceAI/i).length).toBeGreaterThan(0);
     // Upload trigger in TopNav — button by id
     const uploadBtn = document.getElementById('topnav-choose-pdf-btn');
     expect(uploadBtn).toBeTruthy();

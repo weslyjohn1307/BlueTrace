@@ -39,7 +39,7 @@ vi.mock('../api/client', () => {
   };
 });
 
-describe('MEP Design AI — UI-03 Drawing Viewer & Sheet Navigation Tests', () => {
+describe('BlueTraceAI — UI-03 Drawing Viewer & Sheet Navigation Tests', () => {
   const mockRun: RunSummaryItem = {
     run_id: 'RUN-20260908-135525-9A6D3D',
     project_id: 'PRJ-94318E2B1ECB',
@@ -113,7 +113,7 @@ describe('MEP Design AI — UI-03 Drawing Viewer & Sheet Navigation Tests', () =
 
     vi.mocked(apiClient.getHealth).mockResolvedValue({
       status: 'ok',
-      service_name: 'MEP Design AI API',
+      service_name: 'BlueTraceAI API',
       api_version: 'v1',
       result_schema_version: '1.0.0',
       engine_available: true,

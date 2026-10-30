@@ -80,7 +80,7 @@ const MOCK_PREFLIGHT_UNKNOWN: DrawingPreflightResponse = {
   ],
 };
 
-describe('MEP Design AI — UI-02 Workflow Tests', () => {
+describe('BlueTraceAI — UI-02 Workflow Tests', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -94,7 +94,7 @@ describe('MEP Design AI — UI-02 Workflow Tests', () => {
     vi.spyOn(apiClient, 'listProjects').mockRejectedValueOnce(new Error('Backend connection failed'));
     vi.spyOn(apiClient, 'getHealth').mockResolvedValue({
       status: 'ok',
-      service_name: 'MEP Design AI',
+      service_name: 'BlueTraceAI',
       api_version: 'v1',
       result_schema_version: '1.0.0',
       engine_available: true,
@@ -147,7 +147,7 @@ describe('MEP Design AI — UI-02 Workflow Tests', () => {
     vi.spyOn(apiClient, 'listProjects').mockResolvedValue({ items: [], total: 0 });
     vi.spyOn(apiClient, 'getHealth').mockResolvedValue({
       status: 'ok',
-      service_name: 'MEP Design AI',
+      service_name: 'BlueTraceAI',
       api_version: 'v1',
       result_schema_version: '1.0.0',
       engine_available: true,
@@ -194,7 +194,7 @@ describe('MEP Design AI — UI-02 Workflow Tests', () => {
   it('3. Valid PDF selection triggers upload request', async () => {
     vi.spyOn(apiClient, 'getHealth').mockResolvedValue({
       status: 'ok',
-      service_name: 'MEP Design AI',
+      service_name: 'BlueTraceAI',
       api_version: 'v1',
       result_schema_version: '1.0.0',
       engine_available: true,
@@ -256,7 +256,7 @@ describe('MEP Design AI — UI-02 Workflow Tests', () => {
     // Mock LiveApp with an active project to make upload accessible
     vi.spyOn(apiClient, 'getHealth').mockResolvedValue({
       status: 'ok',
-      service_name: 'MEP Design AI',
+      service_name: 'BlueTraceAI',
       api_version: 'v1',
       result_schema_version: '1.0.0',
       engine_available: true,
@@ -316,7 +316,7 @@ describe('MEP Design AI — UI-02 Workflow Tests', () => {
     vi.spyOn(apiClient, 'uploadDrawing').mockRejectedValue(new Error('File exceeds maximum upload size (100 MB)'));
     vi.spyOn(apiClient, 'getHealth').mockResolvedValue({
       status: 'ok',
-      service_name: 'MEP Design AI',
+      service_name: 'BlueTraceAI',
       api_version: 'v1',
       result_schema_version: '1.0.0',
       engine_available: true,

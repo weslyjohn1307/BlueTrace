@@ -15,6 +15,8 @@ import io
 import json
 import sqlite3
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -62,9 +64,21 @@ class TakeoffStore:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
+    @asynccontextmanager
+    async def _session(self) -> AsyncIterator[Any]:
+        """Yields a connection with durability pragmas applied."""
+        db = await aiosqlite.connect(self.db_path, timeout=10.0)
+        try:
+            await db.execute("PRAGMA journal_mode=WAL;")
+            await db.execute("PRAGMA busy_timeout=10000;")
+            await db.execute("PRAGMA foreign_keys=ON;")
+            yield db
+        finally:
+            await db.close()
+
     async def initialize(self) -> None:
         """Create database tables and indexes if they do not exist."""
-        async with aiosqlite.connect(self.db_path) as db:
+        async with self._session() as db:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
                     project_id TEXT PRIMARY KEY,
@@ -124,9 +138,10 @@ class TakeoffStore:
             await db.commit()
 
     async def insert_project(self, project_id: str, name: str) -> None:
-        async with aiosqlite.connect(self.db_path) as db:
+        async with self._session() as db:
             await db.execute(
-                "INSERT OR REPLACE INTO projects (project_id, name, created_at) VALUES (?, ?, ?)",
+                """INSERT INTO projects (project_id, name, created_at) VALUES (?, ?, ?)
+                ON CONFLICT(project_id) DO UPDATE SET name = excluded.name""",
                 (project_id, name, _utc_now_iso()),
             )
             await db.commit()
@@ -145,13 +160,19 @@ class TakeoffStore:
         width_pt: float,
         height_pt: float,
     ) -> None:
-        async with aiosqlite.connect(self.db_path) as db:
+        async with self._session() as db:
             await db.execute(
                 """
-                INSERT OR REPLACE INTO sheets (
+                INSERT INTO sheets (
                     sheet_id, project_id, page_index, sheet_number, sheet_title,
                     discipline, scale_raw, scale_ratio, scale_status, width_pt, height_pt, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(sheet_id) DO UPDATE SET
+                    project_id = excluded.project_id, page_index = excluded.page_index,
+                    sheet_number = excluded.sheet_number, sheet_title = excluded.sheet_title,
+                    discipline = excluded.discipline, scale_raw = excluded.scale_raw,
+                    scale_ratio = excluded.scale_ratio, scale_status = excluded.scale_status,
+                    width_pt = excluded.width_pt, height_pt = excluded.height_pt
                 """,
                 (
                     sheet_id,
@@ -172,7 +193,7 @@ class TakeoffStore:
 
     async def get_sheet(self, sheet_id: str) -> dict[str, Any] | None:
         """Retrieve sheet metadata by sheet_id."""
-        async with aiosqlite.connect(self.db_path) as db:
+        async with self._session() as db:
             db.row_factory = sqlite3.Row
             async with db.execute("SELECT * FROM sheets WHERE sheet_id = ?", (sheet_id,)) as cur:
                 row = await cur.fetchone()
@@ -182,14 +203,21 @@ class TakeoffStore:
 
     async def add_takeoff_item(self, record: TakeoffRecord) -> str:
         """Insert a single takeoff record."""
-        async with aiosqlite.connect(self.db_path) as db:
+        async with self._session() as db:
             await db.execute(
                 """
-                INSERT OR REPLACE INTO takeoff_items (
+                INSERT INTO takeoff_items (
                     item_id, project_id, sheet_id, category, system, dimension_label,
                     status, source, total_length_ft, count, geometry_json, confidence,
                     created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(item_id) DO UPDATE SET
+                    project_id = excluded.project_id, sheet_id = excluded.sheet_id,
+                    category = excluded.category, system = excluded.system,
+                    dimension_label = excluded.dimension_label, status = excluded.status,
+                    source = excluded.source, total_length_ft = excluded.total_length_ft,
+                    count = excluded.count, geometry_json = excluded.geometry_json,
+                    confidence = excluded.confidence, updated_at = excluded.updated_at
                 """,
                 (
                     record.item_id,
@@ -215,14 +243,21 @@ class TakeoffStore:
         """Insert multiple records in a single transactional batch."""
         if not records:
             return 0
-        async with aiosqlite.connect(self.db_path) as db:
+        async with self._session() as db:
             await db.executemany(
                 """
-                INSERT OR REPLACE INTO takeoff_items (
+                INSERT INTO takeoff_items (
                     item_id, project_id, sheet_id, category, system, dimension_label,
                     status, source, total_length_ft, count, geometry_json, confidence,
                     created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(item_id) DO UPDATE SET
+                    project_id = excluded.project_id, sheet_id = excluded.sheet_id,
+                    category = excluded.category, system = excluded.system,
+                    dimension_label = excluded.dimension_label, status = excluded.status,
+                    source = excluded.source, total_length_ft = excluded.total_length_ft,
+                    count = excluded.count, geometry_json = excluded.geometry_json,
+                    confidence = excluded.confidence, updated_at = excluded.updated_at
                 """,
                 [
                     (
@@ -255,7 +290,7 @@ class TakeoffStore:
     ) -> bool:
         """Update review status of an item and log the review audit event."""
         now = _utc_now_iso()
-        async with aiosqlite.connect(self.db_path) as db:
+        async with self._session() as db:
             async with db.execute("SELECT status FROM takeoff_items WHERE item_id = ?", (item_id,)) as cur:
                 row = await cur.fetchone()
                 if not row:
@@ -303,7 +338,7 @@ class TakeoffStore:
         query += " ORDER BY category, system, dimension_label"
 
         records: list[TakeoffRecord] = []
-        async with aiosqlite.connect(self.db_path) as db:
+        async with self._session() as db:
             db.row_factory = sqlite3.Row
             async with db.execute(query, params) as cur:
                 async for row in cur:
@@ -362,7 +397,7 @@ class TakeoffStore:
         query += " GROUP BY category, system, dimension_label ORDER BY category, system, dimension_label"
 
         rows: list[LedgerSummaryRow] = []
-        async with aiosqlite.connect(self.db_path) as db:
+        async with self._session() as db:
             db.row_factory = sqlite3.Row
             async with db.execute(query, params) as cur:
                 async for row in cur:
@@ -380,7 +415,12 @@ class TakeoffStore:
                     )
         return rows
 
-    async def export_csv(self, project_id: str | None = None, sheet_id: str | None = None) -> str:
+    async def export_csv(
+        self,
+        project_id: str | None = None,
+        sheet_id: str | None = None,
+        include_items: bool = False,
+    ) -> str:
         """Export ledger takeoff summary in standard Estimating CSV format."""
         summary_rows = await self.get_ledger_summary(project_id=project_id, sheet_id=sheet_id)
         output = io.StringIO()
@@ -406,6 +446,36 @@ class TakeoffStore:
                 r.rejected_count,
                 r.total_count,
             ])
+
+        # Detailed item-level takeoff rows with spatial coordinates & source provenance when requested
+        if include_items:
+            items = await self.list_items(project_id=project_id, sheet_id=sheet_id)
+            if items:
+                writer.writerow([])
+                writer.writerow([
+                    "Item ID",
+                    "Sheet ID",
+                    "Category",
+                    "System",
+                    "Dimension/Size",
+                    "Linear Length (ft)",
+                    "Status",
+                    "Geometry / Coordinates",
+                    "Source",
+                ])
+                for it in items:
+                    coords = json.dumps(it.geometry) if it.geometry else ""
+                    writer.writerow([
+                        it.item_id,
+                        it.sheet_id,
+                        it.category,
+                        it.system,
+                        it.dimension_label,
+                        f"{it.total_length_ft:.2f}",
+                        it.status,
+                        coords,
+                        it.source,
+                    ])
         return output.getvalue()
 
     async def export_json(self, project_id: str | None = None, sheet_id: str | None = None) -> dict[str, Any]:

@@ -92,18 +92,18 @@ class MetaModelClient:
         user_prompt = prompt or default_prompt
 
         if not self.is_configured():
-            # Graceful mock response for unconfigured test runs
+            # Offline stub: shape-stable for UI tests, but never claims verification.
             latency_ms = int((time.time() - start_time) * 1000)
             return {
                 "detected_text": "24x12",
                 "width": 24.0,
                 "height": 12.0,
                 "shape": "RECTANGULAR",
-                "confidence": 0.95,
-                "badge_text": "24x12 Rectangular Duct (Mock)",
+                "confidence": 0.0,
+                "badge_text": "24x12 Rectangular Duct (offline stub — unverified)",
                 "latency_ms": latency_ms,
                 "mock": True,
-                "review_required": False,
+                "review_required": True,
             }
 
         # Live request using either OpenAI SDK or httpx

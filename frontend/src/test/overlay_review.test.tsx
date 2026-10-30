@@ -38,7 +38,7 @@ vi.mock('../api/client', () => {
   };
 });
 
-describe('MEP Design AI — UI-04 Extraction Overlays, Results, Inspector & Review Tests', () => {
+describe('BlueTraceAI — UI-04 Extraction Overlays, Results, Inspector & Review Tests', () => {
   const mockRun: RunSummaryItem = {
     run_id: 'RUN-20260908-135525-9A6D3D',
     project_id: 'PRJ-94318E2B1ECB',

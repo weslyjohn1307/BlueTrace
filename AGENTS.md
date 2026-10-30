@@ -4,7 +4,7 @@
 - **Architecture**: Strict Hybrid Division.
   - Meta Model API (`https://api.meta.ai/v1`) for vision, OCR, table extraction, and copilot reasoning.
   - Local Python algorithms (PyMuPDF, NetworkX, Shapely) for vector extraction, centerline geometry, and scale math.
-- **Backend**: Python 3.13+, FastAPI, SQLite (`aiosqlite`), Pydantic v2.
+- **Backend**: Python 3.10–3.13 (Q4.2 cross-compatible), FastAPI, SQLite (`aiosqlite`), Pydantic v2.
 - **Frontend**: React 19, Vite, TypeScript, Tailwind CSS, Hardware-Accelerated 150 DPI Canvas.
 - **Models**: `muse-spark-1.3` (Vision/OCR), `sam-3.1` (Responses API Segmentation), `muse-wonder-1.0` (Reasoning).
 

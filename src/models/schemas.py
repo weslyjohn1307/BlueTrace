@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SheetMetadata(BaseModel):
@@ -42,6 +42,20 @@ class DimensionExtraction(BaseModel):
     height_in: float | None = None
     shape: Literal["ROUND", "RECTANGULAR", "OVAL"] = "RECTANGULAR"
 
+    @field_validator("shape", mode="before")
+    @classmethod
+    def coerce_shape(cls, v: Any) -> str:
+        if not isinstance(v, str):
+            return "RECTANGULAR"
+        normalized = v.strip().upper()
+        if normalized in {"ROUND", "CIRCULAR", "CYLINDRICAL", "SPIRAL"}:
+            return "ROUND"
+        if normalized in {"OVAL", "FLAT_OVAL", "FLAT-OVAL", "ELLIPTICAL"}:
+            return "OVAL"
+        if normalized in {"RECTANGULAR", "SQUARE", "RECT", "BOX"}:
+            return "RECTANGULAR"
+        return "RECTANGULAR"
+
 
 class CursorCropResponse(BaseModel):
     latency_ms: int
@@ -82,3 +96,23 @@ class CopilotQueryResponse(BaseModel):
     cited_coordinates: list[list[float]] = []
     referenced_item_ids: list[str] = []
     scale_verified: bool
+    # True only when muse-wonder-1.0 produced the answer; False for the
+    # deterministic offline fallback. Clients must surface this, never assume it.
+    model_used: bool = False
+
+
+class UploadResponse(BaseModel):
+    filename: str
+    file_path: str
+    byte_size: int
+    sha256: str
+
+
+class MetaFileUploadRequest(BaseModel):
+    file_path: str
+
+
+class MetaFileUploadResponse(BaseModel):
+    file_id: str
+    filename: str
+    status: str = "uploaded"

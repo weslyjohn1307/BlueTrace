@@ -1,5 +1,5 @@
 /**
- * MEP Design AI — Playwright UI Visual QA & Verification
+ * BlueTraceAI — Playwright UI Visual QA & Verification
  *
  * Captures all 10 canonical UX states specified in the hackathon contract:
  *   01-empty-state.png
@@ -38,7 +38,7 @@ async function saveScreenshot(page: Page, name: string) {
 
 test.describe.configure({ mode: 'serial' });
 
-test.describe('MEP Design AI — Visual QA & Canonical UX Verification', () => {
+test.describe('BlueTraceAI — Visual QA & Canonical UX Verification', () => {
   test.beforeAll(async ({ request }) => {
     try {
       const res = await request.get('http://127.0.0.1:8000/api/v1/health');
@@ -55,7 +55,7 @@ test.describe('MEP Design AI — Visual QA & Canonical UX Verification', () => {
     await page.goto('/', { waitUntil: 'networkidle' });
 
     // Assert Brand visible
-    await expect(page.getByText('MEP Design AI').first()).toBeVisible();
+    await expect(page.getByText('BlueTraceAI').first()).toBeVisible();
 
     // Assert Upload Button visible
     const uploadBtn = page.locator('#topnav-choose-pdf-btn');

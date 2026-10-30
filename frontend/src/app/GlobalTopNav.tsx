@@ -43,12 +43,12 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
           className="flex items-center space-x-3 text-white hover:opacity-95 transition-opacity no-underline"
         >
           <div className="w-8 h-8 rounded-md bg-[#006D84] text-white flex items-center justify-center font-bold font-mono text-xs tracking-tight border border-teal-500/30 shadow-xs">
-            MEP
+            BT
           </div>
           <div>
             <div className="flex items-center space-x-2">
               <span className="font-heading font-bold text-base text-white tracking-tight">
-                MEP Design AI
+                BlueTraceAI
               </span>
               <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 border border-slate-700">
                 Workstation

@@ -83,6 +83,7 @@ class TakeoffCopilot:
                 cited_coordinates=coords,
                 referenced_item_ids=referenced_ids,
                 scale_verified=scale_verified,
+                model_used=True,
             )
 
         # -------------------------------------------------------------
@@ -97,7 +98,7 @@ class TakeoffCopilot:
                         f"Sheet '{sheet_id}' is calibrated at {scale_raw} (scale factor {scale_ratio}). "
                         "All linear duct footages and equipment dimensions are validated against physical vector linework."
                     ),
-                    cited_coordinates=[[2500.0, 1800.0, 2900.0, 2050.0]],
+                    cited_coordinates=[],
                     referenced_item_ids=[],
                     scale_verified=True,
                 )

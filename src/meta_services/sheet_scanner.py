@@ -14,11 +14,11 @@ import base64
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Literal, cast
 
 import pymupdf
 
-from src.core_vector.pipeline import _extract_sheet_id, _infer_discipline
+from src.core_vector.pipeline import extract_sheet_id, infer_discipline
 from src.core_vector.scale_validator import ScaleValidator
 from src.meta_services.client import MetaModelClient
 from src.models.schemas import SheetMetadata
@@ -56,7 +56,7 @@ class SheetScanner:
             # If client is configured, call muse-spark-1.3 on title block raster crop
             sheet_number = ""
             sheet_title = ""
-            discipline: Any = "MECHANICAL"
+            vlm_discipline: str | None = None
 
             if self.client.is_configured():
                 pix = page.get_pixmap(dpi=150, clip=title_block_clip)
@@ -77,7 +77,9 @@ class SheetScanner:
                     data = json.loads(clean_json)
                     sheet_number = data.get("sheet_number", "")
                     sheet_title = data.get("sheet_title", "")
-                    discipline = data.get("discipline", "MECHANICAL")
+                    raw_disc = str(data.get("discipline", "")).strip().upper()
+                    if raw_disc in {"MECHANICAL", "PLUMBING", "ELECTRICAL", "ARCHITECTURAL", "GENERAL"}:
+                        vlm_discipline = raw_disc
                     if data.get("scale_string") and not scale_raw:
                         scale_raw = data.get("scale_string")
                         scale_ratio, scale_status = ScaleValidator.parse_scale_string(scale_raw)
@@ -87,7 +89,7 @@ class SheetScanner:
             # Fallback to deterministic extraction if VLM unconfigured or incomplete
             page_full_text = page.get_text("text")
             if not sheet_number:
-                sheet_number = _extract_sheet_id(tb_text or page_full_text, Path(pdf_path).stem, page_index)
+                sheet_number = extract_sheet_id(tb_text or page_full_text, Path(pdf_path).stem, page_index)
 
             if not sheet_title:
                 lines = [line.strip() for line in (tb_text or page_full_text).splitlines() if line.strip()]
@@ -98,9 +100,17 @@ class SheetScanner:
                 if not sheet_title:
                     sheet_title = Path(pdf_path).stem.replace("_", " ").title()
 
-            # Discipline determination via validated core classifier
-            inferred_disc = _infer_discipline(Path(pdf_path), page_full_text, sheet_id=sheet_number)
-            discipline = inferred_disc.upper()
+            # Discipline determination: keep validated VLM discipline if recognized, otherwise deterministic core classifier
+            if vlm_discipline:
+                raw_disc = vlm_discipline
+            else:
+                inferred_disc = infer_discipline(Path(pdf_path), page_full_text, sheet_id=sheet_number)
+                raw_disc = inferred_disc.upper()
+
+            disc_literal = cast(
+                Literal["MECHANICAL", "ELECTRICAL", "PLUMBING", "ARCHITECTURAL", "GENERAL"],
+                raw_disc if raw_disc in {"MECHANICAL", "ELECTRICAL", "PLUMBING", "ARCHITECTURAL", "GENERAL"} else "GENERAL",
+            )
 
             sheet_id = f"{sheet_number.lower().replace(' ', '_').replace('.', '_')}_p{page_index}"
 
@@ -109,7 +119,7 @@ class SheetScanner:
                 page_index=page_index,
                 sheet_number=sheet_number,
                 sheet_title=sheet_title,
-                discipline=discipline,
+                discipline=disc_literal,
                 scale_raw=scale_raw,
                 scale_ratio=scale_ratio,
                 scale_status=scale_status,

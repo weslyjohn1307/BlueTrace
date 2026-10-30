@@ -141,7 +141,7 @@ export const StoryPage: React.FC = () => {
 
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-sans">
               From the P00 baseline crash to 7 ratified architectural decisions and 715 automated offline regression
-              tests, MEP Design AI proves that precision takeoff is achieved not by prompts, but by sound geometry,
+              tests, BlueTraceAI proves that precision takeoff is achieved not by prompts, but by sound geometry,
               tiled raster inference, and strict fail-closed governance.
             </p>
 

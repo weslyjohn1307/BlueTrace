@@ -119,3 +119,23 @@ bluetrace-ai/
 ├── pyproject.toml             # Python project dependencies
 └── .env.example               # Documented environment template
 ```
+
+
+---
+
+## Remote Repository & Pre-Submission Git Setup
+
+To push this repository to your remote GitHub host prior to hackathon submission:
+
+```bash
+# 1. Add your remote GitHub repository
+git remote add origin https://github.com/<your-username>/bluetrace-ai.git
+
+# 2. Set master branch
+git branch -M master
+
+# 3. Push code, tests, and artifacts
+git push -u origin master
+```
+
+See [docs/SUBMISSION.md](docs/SUBMISSION.md) for the complete judge walkthrough and submission details.

@@ -65,7 +65,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
           <div className="flex items-center space-x-2">
             <Compass className="w-5 h-5 text-[#006D84]" aria-hidden="true" />
             <h1 className="font-heading text-lg font-bold tracking-tight text-slate-900">
-              MEP Design AI
+              BlueTraceAI
             </h1>
           </div>
 

@@ -112,6 +112,11 @@ def _extract_sheet_id(page_text: str, pdf_stem: str, page_num: int) -> str:
     return f"{pdf_stem}_p{page_num + 1}"
 
 
+# Public API aliases
+extract_sheet_id = _extract_sheet_id
+infer_discipline = _infer_discipline
+
+
 def _runs_to_l2_results(
     runs: list[LinearRun],
     scale: ScaleDecision,

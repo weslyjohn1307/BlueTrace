@@ -40,3 +40,30 @@ def test_byok_empty_rejected():
     client = TestClient(app)
     res = client.post("/api/auth/byok", json={"api_key": "   "})
     assert res.status_code == 400
+
+
+def test_byok_opt_out_is_session_scoped():
+    """One session clearing its key must not disable the server for everyone."""
+    client = TestClient(app)
+    client.post("/api/auth/byok", json={"api_key": "mk-operator-key-1111"})
+
+    assert client.get("/api/health").json()["meta_model_api_configured"] is True
+
+    client.delete("/api/auth/byok", headers={"X-Session-ID": "sess-a"})
+
+    # The caller that opted out is unconfigured...
+    session_a = client.get("/api/health", headers={"X-Session-ID": "sess-a"})
+    assert session_a.json()["meta_model_api_configured"] is False
+
+    # ...but every other session keeps working.
+    assert client.get("/api/health").json()["meta_model_api_configured"] is True
+    other = client.get("/api/health", headers={"X-Session-ID": "sess-b"})
+    assert other.json()["meta_model_api_configured"] is True
+
+
+def test_byok_key_is_never_echoed():
+    client = TestClient(app)
+    secret = "mk-never-echo-this-4321"
+    body = client.post("/api/auth/byok", json={"api_key": secret}).text
+    assert secret not in body
+

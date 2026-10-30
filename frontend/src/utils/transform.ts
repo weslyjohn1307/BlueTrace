@@ -1,5 +1,5 @@
 /**
- * Pure 2D Coordinate Transformation Engine for MEP Design AI Drawing Viewer.
+ * Pure 2D Coordinate Transformation Engine for BlueTraceAI Drawing Viewer.
  *
  * Implements authoritative transforms between:
  * 1. Screen Space (pixels relative to viewport container)

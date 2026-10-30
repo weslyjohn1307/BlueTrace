@@ -5,6 +5,7 @@
 - **Scope:** the whole workspace against (a) `AGENTS.md`, (b) the two Downloads checklists, (c) the ten explicit asks in your prompt, and (d) the claim that the work was done "properly".
 - **Method:** read-only review. Read all source, tests, configs and governance docs; re-ran every gate; no project file was modified. **The only file written is this audit.**
 - **Supersedes:** `docs/AUDIT-2026-10-30-antigravity-slices-0-5.md` (also untracked). Its findings are folded in here; nothing in it is retracted.
+- **Round 2:** a post-remediation re-audit of commit `21d1212` is appended as **§12**. It scores the fix, lists what is still open, and flags four issues the fix itself introduced.
 
 ---
 
@@ -500,5 +501,119 @@ Test-Path .github, .opencode, opencode.json, .pre-commit-config.yaml   # all Fal
 ---
 
 *This audit made no code changes. The only file written is this report. Findings are reproducible with the commands above; where a claim could not be verified from primary sources, it is marked Unverified rather than asserted.*
+
+---
+---
+
+# Round 2 — Post-Remediation Review
+
+**Re-audited:** 2026-10-30, after commit `21d1212` ("remediate audit findings, enforce fail-closed truthfulness, unify api contracts, and secure byok").
+**Revised score: 5.5 / 10** (up from 3.5). Real progress, but the headline bug is only half-fixed.
+
+## 12.1 Genuinely fixed — verified, with evidence
+
+| Finding | Before | Now | Evidence |
+|---|---|---|---|
+| P0-3 uncommitted work | 118 untracked | **0 untracked, 167 tracked, clean tree** | `git status -uall` |
+| P0-2 copilot fabrication | `or 14`, fake IDs, hardcoded scale | reads `store.get_sheet()`, `scale_verified = scale_status in ("VERIFIED","CALIBRATED")` | `copilot.py:31–37` |
+| P0-2 copilot never calls model | keyword router only | real `muse-wonder-1.0` path when `client.is_configured()` | `copilot.py:45` |
+| P0-2 crop-ocr defaults | `24x12` / `0.95` / `review_required=False` | fails closed to `parsed_dimension=None`, `confidence=0.0`, `review_required=True` when unparsed | `routes.py:155–164` |
+| P0-2 schedule auto-accept | `status="ACCEPTED"` | `status="SUGGESTED"` | `schedule_parser.py:152` |
+| P1-3 arbitrary file read | raw `pdf_path` → PyMuPDF | resolve + containment check + `.pdf` suffix + `run_in_threadpool` | `routes.py:120–138` |
+| P1-2 BYOK global `os.environ` | process-wide key overwrite | session-scoped dict with expiry, `X-Session-ID` | `routes.py:29–57,329–358` |
+| P1-5 phantom mypy gate | not installed | `mypy 2.4.1` installed + `[tool.mypy]` | `pyproject.toml:43` |
+| P1-6 undeclared `yaml` | imported, not declared | `pyyaml>=6.0.0` declared | `pyproject.toml:19` |
+| P1-4 Python version drift | `>=3.10`, `py310` | `>=3.13`, `py313` | `pyproject.toml:6,36` |
+| P2-1 pytest-asyncio warning | unset | `asyncio_default_fixture_loop_scope = "function"` | `pyproject.toml:40` |
+| P2-2 ruff failures in `scripts/` | 13 errors | **All checks passed** | `ruff check src tests scripts` |
+| P2-15 AGENTS boundaries | omitted 6 dirs | `src/store`, `src/models`, `configs`, `scripts`, `fixtures`, `data` added | `AGENTS.md:23–28` |
+| Governance | `CLAUDE.md` deleted-but-tracked | restored | root listing |
+| Test coverage | 23 tests | **25 passed**, incl. `test_api_contract.py`, `test_byok_security.py`, fail-closed assertions | `pytest tests/ -q` |
+
+The fail-closed work is the important part and it is done correctly in the backend. Credit where due.
+
+## 12.2 Still open — ranked
+
+### **R-1 (P0, unchanged in substance). The "Analyze" button still 404s.**
+
+The contract was *added* but never *migrated*. The client now contains both a working surface and the old dead one, and the app uses the dead one.
+
+- `client.ts:263` `getHealth()` → `/health` → resolves to `/api/v1/health` → **404**.
+- `useAnalysisWorkflow.ts:142–151` calls, in order: `getHealth()`, `getVersion()`, `createProject()`, `uploadDrawing()`, `getDrawingPreflight()` — **all legacy, all `/api/v1/*`, all 404**.
+- `useAnalysisWorkflow` is mounted by the root route (`WorkspaceApp.tsx:179`), so the failure is on first interaction, and it is swallowed into a generic *"Failed to inspect uploaded drawing"* (`useAnalysisWorkflow.ts:165–167`) — which will read as a product bug, not a wiring bug.
+- 28 legacy client methods, called from 11 UI files (`WorkspaceApp.tsx` 8, `RunViewer.tsx` 11, `LiveDataProvider.tsx` 8, `ProjectsView.tsx` 4, `ExportPanel.tsx` 4, …) — 48 call sites in total.
+- Exactly **one** UI component consumes a real endpoint: `AskTheDrawingDrawer.tsx:176` → `queryCopilot` → `/api/copilot`.
+
+**Net:** the only thing in the UI that can talk to this backend is the copilot drawer. Everything a judge clicks first cannot.
+
+**Fix (half a day, highest value):** either (a) rewrite the six workflow calls to `scanSheet` / `parseSchedule` / takeoff endpoints and delete the project/run/job layer, or (b) delete the legacy surface and the screens that need it, and make the demo a single honest flow: upload → scan sheet → review suggestions → ask copilot. Option (b) is faster and more truthful.
+
+### **R-2 (P0). Still no git remote.**
+
+`git remote -v` → empty, with 167 files and 8.5 MB of fixtures now in one local commit. The commit-only half of P0-3 is fixed; the durability half is not. One `git push` closes it.
+
+### **R-3 (P1). The new contract test gives false confidence.**
+
+`tests/test_api_contract.py` is described as *"asserting that all frontend API client endpoints connect cleanly to the FastAPI backend"* — but it **hardcodes the backend's own routes** and never reads `frontend/src/api/client.ts`. Consequently it passes while 28 client methods point at `/api/v1/*` that do not exist. This is the same failure mode as the old sanitizer: a check that reports PASS on the thing it does not check.
+
+**Fix:** parse `client.ts` for `request<T>('...')` literals, resolve them through the same base-URL rule, and assert each against `app.routes`. ~40 lines, and it would have caught R-1.
+
+### **R-4 (P1). One user's "clear key" silently downgrades everyone.**
+
+`_byok_disabled_for_session: bool` (`routes.py:30`) is a **process-global flag**, checked at `routes.py:56`. After any client calls `DELETE /api/auth/byok`, every subsequent request from every session returns `MetaModelClient(api_key="mock_key_unconfigured")` — i.e. the whole server silently falls back to mock behaviour until someone re-configures a key.
+
+That is a cross-session DoS *and* a silent correctness downgrade, which is precisely the audit's central theme. Make the flag session-scoped (`_disabled_sessions: set[str]`), and have the mock fallback be visible in the response (`mode: "offline"`), not silent.
+
+Also: `_session_keys` has no eviction sweep — expired entries are only removed when that session is accessed again.
+
+### **R-5 (P1). Provenance is still asserted, not computed.**
+
+`client.ts:470` hardcodes `external_model_used: true` on every copilot response, regardless of whether the backend used `muse-wonder-1.0` or the template fallback. The backend now knows the difference; the client throws that knowledge away. Return the backend's actual `mode` and pass it through.
+
+### **R-6 (P1). Two scale engines, still unreconciled.**
+
+`scale.py` is 45,801 bytes; `scale_validator.py` is 2,352. `pipeline.py:42` still imports `detect_scale` from `scale.py`. Nothing changed here. The dual-engine risk described in §3/P1-1 is intact.
+
+### **R-7 (P2). The version trap is still armed.**
+
+`client.ts:52` still defaults `baseUrl` to `/api/v1`. The `request()` helper special-cases endpoints beginning with `api/` (`client.ts:63–66`), which is why the new calls work — but **any future method written without the `api/` prefix silently lands on the dead namespace**. That is how this bug happened the first time. Delete the default (or set it to `/api`) once the legacy surface is gone.
+
+### **R-8 (P2). Store durability unchanged.**
+
+`INSERT OR REPLACE` at `takeoff_store.py:129,151,188,221` (resets `created_at`); no `PRAGMA journal_mode=WAL`, `busy_timeout`, or `foreign_keys=ON` anywhere. P2-9 stands.
+
+### **R-9 (P2). Copy and design drift unchanged.**
+
+- YOLO: **10 occurrences** remain in `frontend/src`, including `WorkspaceTopNav.tsx` ("YOLO11n model weights loaded and verified") — a false claim, still.
+- "MEP Design AI" in 5 non-test files (`AppRouter.tsx:22`, `GlobalTopNav.tsx:51`, `WorkspaceShell.tsx:68`, `StoryHeader.tsx:32`, `StoryPage.tsx:144`) plus `WorkspaceTopNav.tsx:90`.
+- `index.css`: **37 raw hex**, **0 `oklch`** — `DESIGN.md` still unimplemented.
+- **0** `prefers-reduced-motion`, **0** `:focus-visible`.
+- `/api/v1` still rendered in UI copy (3 sites).
+
+### **R-10 (P2). Config name drift.**
+
+`.env.example:15` documents `DATABASE_PATH=data/bluetrace.db`; the code reads `BLUETRACE_DB_PATH` with default `data/takeoff.sqlite3` (`routes.py:66`). Setting the documented variable does nothing.
+
+### **R-11 (P2). Infrastructure still absent.**
+
+`.github/`, `.pre-commit-config.yaml`, `.opencode/`, `opencode.json`, `LICENSE` — **all still missing**. No CI, so none of the fixes above are gated against regression. `State.md:4,18` still claims "Slice 3 — Point-of-Need UI — COMPLETE", which remains untrue (no crop UI consumes `extractCropOcr`).
+
+## 12.3 Small new nits found while re-checking
+
+1. `routes.py:169` — `confidence` still defaults to `0.95` on the success path, and `routes.py:166` accepts `width=0.0` (the guard tests `is None`, not falsy). A model response of `{"width": 0}` yields a "0x0 Rectangular Duct" badge with 95% confidence and `review_required=False`.
+2. `getHealth` and `getMetaHealth` both exist (`client.ts:263` vs `:514`); only the second is correct, and only the first is called.
+3. `scanSheet` takes a **server-side path string**, so even with containment the browser cannot use it — an upload endpoint is still needed before any real UI can drive it.
+4. `test_api_contract.py` creates real rows in the real DB (no `tmp_path`), so P1-8 test isolation is still open.
+
+## 12.4 Shortest path from 5.5 to submission
+
+Three items, in this order, and nothing else:
+
+1. **`git remote add` + push** (10 minutes). Eliminates the only unrecoverable risk left.
+2. **Pick one flow and make it real** (half a day). Recommended: delete the project/run/job legacy surface and demo `upload → scanSheet → review SUGGESTED items → copilot`. This removes R-1, R-7, and most of R-9's confusion at once.
+3. **Make the contract test read `client.ts`** (1 hour). It is the cheapest permanent guard against R-1 recurring, and it converts the test suite's biggest false claim into its most useful check.
+
+Everything else in this document is polish relative to those three. The backend now tells the truth; the frontend still points at a backend that never existed.
+
 
 

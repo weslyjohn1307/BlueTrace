@@ -42,7 +42,7 @@ vi.mock('../api/client', () => {
   };
 });
 
-describe('MEP Design AI — UI-05 Takeoff, Coverage, and Export Tests', () => {
+describe('BlueTraceAI — UI-05 Takeoff, Coverage, and Export Tests', () => {
   const mockSummary: PackageSummaryResponse = {
     project_id: 'PRJ-94318E2B1ECB',
     run_id: 'RUN-20260908-135525-9A6D3D',
