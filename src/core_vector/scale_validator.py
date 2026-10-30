@@ -4,7 +4,12 @@ from typing import ClassVar, Literal
 
 class ScaleValidator:
     """Validates architectural and engineering drawing scale strings deterministically.
-    
+
+    API-facing twin of ``src/core_vector/scale.py`` (which owns pipeline-internal
+    schematic/riser/NTS gating). Boundary: API/meta-services code uses this class;
+    pipeline code uses ``scale.py``; both must agree on fixtures (see
+    ``test_scale_validator_reconciles_with_pipeline_scale``).
+
     Adheres strictly to the Fail-Closed Scale Rule:
     Unverified, ambiguous, or conflicting scale annotations return status 'UNVERIFIED'.
     """

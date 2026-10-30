@@ -184,7 +184,7 @@ def run_l2_pipeline(
         scale_override: Optional explicit scale string (e.g. '1/8" = 1\'-0"').
                         When None, scale is detected strictly from drawing text.
         use_topology: When True, run accepted Level 2 representation & topology pipeline (L2-03, L2-04-C1, G2).
-        fixture_id: Optional fixture identifier (e.g. "FIX-TRN-MECH-022").
+        fixture_id: Optional fixture identifier (e.g. "avexis_page_22").
         representation_config_path: Route representation YAML config path.
         topology_config_path: Continuity topology YAML config path.
         strategy: Route representation strategy ("conservative_hybrid" or "legacy_1to1").

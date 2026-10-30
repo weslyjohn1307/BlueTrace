@@ -1,7 +1,11 @@
 """Level 2 fail-closed scale gating (ADR-002).
 
-Implements deterministic scale extraction and schematic drawing rejection based on
-EXP-002, EXP-008, and EXP-009 evidence.
+Pipeline-internal engine: schematic/riser/NTS detection plus rich scale
+decisions with evidence codes. The API-facing twin is
+``src/core_vector/scale_validator.py`` (string parsing + unit conversion).
+Boundary: pipeline code uses this module; API/meta-services code uses the
+validator; both must agree on fixtures (see
+``test_scale_validator_reconciles_with_pipeline_scale``).
 
 Authority: ADR-002 — Fail-Closed Scale Gating Invariant.
 
