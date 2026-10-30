@@ -1,141 +1,225 @@
+<div align="center">
+
+```text
+██████╗ ██╗     ██╗   ██╗███████╗████████╗██████╗  █████╗  ██████╗███████╗
+██╔══██╗██║     ██║   ██║██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██╔════╝
+██████╔╝██║     ██║   ██║█████╗     ██║   ██████╔╝███████║██║     █████╗
+██╔══██╗██║     ██║   ██║██╔══╝     ██║   ██╔══██╗██╔══██║██║     ██╔══╝
+██████╔╝███████╗╚██████╔╝███████╗   ██║   ██║  ██║██║  ██║╚██████╗███████╗
+╚═════╝ ╚══════╝ ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝
+```
+
 # BlueTraceAI
-### AI-Native Interactive Drawing Intelligence & MEP Takeoff Platform
 
-BlueTraceAI is a precision plan takeoff and drawing review platform built for commercial Mechanical, Electrical, and Plumbing (MEP) contractors.
+### The drawing sheet is the interface — point-of-need MEP takeoff, with receipts
 
-Unlike traditional software that relies either on manual clicking or inaccurate black-box batch extraction, BlueTraceAI operates on an interactive, point-of-need model inspired by state-of-the-art estimating software like Incumbent: **The Drawing Sheet is the Interface**.
+[![Stage: Planning](https://img.shields.io/badge/stage-planning-orange)](docs/PRODUCT-VISION.md)
+[![Python 3.10–3.13](https://img.shields.io/badge/python-3.10--3.13-blue)](pyproject.toml)
+[![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)](src/api/)
+[![React 19](https://img.shields.io/badge/frontend-React_19-61DAFB)](frontend/)
+[![Backend tests: 39 passing](https://img.shields.io/badge/backend_tests-39_passing-brightgreen)](tests/)
+[![Frontend tests: 25 passing](https://img.shields.io/badge/frontend_tests-25_passing-brightgreen)](frontend/src/test/)
 
----
+<!-- After the GitHub repo is created, replace the two test badges above with the live Actions badge:
+[![CI](https://github.com/<owner>/bluetrace-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/bluetrace-ai/actions/workflows/ci.yml)
+-->
 
-## Architectural Evolution: Offline Foundation to Live Multi-Agent Assistant
-
-BlueTraceAI is an evolution of our team's battle-tested offline engineering pipeline (developed in `Imagineers`, backed by 700+ automated unit/integration tests). 
-
-Rather than treating plan review as a static, disconnected batch extraction job, BlueTraceAI builds a **live, multi-agent collaboration layer** powered by Meta's newest frontier models (`muse-spark-1.3`, `sam-3.1`, `muse-wonder-1.0`, Files API) working side-by-side with the estimator in real time on the drawing canvas:
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│               BlueTraceAI Interactive Review Workspace                 │
-│                                                                        │
-│   ┌────────────────────────────────────────────────────────────────┐   │
-│   │ 150 DPI Hardware-Accelerated SVG Canvas Viewer                 │   │
-│   │                                                                │   │
-│   │  [Sheet M-201]              [Point-of-Need QuickDraw Badge]    │   │
-│   │   ═══════════════════════►  ┌─────────────────────────────┐    │   │
-│   │   Supply Air Duct Run       │ 24x12 Rectangular Duct      │    │   │
-│   │   (Native Vector Linework)  │ [Click to Apply: 48.5 LF]   │    │   │
-│   │                             └─────────────────────────────┘    │   │
-│   │                                                                │   │
-│   │  [Schedule Predictions Pins]     [SAM 3.1 Room Polygon]        │   │
-│   │  Diffuser S1 (150 CFM, 12x12)    Zone 2 / Conf Room 203        │   │
-│   └────────────────────────────────────────────────────────────────┘   │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-          ┌─────────────────────────┴────────────────────────┐
-          │                                                  │
-          ▼                                                  ▼
-┌───────────────────────────────────┐    ┌───────────────────────────────────┐
-│ Meta Model API (Online Agentic)   │    │ Deterministic Engine (Offline)    │
-│ - muse-spark-1.3: Hover OCR &     │    │ - PyMuPDF native vector stream    │
-│   title-block SheetScan           │    │ - Paired double-line centerline   │
-│ - sam-3.1: Zero-shot segmentation │    │ - Fail-closed scale verification  │
-│ - muse-wonder-1.0: Copilot chat   │    │ - SQLite immutable takeoff store  │
-└───────────────────────────────────┘    └───────────────────────────────────┘
-```
+</div>
 
 ---
 
-## Key Capabilities
+## The problem
 
-1. **SheetScan (Automated Plan Directory)**
-   - Automatically detects sheet numbers (e.g. `M-101`, `P-201`), discipline, sheet title, and engineering scale from title blocks upon upload using `muse-spark-1.3`.
-2. **Point-of-Need Dimensioning (QuickDraw)**
-   - Estimators hold a key (e.g. `Q`) or hover over a duct/pipe run on the 150 DPI canvas to view real-time dimension callouts extracted via lightweight 300x300 px cursor-crop OCR (< 500 ms latency).
-3. **Equipment Schedule-to-Plan Cross-Referencing (Predictions)**
-   - High-density table extraction from equipment schedules (diffusers, VAV boxes, valves, pumps) mapped directly onto the floor plan as actionable takeoff items with 1-click accept/reject.
-4. **Interactive Boundary Segmentation (SAM 3.1)**
-   - One-click zero-shot polygon boundary segmentation for rooms, zones, and equipment footprints using Meta's `sam-3.1`.
-5. **Deterministic Linear Linework Engine (Offline Core)**
-   - Sub-pixel native PDF vector extraction and paired double-line duct centerline tracing to ensure takeoff footages remain mathematically exact. Never guess or hallucinate dimensions.
-6. **Conversational Estimating Copilot (Natural Language Takeoff Assistant)**
-   - Natural language drawing interrogation and takeoff calculations powered by `muse-wonder-1.0` with structured tool calling and highlighted coordinate pins.
+A mechanical estimator pricing a commercial bid does the same punishing loop for every sheet:
 
----
+1. Find the sheet, read its title block, confirm its scale.
+2. Count and measure duct, pipe, and equipment — by hand, on paper or in a PDF viewer.
+3. Cross-reference every schedule tag (`VAV-1`, `S1`, …) against the floor plan.
+4. Type it all into a spreadsheet, hoping nothing was missed or mis-scaled.
 
-## Anti-Leak Sanitization Guardian
+It takes hours per bid, errors are invisible until installation, and a wrong scale silently corrupts every length on the sheet. Generic AI extraction makes this worse, not better: a model that *guesses* a dimension with confidence is a liability in a domain where quantities become purchase orders.
 
-To ensure strict code isolation and cleanliness when importing components and datasets from predecessor projects, BlueTraceAI includes an automated anti-leak guardian (`scripts/sanitize_import.py`) bound to `.git/hooks/pre-commit`:
+## What BlueTraceAI does differently
 
-```bash
-# Run audit across workspace
-python scripts/sanitize_import.py --audit
+**Vectors measure. Models read. Humans approve.**
 
-# In-place sanitize imported files
-python scripts/sanitize_import.py --sanitize-all
+| Layer | Job | Rule |
+|---|---|---|
+| **Deterministic engine** (PyMuPDF, Shapely, NetworkX) | Extract native PDF vector linework, trace paired double-line duct centerlines, verify scale | Lengths come only from physical coordinates × a validated scale ratio |
+| **Meta Model API** (`muse-spark-1.3`, `sam-3.1`, `muse-wonder-1.0`) | Read title blocks, schedule tables, and hover crops; answer questions about the sheet | Models propose; they never silently approve |
+| **Human reviewer** | Accept or reject every suggestion in the ledger | Nothing enters the takeoff without a click |
 
-# Cleanly import a file from another directory
-python scripts/sanitize_import.py --import-file /path/to/source.py src/target.py
+And the invariant the whole system is built around:
+
+> **Fail closed.** Unverified scale, unparsed crop, or missing confidence ⇒ `review_required`, visibly flagged — never a plausible-looking invented number.
+
+Without an API key the app still works: it degrades to a visibly-labelled offline mode (confidence `0`, review required) instead of pretending to measure.
+
+## See the flow (60 seconds)
+
+```text
+Upload PDF ──► SheetScan ──► Canvas (150 DPI) ──► Hover badge ──► Ledger ──► CSV / JSON
+                  │                 │                │              │
+                  │                 │                │              └─► Accept / reject (audited)
+                  │                 │                └─► QuickDraw crop-OCR at your cursor
+                  │                 └─► Schedule ghost pins ──────┘
+                  └─► Sheet tree (multi-sheet sets)
+                                     Copilot: "Ask the drawing" ──► cited evidence pins
 ```
 
----
+1. **Open** — drop a PDF (or click a bundled fixture to try it instantly).
+2. **Scan** — sheet number, title, discipline, and scale are read from the title block; scale status is shown green only when verified, amber otherwise.
+3. **Point** — hover over a duct run (~400 ms, or press `Q`): a dimension badge appears at your cursor. Unsure results hide the Accept button.
+4. **Review** — accepted items land in the ledger with coordinates and provenance; schedule tags become ghost pins to confirm.
+5. **Ask** — question the sheet in plain language; answers cite the items and coordinates they came from, and say so when they came from the offline template instead of the model.
+6. **Export** — download the reviewed takeoff as CSV or JSON.
 
-## Technology Stack
+> **Visual proof:** _Planning stage — demo GIF/screenshots land here before first public release. Capture guide: [`docs/specs/UI-UX-FLOWS.md`](docs/specs/UI-UX-FLOWS.md); Playwright visual suite: `frontend/tests/playwright/`._
 
-* **Frontend**: React 19, Vite, TypeScript, Tailwind CSS, Hardware-Accelerated Canvas (150 DPI), SVG Annotation Overlay.
-* **Backend API**: FastAPI, Python 3.10+, SQLite transactional project store, Pydantic v2.
-* **Perception & Reasoning Models**: Meta Model API (`https://api.meta.ai/v1`)
-  - `muse-spark-1.3`: Multimodal Vision, Title Block extraction, Table JSON parsing, and Cursor-Crop OCR.
-  - `sam-3.1`: Promptable point-and-click segmentation via the Responses API.
-  - `muse-wonder-1.0`: Long-horizon reasoning, takeoff calculations, and copilot tool execution.
-  - Files API: Single-upload PDF drawing caching via `POST /v1/files`.
-* **Vector Engine**: PyMuPDF (`fitz`), NetworkX, Shapely.
+## Capabilities — honest status per component
 
----
+| Component | What it does | Status |
+|---|---|---|
+| **SheetScan** | Title-block reconnaissance (number, title, discipline, scale) | ✅ Working (`POST /api/sheet-scan`) |
+| **150 DPI canvas** | Pan/zoom sheet viewer with sheet tree and evidence pins | ✅ Working (`SheetCanvas`) |
+| **QuickDraw hover badge** | 150 pt cursor crop → dimension suggestion with confidence + latency | ✅ Working (`POST /api/crop-ocr`, fail-closed) |
+| **Takeoff ledger** | SUGGESTED → ACCEPTED/REJECTED review, audit events, rollup | ✅ Working (`/api/takeoff/*`) |
+| **Schedule linking** | Schedule table → tags matched to plan coordinates as ghost pins | ✅ Working (`POST /api/schedule/parse`) |
+| **Copilot** | Natural-language Q&A grounded in the ledger, streamed (SSE) | ✅ Working (`/api/copilot`, `/api/copilot/stream`) |
+| **BYOK key handling** | Bring-your-own Meta API key, session-scoped, masked, expiring | ✅ Working (`/api/auth/byok`) |
+| **SAM 3.1 segmentation** | Concept-prompt polygon segmentation | 🔌 Endpoint only (`POST /api/segment`) — no canvas trigger yet |
+| **Files API caching** | Upload drawings to Meta Files API | 🔌 Endpoint only (`POST /api/files/upload`) — not in the UI flow yet |
+| **Legend extractor** | Symbol → description table parsing (DOC-04) | 🔭 Planned |
+| **Desktop packaging** | Standalone Windows app (Electron + sidecar research) | 🔭 Researched ([RES-06](docs/research/RES-06-STANDALONE-PACKAGING.md)) |
 
-## Project Structure
+Full per-screen behaviour, including all five screen states (loading / empty / error / success / offline): [`docs/specs/UI-UX-FLOWS.md`](docs/specs/UI-UX-FLOWS.md).
+
+## Architecture
+
+```text
+┌──────────────────────────── Frontend (React 19) ────────────────────────────┐
+│  TakeoffWorkspace ── UploadCard · SheetTree · SheetCanvas · HoverBadge      │
+│                     LedgerPanel · SchedulePanel · CopilotDrawer · ByokDialog│
+└──────────────────────────────────┬──────────────────────────────────────────┘
+                                   │  /api/*  (single contract, test-enforced)
+┌──────────────────────────────────┴──────────────────────────────────────────┐
+│  FastAPI (Python 3.10–3.13)          src/api/routes.py                      │
+│  ├─ Meta layer     src/meta_services/  muse-spark-1.3 · sam-3.1 · wonder-1.0│
+│  ├─ Vector engine  src/core_vector/    PyMuPDF · centerlines · scale gates  │
+│  ├─ Store          src/store/          SQLite (WAL) ledger + review events  │
+│  └─ Schemas        src/models/         Pydantic v2 contracts                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+Design decisions are recorded, not remembered: [ADR-001 hybrid architecture](docs/adr/ADR-001-hybrid-mep-architecture.md) · [ADR-002 offline-engine reuse](docs/adr/ADR-002-reusing-offline-engine-and-incumbent-ux.md) · [ADR-003 VLM replaces YOLO](docs/adr/ADR-003-vlm-detection-replaces-yolo.md).
+
+## Quickstart
+
+**Prerequisites:** Python 3.10–3.13, Node 20+ (developed on 24), Windows or any OS with the same toolchains.
+
+```powershell
+# 1 — Backend (terminal 1)
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+uvicorn src.api.main:app --host 127.0.0.1 --port 8000 --reload
+
+# 2 — Frontend (terminal 2)
+npm --prefix frontend ci
+npm --prefix frontend run dev        # http://127.0.0.1:5173 (proxies /api → :8000)
+
+# 3 — Try it: open the app and click a bundled fixture (Avexis HVAC plan).
+#    No API key needed — vision features degrade visibly, vectors/ledger/export work.
+```
+
+**Optional — live Meta models:** copy `.env.example` to `.env` and set `MODEL_API_KEY`, or paste a key in the app's *AI key* dialog (session-scoped, never written to disk).
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `MODEL_API_KEY` | No | Meta Model API key for live vision/copilot (BYOK dialog works instead) |
+| `META_API_BASE_URL` | No | API base, default `https://api.meta.ai/v1` |
+| `BLUETRACE_DB_PATH` | No | SQLite path, default `data/takeoff.sqlite3` |
+
+## Verification
+
+Every claim above is gated. Run them all:
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/ -q                 # 39 passed
+.venv\Scripts\python.exe -m ruff check src/ tests/ scripts/  # clean
+.venv\Scripts\python.exe -m mypy                             # clean (scope in pyproject.toml)
+.venv\Scripts\python.exe scripts/sanitize_import.py --audit  # anti-leak: PASS
+npm --prefix frontend run test -- --run                      # 25 passed
+npm --prefix frontend run lint                               # clean
+npm --prefix frontend run build                              # clean
+```
+
+A contract test parses `frontend/src/api/client.ts` and fails if the UI ever calls an endpoint the backend does not expose — the bug class that once split this repo in two cannot return silently. CI mirrors these gates (`.github/workflows/ci.yml`).
+
+**Benchmark fixtures** (real sheets + ground truth in `fixtures/`): Avexis p.22 — 329 verified centerline runs (asserted in `tests/test_vector_pipeline.py`); PfMCC p.118 — 168 damper annotations; P-104.1 plumbing level 4.
+
+## Project structure
 
 ```text
 bluetrace-ai/
-├── configs/                   # Routing thresholds and classification rules
-├── docs/                      # Architectural specs, research, and design guides
-│   ├── adr/                   # Architecture Decision Records (ADR-001, ADR-002, ADR-003)
-│   ├── hackathon/             # Hackathon rules, tracks, and submission guidelines
-│   ├── meta_api/              # Curated Meta Model API documentation & index
-│   ├── research/              # Dedicated research investigations (RES-01 to RES-05)
-│   └── specs/                 # Technical specifications (BYOK, Point-of-Need UX)
-├── fixtures/                  # Ground-truth MEP blueprint test sheets & annotations
-├── frontend/                  # React 19 interactive canvas application
-├── scripts/                   # Sanitization guardian and tooling scripts
-│   └── sanitize_import.py     # Anti-leak validator & clean-importer
-├── src/                       # FastAPI backend & core algorithms
-│   ├── api/                   # REST endpoints & request contracts
-│   ├── core_vector/           # Deterministic vector linework & scale engine
-│   ├── meta_services/         # Meta Model API integration layer
-│   ├── models/                # Pydantic v2 domain schemas
-│   └── store/                 # SQLite transactional takeoff store & rollup
-├── tests/                     # Automated unit and integration test suite
-├── PLAN.md                    # Capability-based milestone roadmap
-├── TASKS.md                   # Live task tracking matrix
-├── pyproject.toml             # Python project dependencies
-└── .env.example               # Documented environment template
+├── src/
+│   ├── api/            # FastAPI routes (/api/*) — the single frontend contract
+│   ├── core_vector/    # Deterministic vector extraction, centerlines, scale math
+│   ├── meta_services/  # Meta Model API clients, SheetScan, schedules, copilot
+│   ├── models/         # Pydantic v2 schemas
+│   └── store/          # SQLite takeoff ledger, rollup, review events, export
+├── frontend/           # React 19 workspace (single flow: upload→scan→review→ask)
+├── fixtures/           # Real MEP sheets + ground-truth annotations
+├── configs/            # Pipeline thresholds and classification rules
+├── scripts/            # Anti-leak sanitizer, doc tooling
+├── tests/              # Backend suite (39) incl. frontend↔backend contract guard
+├── docs/
+│   ├── adr/            # Architecture decision records
+│   ├── research/       # RES-01…07: interfaces, UX, domain & prior art, packaging
+│   ├── specs/          # UI/UX flows, BYOK security, tooling decisions
+│   └── PRODUCT-VISION.md
+├── TASKS.md            # Task matrix — checked means built, tested, and true
+└── AGENTS.md           # Project constitution (invariants, boundaries, gates)
 ```
 
+## Documentation map
 
----
+| Audience | Start here |
+|---|---|
+| **Users / estimators** | This README → [UI/UX flows](docs/specs/UI-UX-FLOWS.md) → [Product vision](docs/PRODUCT-VISION.md) |
+| **Contributors** | [AGENTS.md](AGENTS.md) → [TASKS.md](TASKS.md) → [Data models](Data_models.md) → ADRs |
+| **Reviewers / judges** | [Submission guide](docs/SUBMISSION.md) → [Fix log](docs/FIXLOG-2026-10-30-reaudit-remediation.md) → capability table above |
+| **Domain researchers** | [RES-07 MEP domain & prior art](docs/research/RES-07-MEP-DOMAIN-AND-PRIOR-ART.md) → RES-01…06 |
 
-## Remote Repository & Pre-Submission Git Setup
+## Stage & roadmap
 
-To push this repository to your remote GitHub host prior to hackathon submission:
+**Current stage: Planning.** Prototype slices are built and verified; this is not a production release and has not been submitted anywhere.
 
-```bash
-# 1. Add your remote GitHub repository
-git remote add origin https://github.com/<your-username>/bluetrace-ai.git
+- ✅ Phases 0–5: specs, backend, vector engine, workspace, Meta layer, BYOK
+- 🔌 Endpoint-only: SAM canvas trigger, Files API in-flow
+- 🔭 Next: legend extractor (DOC-04), demo walkthrough (VER-02), license choice, first remote push (SUBMIT)
 
-# 2. Set master branch
-git branch -M master
+Task-level truth lives in [`TASKS.md`](TASKS.md) and [`task_plan.md`](task_plan.md); audit history in [`docs/AUDIT-2026-10-30-prompt-compliance.md`](docs/AUDIT-2026-10-30-prompt-compliance.md).
 
-# 3. Push code, tests, and artifacts
+## Limitations (read before trusting a number)
+
+- Measurements require a **verified or calibrated scale**; otherwise the UI says so and quantities stay suggestions.
+- Vision results are **proposals with confidence scores**, not measurements. Low/zero confidence blocks acceptance.
+- The vector engine is validated on the bundled fixtures, not on arbitrary drawing sets — see fixture README for scope.
+- SAM 3.1 and Files API are backend endpoints without finished UI flows (table above).
+- Single-user local SQLite by design at this stage; no auth, no multi-tenant hosting story yet.
+
+## Contributing & license
+
+Contributions follow [`AGENTS.md`](AGENTS.md): conventional commits, atomic micro-commits per slice, all gates green, no secrets in git.
+
+**License: not yet chosen** (owner decision pending) — do not assume reuse rights until a `LICENSE` file appears. Note for future distribution: PyMuPDF carries AGPL/commercial licensing terms that must be resolved before any paid packaging ([RES-06](docs/research/RES-06-STANDALONE-PACKAGING.md)).
+
+## Remote setup (once your repo exists)
+
+```powershell
+git remote add origin https://github.com/<owner>/bluetrace-ai.git
 git push -u origin master
 ```
 
-See [docs/SUBMISSION.md](docs/SUBMISSION.md) for the complete judge walkthrough and submission details.
+Then swap the static test badges at the top for the live CI badge (commented template included there).
