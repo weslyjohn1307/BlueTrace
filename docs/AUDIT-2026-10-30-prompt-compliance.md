@@ -615,5 +615,66 @@ Three items, in this order, and nothing else:
 
 Everything else in this document is polish relative to those three. The backend now tells the truth; the frontend still points at a backend that never existed.
 
+---
+---
+
+# Round 3 — Task-Completion Audit (Planning Stage)
+
+**Re-audited:** 2026-10-30, working tree on HEAD `bfe275e` (R-1 migration uncommitted).
+**Stage framing:** Planning. Checked tasks mean "planned, scaffolded, and prototype-verified", not production-ready. VER-02 (video) and SUBMIT (remote/push) are expected to be open at this stage and are not counted as failures.
+**Revised score: 6.5 / 10 for Planning-stage completeness** (up from 5.5). The task list is now mostly honest; one real integration bug was hiding behind two mocked tests.
+
+## 13.1 Gate verification (re-run this session)
+
+| Gate | Command | Result |
+|---|---|---|
+| Backend tests | `pytest tests/ -q` | **39 passed** (was 35; +4 upload tests added in this audit) |
+| Frontend tests | `npm --prefix frontend run test -- --run` | **25 passed** (5 files) |
+| Frontend build | `npm --prefix frontend run build` | ✅ (380 kB JS, gzip 110 kB) |
+| Backend lint | `ruff check src/ tests/ scripts/` | ✅ clean |
+| Frontend lint | `npm --prefix frontend run lint` | ✅ clean **after fix F-1** (was 1 error) |
+| Type check | `mypy` (configured scope, 12 files) | ✅ clean. `mypy src/` still fails with 224 errors in `src/core_vector/` — excluded by design, now documented in `AGENTS.md` §4 |
+| Anti-leak | `python scripts/sanitize_import.py --audit` | ✅ PASS |
+
+## 13.2 Fixes applied in this audit
+
+| ID | Fix | Files |
+|---|---|---|
+| F-1 | ESLint failure: unused `FIXTURE` in Playwright spec (would have failed CI) — now asserted in `beforeAll` | `frontend/tests/playwright/ui-states.spec.ts` |
+| F-2 | **User PDF upload was broken**: frontend sent multipart `FormData`, backend rejects multipart by design (no `python-multipart`). Proven: multipart → 400, raw → 200. Client now sends raw bytes + `?filename=`; frontend test corrected; 4 backend upload tests added (raw, JSON-base64, non-PDF, fake-PDF) | `frontend/src/api/client.ts`, `frontend/src/test/api-client.test.ts`, `tests/test_api_contract.py` |
+| F-3 | `prd.json` was stale (G-M0 `in_progress`, rest `pending`) while TASKS claimed completion — synced: G-M0/M1/M2/M4/M5 `completed`, G-M3/M6 `in_progress` (DOC-04, VER-02, SUBMIT open) | `prd.json` |
+| F-4 | `AGENTS.md` listed non-existent `src/document/` and wrong type-check command (`mypy src/`) — corrected to actual layout + configured `mypy` | `AGENTS.md` |
+| F-5 | `DESIGN.md` mandated dark theme + Inter/JetBrains while implementation is light vellum + Libre Franklin/STIX/Inconsolata — contract updated to describe the implemented system; `index.css` declared source of truth | `DESIGN.md` |
+| F-6 | TASKS overclaim: META-05 "structured tool calling" — actually context-grounded chat completions, no tool calling. Wording corrected | `TASKS.md` |
+| F-7 | Stale counts/headers: backend 35→39 in TASKS/task_plan/State; TASKS header now notes R-1 is uncommitted and stage is Planning | `TASKS.md`, `task_plan.md`, `State.md` |
+| F-8 | `docs/specs/UI-UX-FLOWS.md` documented upload as "multipart, ≤100 MB" — corrected to raw/JSON, ≤150 MB (matches `routes.py:355`) | `docs/specs/UI-UX-FLOWS.md` |
+
+## 13.3 Task-by-task verdict
+
+**True as checked:** RES-01…05 (thin but present — RES-02/03 are 32-line briefs, adequate for Planning, not specs to build from alone), SPEC-01…07, MEM-01 (after F-3), ENV-01…04, META-01…04, DOC-01/02/03/05, VEC-01/02, OCR-01 (150 pt window → 312 px crop), UI-01 (`HoverBadge` + `SheetCanvas` wired in `TakeoffWorkspace:168-190`), SCHED-01/02 (`SUGGESTED` default, ghost-pin linking in `schedule_parser.py:113-156`), UI-02 (`LedgerPanel` → `PATCH /status` persisted via `useTakeoffSession:154`), COPILOT-01 (SSE at `/api/copilot/stream`, frontend `CopilotPanel` tries stream then one-shot, `model_used` provenance surfaced), SEG-01 (endpoint only — TASKS honestly notes canvas trigger is future), UI-03 (150 DPI canvas, pins, sheet tree), VER-01 (after F-1).
+
+**Checked but with qualifications:**
+- **VEC-03 "reconciled"**: boundary is declared (`scale.py` = pipeline gating, `scale_validator.py` = API parsing) and `test_scale_validator_reconciles_with_pipeline_scale` checks conversion agreement. The engines are not unified; "reconciled" means "boundary + conversion test", which is acceptable for Planning but should not be read as "one engine".
+- **META-05**: see F-6. No function/tool calling exists.
+- **UI-01 accept path**: `HoverBadge` Accept creates a takeoff item directly as `ACCEPTED` (`TakeoffWorkspace:88-100`). This is a human click, so it does not violate HITL, but it differs from the schedule flow (`SUGGESTED` → review). Intentional or not, it should be a conscious decision before build stage.
+- **SPEC-06**: contract now matches implementation (F-5), but workspace (dark slate) vs landing (light vellum) remains a two-theme split. Documented in DESIGN.md; unify or accept explicitly at build stage.
+
+**Correctly open:** DOC-04 (legend extractor), VER-02 (video), SUBMIT (no remote yet — `git remote` still empty).
+
+## 13.4 Remaining gaps (Planning-appropriate, not blockers)
+
+1. **R-1 migration is uncommitted** (94 entries in `git status`). TASKS "done" is true only in the working tree; HEAD `bfe275e` does not contain `TakeoffWorkspace`. Commit before any other work — this is the same risk as P0-3, recurring.
+2. **No remote, no LICENSE, no `.pre-commit-config.yaml`** — owner decisions, correctly left open (FIXLOG R-11).
+3. **`findings.md:5-11`** still asserts unverified prize splits / "Official Judging Rubric" not present in the scraped hackathon source. Planning docs should mark it unverified or remove it.
+4. **Upload tests write to real `data/uploads/`** (endpoint hardcodes the path). Harmless (gitignored) but test pollution; make the uploads dir configurable at build stage.
+5. **`ModeBanner.tsx`** uses one raw hex (`bg-[#006D84]`) outside the OKLCH token system. Trivial.
+6. **Playwright suite is not run anywhere** (no `webServer`, no CI job). It now lints, but remains unverified as an executable gate.
+7. **CI (`.github/workflows/ci.yml`) is untracked** and, until F-1, would have failed on frontend lint. It is correct now but has never run.
+
+## 13.5 Verdict on "Tasks are done"
+
+Substantially true for Planning stage, after the fixes above. The previous dishonesty pattern (checked boxes for unbuilt things, e.g. old DOC-04) is gone; remaining checked items all have code + tests behind them. The one functional bug found (F-2 upload) is exactly the class this audit exists to catch: both sides were unit-tested, neither side was integration-tested against the other's actual bytes. The contract test now covers endpoint *paths*; F-2's new backend tests cover upload *payload shape*. A multipart/raw mismatch on any other endpoint would still slip through — worth one integration test per endpoint that carries a body before build stage.
+
+
 
 

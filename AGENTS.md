@@ -19,7 +19,7 @@
 - `src/api/`: FastAPI REST endpoints and request schemas.
 - `src/core_vector/`: Deterministic vector linework, centerline tracing, and scale math.
 - `src/meta_services/`: Meta Model API clients (`muse-spark-1.3`, `sam-3.1`, `muse-wonder-1.0`, Files API).
-- `src/document/`: Document reconnaissance, sheet classification, and title block parsing.
+- Document reconnaissance (sheet classification, title block parsing) lives in `src/core_vector/pipeline.py` + `src/meta_services/sheet_scanner.py` — no separate `src/document/` by design.
 - `src/store/`: SQLite transactional takeoff store, ledger rollup, and review events.
 - `src/models/`: Pydantic request/response schemas and domain data models.
 - `configs/`: Pipeline thresholds, routing rules, and discipline classifications.
@@ -31,10 +31,11 @@
 
 ## 4. Verification & Testing Commands
 - Backend Tests: `pytest tests/`
-- Backend Lint: `ruff check src/`
-- Backend Type Check: `pyright src/` or `mypy src/`
+- Backend Lint: `ruff check src/ tests/ scripts/`
+- Backend Type Check: `mypy` (scope is configured in `pyproject.toml` `[tool.mypy]`; do not run `mypy src/` — `src/core_vector/` is excluded until its 224 legacy errors are triaged)
 - Frontend Build: `npm --prefix frontend run build`
 - Frontend Lint: `npm --prefix frontend run lint`
+- Frontend Tests: `npm --prefix frontend run test -- --run`
 
 ## 5. Git Commit Protocol
 - Use Conventional Commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`.

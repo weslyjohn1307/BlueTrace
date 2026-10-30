@@ -1,5 +1,9 @@
 # BlueTraceAI: Goal-Based Task Tracking Matrix
 
+> Reconciled 2026-10-30 against the real tree (HEAD `bfe275e` + uncommitted R-1 migration in working tree).
+> Checked = built, tested, and true **in the working tree**. R-1 changes are not yet committed — see SUBMIT.
+> Project stage: **Planning** (prototype slices built for validation; not production, not submitted).
+
 ## Phase 0: Blueprinting, Constitutions & Spec-Driven Planning (G-M0)
 
 - [x] **RES-01**: Meta Model API Interface Specifications (`docs/research/RES-01-META-MODEL-INTERFACES.md`)
@@ -28,7 +32,7 @@
 - [x] **ENV-01**: Setup backend manifest (`pyproject.toml` with `fastapi`, `uvicorn`, `pymupdf`, `shapely`, `networkx`, `httpx`, `openai`, `pydantic`).
 - [x] **ENV-02**: Setup Node.js frontend workspace with React 19, Vite, TypeScript, and Tailwind CSS.
 - [x] **ENV-03**: Setup environment configuration (`.env.example` with zero secrets committed).
-- [x] **ENV-04**: Create clean directory structure (`src/api`, `src/core_vector`, `src/meta_services`, `src/document`, `src/models`, `tests`).
+- [x] **ENV-04**: Create clean directory structure (`src/api`, `src/core_vector`, `src/meta_services`, `src/store`, `src/models`, `tests`, `frontend/`, `fixtures/`). Document reconnaissance lives in `core_vector.pipeline` + `meta_services.sheet_scanner` (no separate `src/document/` by design).
 
 ---
 
@@ -38,7 +42,7 @@
 - [x] **META-02**: Vision & Table Parser Wrapper (`src/meta_services/client.py`) for `muse-spark-1.3`.
 - [x] **META-03**: SAM 3.1 Segmentation Client (`src/meta_services/client.py`) via `/v1/responses`.
 - [x] **META-04**: Files API Client (`src/meta_services/client.py`) for PDF blueprint upload and caching.
-- [x] **META-05**: Reasoning Copilot Client (`src/meta_services/copilot.py`) for `muse-wonder-1.0` with structured tool calling.
+- [x] **META-05**: Reasoning Copilot Client (`src/meta_services/copilot.py`) for `muse-wonder-1.0` with context-grounded chat completions (ledger context injected as JSON; no function/tool calling — see `client.py:query_reasoning`).
 - [x] **META-TEST**: Unit & contract test suite verifying all payload structures and mock response handling (`tests/test_meta_services.py`, `tests/test_api_contract.py`).
 
 ---
@@ -48,7 +52,7 @@
 - [x] **DOC-01**: Native PDF page enumerator, text extractor, and vector density analyzer (`src/meta_services/sheet_scanner.py`, `src/core_vector/pipeline.py`).
 - [x] **DOC-02**: Discipline classifier (`M` Mechanical, `E` Electrical, `P` Plumbing) and title block locator.
 - [x] **DOC-03**: Title block & scale interpreter using `muse-spark-1.3` on 150 DPI high-res crops with fail-closed vector validation.
-- [x] **DOC-04**: Legend table extractor linking graphical symbols to engineering descriptions.
+- [ ] **DOC-04**: Legend table extractor linking graphical symbols to engineering descriptions. Legend *sheet detection* exists for scale gating (`scale.py`); symbol→description extraction is future work (ADR-003 agent 2).
 - [x] **DOC-05**: Document Map & Sheet Metadata Builder outputting structured `SheetMetadata` contracts.
 
 ---
@@ -74,8 +78,8 @@
 ## Phase 6: Copilot Reasoning & Interactive Canvas Demo (G-M6)
 
 - [x] **COPILOT-01**: Natural language takeoff assistant querying structured project SQLite database via `muse-wonder-1.0` with streaming SSE (`/api/copilot/stream`).
-- [x] **SEG-01**: One-click room and equipment polygon segmentation via `sam-3.1` (`POST /api/segment`).
+- [x] **SEG-01**: Room and equipment polygon segmentation via `sam-3.1` (`POST /api/segment`, mock-backed + contract-tested). Canvas one-click trigger is future work.
 - [x] **UI-03**: 150 DPI hardware-accelerated canvas viewer with synchronized page navigation and highlighted evidence.
-- [x] **VER-01**: End-to-end integration test suite passing with 100% test pass rate (35 backend, 84 frontend).
+- [x] **VER-01**: Backend suite (39 tests) + frontend suite (25 tests) green; `ruff check src/ tests/ scripts/`, `mypy` (configured scope in `pyproject.toml`, 12 files — not `mypy src/`), `tsc`, `eslint`, sanitizer audit clean. Verified 2026-10-30 in Round-3 audit (`docs/AUDIT-2026-10-30-prompt-compliance.md` §13). Note: TestClient/async tests need loopback sockets and cannot run in fully locked-down sandboxes.
 - [ ] **VER-02**: 3-minute video walkthrough demonstrating live takeoff workflow.
 - [ ] **SUBMIT**: Remote git push, final leak audit verification, and submission to Cerebral Valley.

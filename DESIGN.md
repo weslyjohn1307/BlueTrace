@@ -2,49 +2,42 @@
 
 ## 1. Design Philosophy: Industrial Precision & High Density
 
-BlueTraceAI is a professional CAD/takeoff tool for estimators and preconstruction engineers, not a generic consumer SaaS. 
+BlueTraceAI is a professional CAD/takeoff tool for estimators and preconstruction engineers, not a generic consumer SaaS.
 - **High-Density Utilitarian Layout**: Swiss typographic discipline, compact table rows (32px height), strict 4px grid spacing rhythm.
-- **Dark Blueprint Canvas**: Drawing canvas optimized for architectural contrast with dark slate drafting background.
+- **Two surfaces (as implemented)**: the takeoff workspace (`TakeoffWorkspace`) uses dark slate chrome (`bg-slate-950`) around the sheet canvas for drafting contrast; landing/story/demo surfaces use the light vellum system. Canonical tokens live in `frontend/src/styles/index.css` — this file describes intent, `index.css` is the source of truth for values.
 - **Sub-Second Feedback**: Micro-interactions timed between 150ms and 250ms with hardware-accelerated pan/zoom.
 
 ---
 
 ## 2. Color System (OKLCH Tokens & CSS Variables)
 
+Canonical values are in `frontend/src/styles/index.css` (`:root`, OKLCH only — no raw hex). Summary of the implemented light system:
+
 ```css
 :root {
-  /* Surface & Background */
-  --bg-app: oklch(0.14 0.01 240);          /* Deep charcoal canvas surface */
-  --bg-surface: oklch(0.18 0.015 240);      /* Card & panel background */
-  --bg-surface-elevated: oklch(0.22 0.02 240); /* Modal & floating badges */
-  --border-subtle: oklch(0.28 0.02 240);    /* Clean technical divider */
-  --border-focus: oklch(0.65 0.18 215);     /* Focus outline ring */
-
-  /* Typography & Text */
-  --text-primary: oklch(0.96 0.005 240);   /* WCAG 2.2 AAA body & title text */
-  --text-secondary: oklch(0.75 0.01 240);  /* Labels, metadata, dimensions */
-  --text-muted: oklch(0.55 0.01 240);      /* Inactive elements, disabled */
-
-  /* MEP Discipline System Colors */
-  --mep-supply: oklch(0.68 0.16 220);      /* Supply Air (Cyan Blue) */
-  --mep-return: oklch(0.70 0.18 145);      /* Return Air (Kelly Green) */
-  --mep-exhaust: oklch(0.70 0.20 45);      /* Exhaust Air (Safety Amber) */
-  --mep-plumbing: oklch(0.62 0.19 280);    /* Plumbing Piping (Violet Blue) */
-  --mep-electrical: oklch(0.80 0.18 85);   /* Electrical Power (Drafting Gold) */
-
-  /* Status Colors */
-  --status-verified: oklch(0.72 0.18 150);
-  --status-review: oklch(0.75 0.16 70);
-  --status-error: oklch(0.65 0.22 25);
+  --color-vellum: oklch(0.984 0.003 247.858);   /* app background (landing/story) */
+  --color-paper: oklch(1 0 0);
+  --color-slate-ink: oklch(0.208 0.042 265.755); /* primary text */
+  --color-slate-caption: oklch(0.446 0.043 257.281);
+  --color-hairline: oklch(0.929 0.013 255.508);
+  --color-blueprint-teal: oklch(0.553 0.094 205.2); /* brand / supply */
+  --color-danger: oklch(0.577 0.245 27.325);
+  --color-success: oklch(0.648 0.2 131.684);
+  --color-warning: oklch(0.666 0.179 58.318);
+  /* Category tokens: --cat-fire-damper / --cat-wshp / --cat-linear-grille / --cat-duct-route / --cat-pipe-route */
 }
 ```
+
+The workspace chrome uses Tailwind slate/cyan utilities on dark (`slate-950/900`) — a deliberate drafting-contrast choice, not a token violation. Status must never rely on color alone: pair with icon + text (see `HoverBadge`, scale badge in `TakeoffWorkspace`).
 
 ---
 
 ## 3. Typography Scale & Fonts
 
-- **Technical Data & Code**: JetBrains Mono or Fira Code (`font-mono`) for coordinates, dimensions, footages, and sheet IDs.
-- **Interface & Labels**: Inter or system sans-serif (`font-sans`) with tight tracking (`tracking-tight`).
+As implemented (`frontend/package.json` `@fontsource/*`, `index.css`):
+- **Technical Data & Code**: Inconsolata (`font-mono`) for coordinates, dimensions, footages, and sheet IDs.
+- **Interface & Labels**: Libre Franklin (`font-sans`) with tight tracking.
+- **Headings**: STIX Two Text (`.font-heading`), serif — print/drawing register.
 - **Scale**:
   - Micro / Badges: `0.75rem` (12px) - uppercase for technical codes.
   - Secondary: `0.875rem` (14px).

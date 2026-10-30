@@ -166,7 +166,7 @@ The predecessor project is located at `D:\Imagineers`. BlueTraceAI has now succe
 | **Q2.3** | Hover OCR < 500ms, SheetScan 1.5–2.5s, SAM 3.1 1–2s, Copilot streaming < 1.0s | Antigravity / 2026-10-30 |
 | **Q2.4** | Canvas navigation, vectors, manual measurements, ledger & export stay functional offline | Antigravity / 2026-10-30 |
 | **Q3.1** | Solved: Canvas viewer, vector extractor, duct centerline tracer, scale math. New: Meta clients, SheetScan, QuickDraw, SAM 3.1 | Antigravity / 2026-10-30 |
-| **Q3.2** | `FIX-TRN-MECH-022.pdf` (Avexis p22 HVAC floor plan) in `D:\Imagineers\mep_dataset\` copied to `fixtures/` | Antigravity / 2026-10-30 |
+| **Q3.2** | `fixtures/mechanical/avexis_page_22.pdf` (+ pfmcc p118, plumbing p104) hosted locally; source dataset lives under predecessor `training\` tree | Muse / 2026-10-30 |
 | **Q3.3** | Startup Track; 3-min demo: SheetScan -> Schedule Linking -> QuickDraw & Tracing -> SAM 3.1 & Copilot -> Export | Antigravity / 2026-10-30 |
 | **Q4.1** | Live API key ready; `muse-spark-1.3`, `sam-3.1`, `muse-wonder-1.0` active | Antigravity / 2026-10-30 |
 | **Q4.2** | Python 3.10+ locked (targeting 3.10–3.13 cross-compatibility) | Antigravity / 2026-10-30 |

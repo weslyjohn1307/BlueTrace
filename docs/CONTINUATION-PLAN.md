@@ -18,12 +18,12 @@ this repo adds the Meta Model API online layer (`muse-spark-1.3`, `sam-3.1`,
 | Capability | Predecessor path | BlueTraceAI target |
 |---|---|---|
 | Vector/linework extraction | `src/mep_ai/level2/extractor.py` | `src/core_vector/extractor.py` |
-| Duct centerline + route graph | `src/mep_ai/level2/representation.py`, `continuity.py` | `src/core_vector/centerline.py` |
+| Duct centerline + route graph | `src/mep_ai/level2/representation.py`, `continuity.py` | `src/core_vector/representation.py` + `continuity.py` (kept predecessor names) |
 | Scale validation (fail-closed) | `src/mep_ai/level2/scale.py` | extend `src/core_vector/scale_validator.py` |
 | Measurement + pipeline + schema | `src/mep_ai/level2/measurement.py`, `pipeline.py`, `schema.py` | `src/core_vector/`, `src/models/` |
-| Package processor + artifact store | `src/mep_ai/package_processor.py`, `artifact_store.py` | `src/document/` |
+| Package processor + artifact store | `src/mep_ai/package_processor.py`, `artifact_store.py` | folded into `core_vector.pipeline` + `store/takeoff_store` (no `src/document/` by design) |
 | FastAPI + worker + SQLite index | `src/backend/api_v1.py`, `job_worker.py`, `result_index.py` | extend `src/api/`, new `src/store/` |
-| Canvas viewer + takeoff ledger | `frontend/src/modes/live/DrawingViewer.tsx`, `TakeoffSummary.tsx` | `frontend/src/` (migrate) |
+| Canvas viewer + takeoff ledger | `frontend/src/modes/live/DrawingViewer.tsx`, `TakeoffSummary.tsx` | superseded by R-1: new `SheetCanvas` + `LedgerPanel` (run-coupled viewer deleted) |
 | Symbol detection (YOLO, damper-only) | `src/mep_ai/level1/` + `yolo11n.pt` | **REPLACED by VLM detection (ADR-003)** |
 | Offline copilot (7 tools) | `src/mep_ai/copilot/engine.py` | reference for `muse-wonder-1.0` tool schema |
 

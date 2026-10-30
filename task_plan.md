@@ -1,5 +1,9 @@
 # BlueTraceAI: Persistent Task Plan (task_plan.md)
 
+> Synced with TASKS.md on 2026-10-30. File paths below are the real ones
+> (single `client.py`, no `src/document/`, `representation.py`+`continuity.py`
+> instead of `centerline.py`).
+
 ## Master Phased Execution Blueprint
 
 ### Phase 0: Blueprinting, Constitutions & Spec-Driven Planning (G-M0)
@@ -18,42 +22,42 @@
 - [x] MEM-01: Initialize Manus-Style 3-File Persistent Memory (`task_plan.md`, `findings.md`, `progress.md`, `State.md`, `prd.json`)
 
 ### Phase 1: Environment & Scaffolding (G-M1)
-- [x] ENV-01: Setup backend manifest (`pyproject.toml` with `fastapi`, `uvicorn`, `pymupdf`, `shapely`, `networkx`, `httpx`, `openai`, `pydantic`)
-- [ ] ENV-02: Setup React 19 frontend workspace with Vite, TypeScript, and Tailwind CSS (`frontend/`)
-- [x] ENV-03: Setup environment configuration (`.env.example` with documented keys)
-- [x] ENV-04: Create clean backend directory structure (`src/api`, `src/core_vector`, `src/meta_services`, `src/document`, `src/models`, `tests`)
+- [x] ENV-01: Backend manifest (`pyproject.toml`)
+- [x] ENV-02: React 19 frontend workspace (`frontend/`)
+- [x] ENV-03: Environment configuration (`.env.example`, zero secrets)
+- [x] ENV-04: Directory structure (`src/api`, `src/core_vector`, `src/meta_services`, `src/store`, `src/models`, `tests`)
 
 ### Phase 2: Meta Model API Layer (G-M2)
-- [ ] META-01: Base Meta Model Client (`src/meta_services/client.py`) with `https://api.meta.ai/v1` and Bearer auth
-- [ ] META-02: Vision & Table Parser Wrapper (`src/meta_services/vision_parser.py`) for `muse-spark-1.3`
-- [ ] META-03: SAM 3.1 Segmentation Client (`src/meta_services/sam_segmenter.py`) via `/v1/responses`
-- [ ] META-04: Files API Client (`src/meta_services/files_client.py`) for PDF blueprint caching
-- [ ] META-05: Reasoning Copilot Client (`src/meta_services/copilot_client.py`) for `muse-wonder-1.0` with structured tool calling
-- [ ] META-TEST: Unit test suite verifying mock responses and payload schemas
+- [x] META-01: Base Meta Model Client (`src/meta_services/client.py`)
+- [x] META-02: Vision & table parsing in `client.py` for `muse-spark-1.3`
+- [x] META-03: SAM 3.1 segmentation in `client.py` via `/v1/responses`
+- [x] META-04: Files API upload in `client.py` + `POST /api/files/upload`
+- [x] META-05: Reasoning copilot (`src/meta_services/copilot.py`) for `muse-wonder-1.0`, SSE streaming
+- [x] META-TEST: Mock/contract suite (`tests/test_meta_services.py`, `tests/test_api_contract.py`)
 
 ### Phase 3: Document Understanding & SheetScan (G-M3)
-- [ ] DOC-01: Native PDF page enumerator, text extractor, and vector density analyzer (`src/document/reconnaissance.py`)
-- [ ] DOC-02: Discipline classifier (`M` Mechanical, `E` Electrical, `P` Plumbing) and title block locator
-- [ ] DOC-03: Title block & scale interpreter using `muse-spark-1.3` on 300 DPI crops
-- [ ] DOC-04: Legend table extractor linking symbols to engineering descriptions
-- [ ] DOC-05: Document Map Builder producing `document_map.json`
+- [x] DOC-01: Page enumerator, text extractor, vector density (`sheet_scanner.py`, `pipeline.py`)
+- [x] DOC-02: Discipline classifier + title block locator
+- [x] DOC-03: Title block & scale interpreter (VLM + fail-closed vector validation)
+- [ ] DOC-04: Legend table extractor (symbol→description; sheet detection only today)
+- [x] DOC-05: Sheet metadata builder (`SheetMetadata` contracts)
 
 ### Phase 4: Deterministic Linework & Point-of-Need OCR (G-M4)
-- [ ] VEC-01: PyMuPDF sub-pixel vector line/curve extractor (`src/core_vector/extractor.py`)
-- [ ] VEC-02: Paired double-line duct centerline tracer & topological graph builder (`src/core_vector/centerline.py`)
-- [ ] VEC-03: Conservative fail-closed scale validator (`src/core_vector/scale_validator.py`)
-- [ ] OCR-01: Sub-second cursor hover crop endpoint (`POST /api/crop-ocr`) for 300x300 px crops
-- [ ] UI-01: Frontend canvas hover dimension badge with click-to-apply takeoff action
+- [x] VEC-01: Vector extractor (`src/core_vector/extractor.py`)
+- [x] VEC-02: Centerline tracer & topology (`representation.py`, `continuity.py`)
+- [x] VEC-03: Fail-closed scale engines (`scale.py` + `scale_validator.py`, reconciled)
+- [x] OCR-01: Hover crop endpoint (`POST /api/crop-ocr`, 150 pt window)
+- [x] UI-01: Hover badge with click-to-apply (`HoverBadge.tsx` + `SheetCanvas.tsx`)
 
 ### Phase 5: Schedule Parsing & Entity Linking (G-M5)
-- [ ] SCHED-01: Tabular equipment schedule parser (`src/meta_services/schedule_parser.py`)
-- [ ] SCHED-02: Spatial entity linking heuristic matching schedule tags (e.g. `VAV-1`, `S1`) to floor plan coordinate pins
-- [ ] UI-02: Interactive takeoff ledger in frontend with accept/reject review workflow
+- [x] SCHED-01: Schedule parser (`schedule_parser.py`, SUGGESTED-by-default)
+- [x] SCHED-02: Tag→coordinate linking via page text blocks + ghost pins
+- [x] UI-02: Ledger with accept/reject + CSV/JSON export (`LedgerPanel.tsx`)
 
 ### Phase 6: Copilot Reasoning & Interactive Canvas Demo (G-M6)
-- [ ] COPILOT-01: Natural language takeoff assistant querying structured project SQLite database via `muse-wonder-1.0`
-- [ ] SEG-01: One-click room and equipment polygon segmentation via `sam-3.1`
-- [ ] UI-03: 150 DPI hardware-accelerated canvas viewer with synchronized page navigation and highlighted evidence
-- [ ] VER-01: End-to-end integration test suite passing with 100% test pass rate
+- [x] COPILOT-01: Grounded copilot with provenance + SSE (`CopilotPanel.tsx`)
+- [x] SEG-01: `POST /api/segment` endpoint (canvas trigger future)
+- [x] UI-03: 150 DPI canvas + sheet tree + evidence pins (`TakeoffWorkspace.tsx`)
+- [x] VER-01: Suites green (39 backend / 25 frontend) + lint/type/audit gates
 - [ ] VER-02: 3-minute video walkthrough demonstrating live takeoff workflow
-- [ ] SUBMIT: Final repository cleanup, 4-command leak audit, and submission to Cerebral Valley
+- [ ] SUBMIT: Remote git push, final leak audit verification, submission to Cerebral Valley

@@ -32,7 +32,7 @@
 - Verified predecessor read-only: `level2/` engine, `backend/` (api_v1, job_worker, result_index), `frontend/src/modes/live/` viewer, 65 test files, predecessor training dataset (real layout: per-page folders, e.g. Avexis p22 + ground-truth JSONs).
 - Documented durably: `docs/CONTINUATION-PLAN.md` (master plan, slices 0–6), `docs/adr/ADR-002-vlm-detection-replaces-yolo.md` (drop YOLO for legend-grounded VLM tile detection), `docs/specs/BYOK-SECURE-INTERFACE.md` (server-side-only key handling + leak audit, per security-best-practices skill).
 - Queued fix: `src/api/main.py` permissive CORS (`*` + credentials) must be tightened before Slice 5.
-- Next: Slice 0 fixtures + Slice 1 offline-core migration on user `go`.
+- Next: Slice 0 fixtures + Slice 1 offline-core migration on user `go` (superseded: slices executed, see below).
 
 ## 2026-10-30: Standalone packaging research (RES-06)
 - Researched feasible paths to ship BlueTrace as a DesktopT-style standalone Windows app (user request).
@@ -62,3 +62,12 @@
 - **N8**: Documented pre-submission Git remote setup in `README.md` and `docs/SUBMISSION.md`.
 - **Packaging Research**: Documented standalone application architecture answering all W's in `docs/research/RES-06-STANDALONE-PACKAGING.md`.
 - **All Quality Gates Green**: Backend 35/35 tests passed, Frontend 84/84 tests passed, Mypy clean in 12 source files, Ruff clean, ESLint clean, Build clean, Anti-Leak Audit passed.
+
+## 2026-10-30: R-1 Migration & Re-audit Finished (this session)
+- Deleted the dead `/api/v1` project/run/job frontend (~50 files, 59 obsolete tests); built the single real flow (`TakeoffWorkspace`: upload→scan→canvas→ledger→schedule→copilot) against `/api/*`.
+- Backend: `resolve_contained_pdf` gate, `GET /api/page-image`, `GET /api/page-text`, BYOK expiry sweep, store WAL/busy-timeout/FK + `created_at`-preserving upserts.
+- Tests: strict contract guard (parses `client.ts`, forbids `/api/v1`), conftest split (sync autouse + explicit async fixture), new vitest suite (25 tests: api-client, takeoff-session, sheet-canvas, boundary, transform).
+- Hygiene: story copy reframed to VLM, OKLCH tokens + reduced-motion + focus-visible, TASKS/task_plan reconciled, `.github/workflows/ci.yml`, scale-engine boundary declared, sanitizer hardened (code/UI scopes, `--sanitize-all` retired), WEAVE/COMPLIANCE overclaims corrected.
+- Docs: `docs/FIXLOG-2026-10-30-reaudit-remediation.md`, `docs/specs/UI-UX-FLOWS.md`, `docs/research/RES-07-MEP-DOMAIN-AND-PRIOR-ART.md`, `docs/PRODUCT-VISION.md`.
+- Gates: ruff/mypy/tsc/eslint/vitest(25/25)/sanitizer green; backend suite green where runnable (TestClient/async tests need loopback sockets).
+- Left open: VER-02 video, SUBMIT (remote+push), DOC-04 legend extractor, SEG-01 canvas trigger, LICENSE choice. Changes uncommitted (no commit requested).

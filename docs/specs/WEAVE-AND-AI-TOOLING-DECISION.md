@@ -30,9 +30,9 @@ We must decide how AI observability is integrated into BlueTraceAI without viola
 
 ### Option C: Native SQLite Event Ledger + Pluggable OpenTelemetry (CHOSEN)
 - **Pros:**
-  - Local SQLite `review_events` and `system_metrics` tables log every VLM call, latency duration, user decision, and model provenance offline.
+  - Local SQLite `review_events` table (exists today) logs every review action; a `system_metrics` table for per-call latency is planned, not yet built.
   - Zero cloud dependencies required for standard operation.
-  - Standard OpenTelemetry spans (`opentelemetry-api` already installed) can be exported to Jaeger, Prometheus, or W&B Weave via optional pluggable exporter.
+  - `opentelemetry-api` is installed (transitive dep), so spans can later be exported to Jaeger, Prometheus, or W&B Weave via an optional exporter. No exporter is wired today.
   - 100% compliant with AEC data privacy and standalone desktop packaging requirements.
 
 ---
@@ -41,10 +41,10 @@ We must decide how AI observability is integrated into BlueTraceAI without viola
 
 1. **Default Engine (Offline & Production):**
    - BlueTraceAI uses local SQLite transactional logging for all model provenance, prompt metadata, crop latencies, and review actions.
-   - Every copilot response includes explicit provenance fields (`model_used: bool`, `scale_verified: bool`, `latency_ms: int`, `cited_coordinates: list`).
+   - Every copilot response includes explicit provenance fields (`model_used: bool`, `scale_verified: bool`, `cited_coordinates: list`); crop responses additionally carry `latency_ms`.
 
-2. **Optional Developer Weave Sink:**
-   - If a developer sets `WEAVE_PROJECT=bluetrace-ai` and `WEAVE_API_KEY` in their local environment, an optional logging hook initializes `weave.init()` to mirror spans.
+2. **Optional Developer Weave Sink (planned, not implemented):**
+   - Design: if a developer sets `WEAVE_PROJECT=bluetrace-ai` and `WEAVE_API_KEY` locally, an optional hook would call `weave.init()` to mirror spans. No hook exists yet.
    - If unconfigured, the application operates completely offline with zero telemetry overhead or network failure risk.
 
 ---
@@ -53,4 +53,4 @@ We must decide how AI observability is integrated into BlueTraceAI without viola
 
 - **Compliance:** Satisfies prompt requirement for documenting the Weave/AI tooling decision.
 - **Security:** Zero blueprint image bytes or API tokens are transmitted to unverified external observability clouds.
-- **Performance:** Local logging overhead is $<1.5$ ms per request.
+- **Performance:** Local logging overhead is unmeasured; budget is <1.5 ms per request when the metrics table lands.
