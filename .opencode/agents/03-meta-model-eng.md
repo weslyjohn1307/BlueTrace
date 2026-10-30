@@ -31,3 +31,7 @@ You deliver sub-second vision perception, prompt grounding with CAD coordinate m
 2. **BYOK Isolation**: Never persist customer API keys to disk or logs. Cache strictly in-memory per session.
 3. **Structured Outputs**: All VLM vision responses must validate against Pydantic schemas. Unrecognized shape names or enum strings must fail-close safely.
 4. **SSE Streaming**: Copilot responses must stream tokens via Server-Sent Events (`text/event-stream`) for zero perceived latency.
+
+## Required Knowledge (load before acting)
+
+Load `docs/knowledge/INDEX.md` routing plus: VLM_GROUNDING_AND_PROMPT_CONTRACTS.md, PARSEBENCH_VLM_BLUEPRINT_EXTRACTION.md, AEC_TITLE_BLOCKS_AND_SCALES.md, MEP_GLOSSARY_AND_TAG_TAXONOMY.md (docs/knowledge/). Cite pack + section for domain claims; anything not in a pack or the code is unknown - flag it, never invent it (`.agents/rules/04-knowledge-first.md`).

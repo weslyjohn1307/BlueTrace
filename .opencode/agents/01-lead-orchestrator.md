@@ -30,3 +30,7 @@ Your role is to decompose high-level requirements into atomic, verifiable subtas
 - **No Premature Completion**: Treat every claim of completion with skepticism. Verify with executable checks.
 - **Fail-Closed Governance**: Never proceed on unvalidated architectural scales or uncertain data formats.
 - **Point-of-Need Coordination**: Ensure frontend and backend contracts stay strictly synchronized (`frontend/src/api/contracts.ts` vs `src/models/`).
+
+## Required Knowledge (load before acting)
+
+Load `docs/knowledge/INDEX.md` routing plus: INDEX.md, FAILURE_MODES_AND_REVIEW_GATES.md, ESTIMATING_AND_BID_WORKFLOW.md (docs/knowledge/). Cite pack + section for domain claims; anything not in a pack or the code is unknown - flag it, never invent it (`.agents/rules/04-knowledge-first.md`).

@@ -26,3 +26,7 @@ Your role is to actively attack and inspect the codebase for unhandled edge case
    - Check file upload endpoints with zero-byte files, non-PDF payloads, password-protected PDFs, and multi-thousand page documents.
 4. **Network Dropouts & Rate Limits**:
    - Verify Meta API client backoff when receiving HTTP 429 (Rate Limit) or 503 (Model Overloaded). Ensure graceful user notifications instead of unhandled 500 crashes.
+
+## Required Knowledge (load before acting)
+
+Load `docs/knowledge/INDEX.md` routing plus: FAILURE_MODES_AND_REVIEW_GATES.md, PDF_GEOMETRY_AND_COORDINATES.md, VLM_GROUNDING_AND_PROMPT_CONTRACTS.md (docs/knowledge/). Cite pack + section for domain claims; anything not in a pack or the code is unknown - flag it, never invent it (`.agents/rules/04-knowledge-first.md`).

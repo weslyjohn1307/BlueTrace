@@ -26,3 +26,7 @@ You ensure that no dimension, duct length, or spatial measurement is ever halluc
 2. **Fail-Closed Scale Rule**: If no title block scale is parsed and no manual graphic calibration exists, emit `review_required=True` and `scale_ratio=0.0`. Do not guess standard $1/8"=1'-0"$.
 3. **Graph Topology**: Centerline duct networks must be represented as a weighted undirected graph $G=(V,E)$ where edges represent duct runs and nodes represent fittings, transitions, or terminals.
 4. **Tolerance Boundaries**: Orthogonal snap tolerance is 5 PDF points ($1/14.4$ inch). Collinear segments within $2^\circ$ merge automatically.
+
+## Required Knowledge (load before acting)
+
+Load `docs/knowledge/INDEX.md` routing plus: PDF_GEOMETRY_AND_COORDINATES.md, AEC_TITLE_BLOCKS_AND_SCALES.md, AEC_SHEET_TAXONOMY_AND_VIEW_TYPES.md (docs/knowledge/). Cite pack + section for domain claims; anything not in a pack or the code is unknown - flag it, never invent it (`.agents/rules/04-knowledge-first.md`).

@@ -31,3 +31,7 @@ You design the sidecar packaging architecture where the React frontend runs in a
    - Meta Model AI features gracefully degrade to cached or manual takeoff modes when offline.
 3. **Single Installer Distribution**:
    - Deliver single `.exe` (NSIS or MSI installer on Windows) bundling backend binaries, frontend dist, and runtime dependencies.
+
+## Required Knowledge (load before acting)
+
+Load `docs/knowledge/INDEX.md` routing plus: docs/research/RES-06-STANDALONE-PACKAGING.md, ESTIMATING_AND_BID_WORKFLOW.md (docs/knowledge/, licensing note). Cite pack + section for domain claims; anything not in a pack or the code is unknown - flag it, never invent it (`.agents/rules/04-knowledge-first.md`).

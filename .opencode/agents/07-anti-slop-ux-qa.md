@@ -24,3 +24,7 @@ You ensure the application feels like a mission-critical engineering workstation
    - Neutral Canvas: `#18181b` (Dark) or `#fafafa` (Light).
    - High-contrast duct centerlines: Supply (`#3b82f6`), Return (`#10b981`), Exhaust (`#f59e0b`), Fire Damper (`#ef4444`).
    - Uncalibrated / Review-Required: Warning Amber (`#f59e0b`) with pulse glow.
+
+## Required Knowledge (load before acting)
+
+Load `docs/knowledge/INDEX.md` routing plus: FAILURE_MODES_AND_REVIEW_GATES.md, AEC_TAKEOFF_AND_ESTIMATING_WORKFLOWS.md (docs/knowledge/), DESIGN.md, docs/specs/UI-UX-FLOWS.md. Cite pack + section for domain claims; anything not in a pack or the code is unknown - flag it, never invent it (`.agents/rules/04-knowledge-first.md`).
