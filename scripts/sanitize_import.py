@@ -82,9 +82,11 @@ def audit_directory(root_dir: Path) -> int:
 
 def sanitize_and_copy(src_path: Path, dest_path: Path):
     """Sanitizes text file contents and filename before writing to destination."""
-    # Sanitize filename
     clean_name, _ = sanitize_text(src_path.name)
-    target_dest = dest_path if dest_path.is_file() else dest_path / clean_name
+    if dest_path.suffix:
+        target_dest = dest_path
+    else:
+        target_dest = dest_path / clean_name
     target_dest.parent.mkdir(parents=True, exist_ok=True)
 
     if src_path.suffix in SCANNABLE_EXTS:
