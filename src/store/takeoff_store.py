@@ -11,8 +11,10 @@ Provides durable, transactional storage for:
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
+import math
 import sqlite3
 import uuid
 from collections.abc import AsyncIterator
@@ -42,6 +44,7 @@ class TakeoffRecord(BaseModel):
     count: int = 1
     geometry: dict[str, Any] | list[Any] = Field(default_factory=dict)
     confidence: float | None = None
+    review_required: bool = False
     created_at: str = Field(default_factory=_utc_now_iso)
     updated_at: str = Field(default_factory=_utc_now_iso)
 
@@ -55,6 +58,168 @@ class LedgerSummaryRow(BaseModel):
     accepted_count: int
     suggested_count: int
     rejected_count: int
+
+
+_METERS_PER_FOOT = 0.3048
+
+
+def _polyline_points(result: dict[str, Any]) -> list[list[float]]:
+    """Extract finite polyline vertices from either pipeline result shape.
+
+    Malformed or non-finite vertices invalidate the whole run (fail closed);
+    they never raise and never reach the ledger.
+    """
+    for key in ("location_or_path", "polyline_pdf_pt"):
+        container = result.get(key)
+        if isinstance(container, dict):
+            raw_points = container.get("points")
+            if isinstance(raw_points, list) and len(raw_points) >= 2:
+                points: list[list[float]] = []
+                for raw in raw_points:
+                    if not isinstance(raw, (list, tuple)) or len(raw) < 2:
+                        return []
+                    try:
+                        x, y = float(raw[0]), float(raw[1])
+                    except (TypeError, ValueError, OverflowError):
+                        return []
+                    if not (math.isfinite(x) and math.isfinite(y)):
+                        return []
+                    points.append([x, y])
+                if len(points) >= 2:
+                    return points
+    return []
+
+
+def _geometric_length_pt(points: list[list[float]]) -> float:
+    total = 0.0
+    for i in range(len(points) - 1):
+        total += math.hypot(points[i + 1][0] - points[i][0], points[i + 1][1] - points[i][1])
+    return total
+
+
+def pipeline_results_to_records(
+    pipeline_result: dict[str, Any],
+    *,
+    project_id: str,
+    sheet_id: str,
+    sheet_scale_status: str,
+) -> list[TakeoffRecord]:
+    """Map vector pipeline output to ledger records under the fail-closed scale rule.
+
+    A run is ACCEPTED with measured footage only when every gate holds: the
+    sheet scale is VERIFIED/CALIBRATED, the pipeline scale gate is VALID at
+    both document and run level, the physical length is finite and positive,
+    the unit is metres, the geometry has positive length, and the run carries
+    no unclosed-gap or uncertainty flags. Every other run stays SUGGESTED at
+    0.0 ft with ``review_required=True``; geometry is always preserved.
+
+    System and size are never invented from linework alone: vector runs are
+    ``General`` / ``Unknown - size TBD`` until hover or schedule evidence
+    classifies them.
+    """
+    sheet_verified = sheet_scale_status.strip().upper() in {"VERIFIED", "CALIBRATED"}
+    top_scale_status = str(pipeline_result.get("scale_status") or "")
+    raw_results = pipeline_result.get("results")
+    if not isinstance(raw_results, list):
+        return []
+
+    records: list[TakeoffRecord] = []
+    for index, raw in enumerate(raw_results):
+        if not isinstance(raw, dict):
+            continue
+        points = _polyline_points(raw)
+        if len(points) < 2:
+            continue  # Degenerate geometry can never become a ledger line.
+        geometric_length_pt = _geometric_length_pt(points)
+        object_type = str(raw.get("object_type") or "duct").strip().lower()
+        is_pipe = object_type == "pipe"
+        category: Literal["DUCTWORK", "PIPING", "EQUIPMENT", "FIXTURE"] = (
+            "PIPING" if is_pipe else "DUCTWORK"
+        )
+        run_scale_status = str(raw.get("scale_status") or top_scale_status)
+        length_m = raw.get("length")
+        measured_length_m: float | None = None
+        if (
+            isinstance(length_m, (int, float))
+            and not isinstance(length_m, bool)
+            and math.isfinite(float(length_m))
+            and float(length_m) > 0
+        ):
+            measured_length_m = float(length_m)
+        length_unit = raw.get("length_unit")
+        uncertainty_codes = raw.get("uncertainty_codes")
+        has_uncertainty = (
+            raw.get("has_unclosed_gaps") is True
+            or (isinstance(uncertainty_codes, list) and len(uncertainty_codes) > 0)
+            or (
+                isinstance(raw.get("continuity_status"), str)
+                and raw["continuity_status"] not in ("", "CONTINUOUS")
+            )
+        )
+        measured = (
+            sheet_verified
+            and top_scale_status == "VALID"
+            and run_scale_status == "VALID"
+            and measured_length_m is not None
+            and geometric_length_pt > 0
+            and length_unit in (None, "m")
+            and not has_uncertainty
+        )
+        if measured and measured_length_m is not None:
+            status: Literal["SUGGESTED", "ACCEPTED", "REJECTED"] = "ACCEPTED"
+            total_length_ft = round(measured_length_m / _METERS_PER_FOOT, 4)
+            confidence: float | None = 1.0
+            review_required = False
+        else:
+            status = "SUGGESTED"
+            total_length_ft = 0.0
+            raw_confidence = raw.get("confidence")
+            confidence = (
+                float(raw_confidence)
+                if isinstance(raw_confidence, (int, float)) and not isinstance(raw_confidence, bool)
+                else None
+            )
+            review_required = True
+
+        source_id = raw.get("object_id") or raw.get("route_run_id")
+        identity_seed = str(source_id) if source_id else f"run-{index}"
+        digest = hashlib.sha256(
+            f"{project_id}|{sheet_id}|{identity_seed}|{points}".encode()
+        ).hexdigest()[:32]
+        item_id = f"vec-{digest}"
+        geometry: dict[str, Any] = {
+            "type": "polyline",
+            "points": points,
+            "coordinate_space": "pdf_user_space_pt",
+            "geometric_length_pt": round(geometric_length_pt, 4),
+            "scale_status": run_scale_status,
+            "sheet_scale_status": sheet_scale_status,
+            "object_type": object_type,
+            "run_index": index,
+        }
+        if source_id:
+            geometry["source_object_id"] = str(source_id)
+        if has_uncertainty:
+            geometry["has_uncertainty"] = True
+
+        records.append(
+            TakeoffRecord(
+                item_id=item_id,
+                project_id=project_id,
+                sheet_id=sheet_id,
+                category=category,
+                system="General",
+                dimension_label="Unknown - size TBD",
+                status=status,
+                source="VECTOR_ENGINE",
+                total_length_ft=total_length_ft,
+                count=1,
+                geometry=geometry,
+                confidence=confidence,
+                review_required=review_required,
+            )
+        )
+    return records
 
 
 class TakeoffStore:
@@ -116,10 +281,18 @@ class TakeoffStore:
                     count INTEGER NOT NULL DEFAULT 1,
                     geometry_json TEXT NOT NULL DEFAULT '{}',
                     confidence REAL,
+                    review_required INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
             """)
+            # Migration for databases created before review_required existed.
+            async with db.execute("PRAGMA table_info(takeoff_items)") as cur:
+                columns = [row[1] for row in await cur.fetchall()]
+            if "review_required" not in columns:
+                await db.execute(
+                    "ALTER TABLE takeoff_items ADD COLUMN review_required INTEGER NOT NULL DEFAULT 0"
+                )
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS review_events (
                     event_id TEXT PRIMARY KEY,
@@ -209,15 +382,17 @@ class TakeoffStore:
                 INSERT INTO takeoff_items (
                     item_id, project_id, sheet_id, category, system, dimension_label,
                     status, source, total_length_ft, count, geometry_json, confidence,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    review_required, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(item_id) DO UPDATE SET
                     project_id = excluded.project_id, sheet_id = excluded.sheet_id,
                     category = excluded.category, system = excluded.system,
                     dimension_label = excluded.dimension_label, status = excluded.status,
                     source = excluded.source, total_length_ft = excluded.total_length_ft,
                     count = excluded.count, geometry_json = excluded.geometry_json,
-                    confidence = excluded.confidence, updated_at = excluded.updated_at
+                    confidence = excluded.confidence,
+                    review_required = excluded.review_required,
+                    updated_at = excluded.updated_at
                 """,
                 (
                     record.item_id,
@@ -232,6 +407,7 @@ class TakeoffStore:
                     record.count,
                     json.dumps(record.geometry),
                     record.confidence,
+                    1 if record.review_required else 0,
                     record.created_at,
                     record.updated_at,
                 ),
@@ -249,15 +425,17 @@ class TakeoffStore:
                 INSERT INTO takeoff_items (
                     item_id, project_id, sheet_id, category, system, dimension_label,
                     status, source, total_length_ft, count, geometry_json, confidence,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    review_required, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(item_id) DO UPDATE SET
                     project_id = excluded.project_id, sheet_id = excluded.sheet_id,
                     category = excluded.category, system = excluded.system,
                     dimension_label = excluded.dimension_label, status = excluded.status,
                     source = excluded.source, total_length_ft = excluded.total_length_ft,
                     count = excluded.count, geometry_json = excluded.geometry_json,
-                    confidence = excluded.confidence, updated_at = excluded.updated_at
+                    confidence = excluded.confidence,
+                    review_required = excluded.review_required,
+                    updated_at = excluded.updated_at
                 """,
                 [
                     (
@@ -273,12 +451,88 @@ class TakeoffStore:
                         r.count,
                         json.dumps(r.geometry),
                         r.confidence,
+                        1 if r.review_required else 0,
                         r.created_at,
                         r.updated_at,
                     )
                     for r in records
                 ],
             )
+            await db.commit()
+        return len(records)
+
+    async def delete_vector_items_for_sheet(self, project_id: str, sheet_id: str) -> int:
+        """Remove prior VECTOR_ENGINE rows for one sheet so re-scans stay idempotent.
+
+        Review events referencing those rows are removed in the same
+        transaction (foreign-key safe). Manual and hover-sourced rows on the
+        same sheet are never touched.
+        """
+        async with self._session() as db:
+            await db.execute(
+                """
+                DELETE FROM review_events WHERE item_id IN (
+                    SELECT item_id FROM takeoff_items
+                    WHERE project_id = ? AND sheet_id = ? AND source = 'VECTOR_ENGINE'
+                )
+                """,
+                (project_id, sheet_id),
+            )
+            cursor = await db.execute(
+                "DELETE FROM takeoff_items WHERE project_id = ? AND sheet_id = ? AND source = 'VECTOR_ENGINE'",
+                (project_id, sheet_id),
+            )
+            await db.commit()
+            return cursor.rowcount or 0
+
+    async def replace_vector_items_for_sheet(
+        self, project_id: str, sheet_id: str, records: list[TakeoffRecord]
+    ) -> int:
+        """Atomically replace one sheet's VECTOR_ENGINE rows in one transaction."""
+        async with self._session() as db:
+            await db.execute(
+                """
+                DELETE FROM review_events WHERE item_id IN (
+                    SELECT item_id FROM takeoff_items
+                    WHERE project_id = ? AND sheet_id = ? AND source = 'VECTOR_ENGINE'
+                )
+                """,
+                (project_id, sheet_id),
+            )
+            await db.execute(
+                "DELETE FROM takeoff_items WHERE project_id = ? AND sheet_id = ? AND source = 'VECTOR_ENGINE'",
+                (project_id, sheet_id),
+            )
+            if records:
+                await db.executemany(
+                    """
+                    INSERT INTO takeoff_items (
+                        item_id, project_id, sheet_id, category, system, dimension_label,
+                        status, source, total_length_ft, count, geometry_json, confidence,
+                        review_required, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            r.item_id,
+                            r.project_id,
+                            r.sheet_id,
+                            r.category,
+                            r.system,
+                            r.dimension_label,
+                            r.status,
+                            r.source,
+                            r.total_length_ft,
+                            r.count,
+                            json.dumps(r.geometry),
+                            r.confidence,
+                            1 if r.review_required else 0,
+                            r.created_at,
+                            r.updated_at,
+                        )
+                        for r in records
+                    ],
+                )
             await db.commit()
         return len(records)
 
@@ -320,7 +574,7 @@ class TakeoffStore:
         category: str | None = None,
     ) -> list[TakeoffRecord]:
         """Query items with optional filtering."""
-        query = "SELECT item_id, project_id, sheet_id, category, system, dimension_label, status, source, total_length_ft, count, geometry_json, confidence, created_at, updated_at FROM takeoff_items WHERE 1=1"
+        query = "SELECT item_id, project_id, sheet_id, category, system, dimension_label, status, source, total_length_ft, count, geometry_json, confidence, review_required, created_at, updated_at FROM takeoff_items WHERE 1=1"
         params: list[Any] = []
         if project_id:
             query += " AND project_id = ?"
@@ -357,6 +611,7 @@ class TakeoffStore:
                             count=row["count"],
                             geometry=geom,
                             confidence=row["confidence"],
+                            review_required=bool(row["review_required"]),
                             created_at=row["created_at"],
                             updated_at=row["updated_at"],
                         )
@@ -460,6 +715,8 @@ class TakeoffStore:
                     "Dimension/Size",
                     "Linear Length (ft)",
                     "Status",
+                    "Review Required",
+                    "Confidence",
                     "Geometry / Coordinates",
                     "Source",
                 ])
@@ -473,6 +730,8 @@ class TakeoffStore:
                         it.dimension_label,
                         f"{it.total_length_ft:.2f}",
                         it.status,
+                        str(it.review_required).lower(),
+                        "" if it.confidence is None else f"{it.confidence:.2f}",
                         coords,
                         it.source,
                     ])

@@ -28,11 +28,43 @@ class SheetScanner:
     def __init__(self, client: MetaModelClient | None = None):
         self.client = client or MetaModelClient()
 
+    @staticmethod
+    def _open_document(pdf_path: str | Path) -> pymupdf.Document:
+        """Open a PDF, translating engine failures into ValueError (fail closed)."""
+        try:
+            return pymupdf.open(str(pdf_path))
+        except (RuntimeError, OSError, ValueError) as exc:
+            raise ValueError(f"Could not open PDF drawing: {exc}") from exc
+
+    def get_page_count(self, pdf_path: str | Path) -> int:
+        """Return the total page count of a drawing set PDF."""
+        doc = self._open_document(pdf_path)
+        try:
+            return len(doc)
+        finally:
+            doc.close()
+
+    def scan_all_pages(self, pdf_path: str | Path) -> list[SheetMetadata]:
+        """Scan every page of a multi-sheet drawing set.
+
+        Page dimensions ride on each SheetMetadata (width_pt/height_pt), so
+        callers get the full sheet index plus cached geometry in one pass.
+        A corrupt page fails closed with ValueError naming that page.
+        """
+        total = self.get_page_count(pdf_path)
+        sheets: list[SheetMetadata] = []
+        for page_index in range(total):
+            try:
+                sheets.append(self.scan_page(pdf_path, page_index=page_index))
+            except (ValueError, RuntimeError, OSError) as exc:
+                raise ValueError(f"Sheet scan failed on page {page_index}: {exc}") from exc
+        return sheets
+
     def scan_page(self, pdf_path: str | Path, page_index: int = 0) -> SheetMetadata:
         """Performs document reconnaissance on a single drawing sheet."""
-        doc = pymupdf.open(str(pdf_path))
+        doc = self._open_document(pdf_path)
         try:
-            if page_index >= len(doc):
+            if page_index < 0 or page_index >= len(doc):
                 raise ValueError(f"Page index {page_index} out of range ({len(doc)} pages)")
             page = doc[page_index]
             rect = page.rect

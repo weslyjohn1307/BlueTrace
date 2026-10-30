@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from src.core_vector.pipeline import run_l2_pipeline
 from src.meta_services.client import MetaModelClient
 from src.meta_services.copilot import TakeoffCopilot
 from src.meta_services.schedule_parser import ScheduleParser
@@ -30,7 +31,12 @@ from src.models.schemas import (
     SheetMetadata,
     UploadResponse,
 )
-from src.store.takeoff_store import LedgerSummaryRow, TakeoffRecord, TakeoffStore
+from src.store.takeoff_store import (
+    LedgerSummaryRow,
+    TakeoffRecord,
+    TakeoffStore,
+    pipeline_results_to_records,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -97,7 +103,7 @@ def resolve_contained_pdf(pdf_path: str) -> Path:
             status_code=403,
             detail="Access denied: pdf_path must be a .pdf inside fixtures/ or data/.",
         )
-    if not resolved.exists():
+    if not resolved.is_file():
         raise HTTPException(status_code=404, detail=f"PDF drawing not found: {pdf_path}")
     return resolved
 
@@ -115,6 +121,79 @@ MetaClientDep = Annotated[MetaModelClient, Depends(get_meta_client)]
 TakeoffStoreDep = Annotated[TakeoffStore, Depends(get_takeoff_store)]
 
 
+def _default_project_id(pdf_path: str) -> str:
+    """Derive a stable project id from a drawing filename (mirrors the client)."""
+    stem = Path(pdf_path).stem
+    cleaned = re.sub(r"[^\w\- ]+", "", stem).strip()[:80]
+    return cleaned or "default_project"
+
+
+async def _persist_sheet(store: TakeoffStore, meta: SheetMetadata, project_id: str) -> None:
+    await store.insert_project(project_id, project_id)
+    await store.insert_sheet(
+        sheet_id=meta.sheet_id,
+        project_id=project_id,
+        page_index=meta.page_index,
+        sheet_number=meta.sheet_number,
+        sheet_title=meta.sheet_title,
+        discipline=meta.discipline,
+        scale_raw=meta.scale_raw,
+        scale_ratio=meta.scale_ratio,
+        scale_status=meta.scale_status,
+        width_pt=meta.width_pt,
+        height_pt=meta.height_pt,
+    )
+
+
+async def _auto_populate_takeoff(
+    store: TakeoffStore,
+    resolved_pdf: Path,
+    meta: SheetMetadata,
+    project_id: str,
+) -> tuple[SheetTakeoffOutcome, str | None]:
+    """Run vector extraction for one scanned sheet into the takeoff ledger.
+
+    Fail-closed: any pipeline failure yields zero items plus an error string
+    for the caller to surface; it never fabricates a measurement.
+    """
+    empty = SheetTakeoffOutcome(
+        sheet_id=meta.sheet_id, run_count=0, items_created=0, accepted_count=0, suggested_count=0
+    )
+    discipline = meta.discipline.lower()
+    if discipline not in {"mechanical", "plumbing"}:
+        # The vector engine only measures MEP linework; never relabel other
+        # disciplines as ductwork.
+        return empty, None
+    try:
+        pipeline_result = await run_in_threadpool(
+            run_l2_pipeline, str(resolved_pdf), meta.page_index, discipline
+        )
+    except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+        # Fail closed: clear stale vector rows so a failed re-scan can never
+        # leave yesterday's measurements standing in for today's sheet.
+        await store.delete_vector_items_for_sheet(project_id, meta.sheet_id)
+        return empty, f"Vector extraction failed for {meta.sheet_id}: {exc}"
+    records = pipeline_results_to_records(
+        pipeline_result,
+        project_id=project_id,
+        sheet_id=meta.sheet_id,
+        sheet_scale_status=meta.scale_status,
+    )
+    raw_run_count = pipeline_result.get("run_count") or pipeline_result.get("result_count") or 0
+    run_count = int(raw_run_count) if isinstance(raw_run_count, (int, float)) else 0
+    created = await store.replace_vector_items_for_sheet(project_id, meta.sheet_id, records)
+    return (
+        SheetTakeoffOutcome(
+            sheet_id=meta.sheet_id,
+            run_count=run_count,
+            items_created=created,
+            accepted_count=sum(1 for r in records if r.status == "ACCEPTED"),
+            suggested_count=sum(1 for r in records if r.status == "SUGGESTED"),
+        ),
+        None,
+    )
+
+
 class StatusUpdateRequest(BaseModel):
     status: Literal["SUGGESTED", "ACCEPTED", "REJECTED"]
     action: str = "USER_REVIEW"
@@ -123,6 +202,31 @@ class StatusUpdateRequest(BaseModel):
 class SheetScanRequest(BaseModel):
     pdf_path: str
     page_index: int = 0
+    project_id: str | None = None
+    auto_takeoff: bool = True
+
+
+class SheetScanAllRequest(BaseModel):
+    pdf_path: str
+    project_id: str | None = None
+    auto_takeoff: bool = True
+
+
+class SheetTakeoffOutcome(BaseModel):
+    sheet_id: str
+    run_count: int
+    items_created: int
+    accepted_count: int
+    suggested_count: int
+
+
+class SheetScanAllResponse(BaseModel):
+    pdf_path: str
+    project_id: str
+    total_pages: int
+    sheets: list[SheetMetadata]
+    takeoff: list[SheetTakeoffOutcome]
+    errors: list[str] = Field(default_factory=list)
 
 
 class ScheduleParseRequest(BaseModel):
@@ -157,15 +261,78 @@ async def health_check(client: MetaClientDep):
 async def scan_drawing_sheet(
     request: SheetScanRequest,
     client: MetaClientDep,
+    store: TakeoffStoreDep,
 ):
-    """Automated SheetScan title block reconnaissance via muse-spark-1.3."""
+    """Automated SheetScan title block reconnaissance via muse-spark-1.3.
+
+    Scanning persists the sheet and, unless disabled, automatically runs
+    vector extraction into the takeoff ledger for that sheet.
+    """
     clean_path = resolve_contained_pdf(request.pdf_path)
 
     scanner = SheetScanner(client=client)
     try:
-        return await run_in_threadpool(scanner.scan_page, str(clean_path), page_index=request.page_index)
+        meta = await run_in_threadpool(
+            scanner.scan_page, str(clean_path), page_index=request.page_index
+        )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except (RuntimeError, OSError) as e:
+        raise HTTPException(status_code=502, detail=f"Sheet scan failed: {e}") from e
+    project_id = request.project_id or _default_project_id(request.pdf_path)
+    await _persist_sheet(store, meta, project_id)
+    if request.auto_takeoff:
+        # Takeoff failure never fabricates data (stale vector rows are cleared
+        # inside); scan-all is the surface that reports per-sheet errors.
+        await _auto_populate_takeoff(store, clean_path, meta, project_id)
+    return meta
+
+
+@router.post("/sheets/scan-all", response_model=SheetScanAllResponse)
+async def scan_all_sheets(
+    request: SheetScanAllRequest,
+    client: MetaClientDep,
+    store: TakeoffStoreDep,
+):
+    """Scan every page of a drawing set and auto-populate the takeoff ledger.
+
+    Total pages come from the PDF itself; each page yields sheet metadata
+    with cached dimensions, and each sheet's vector runs land in the ledger
+    under the fail-closed scale rule.
+    """
+    clean_path = resolve_contained_pdf(request.pdf_path)
+    scanner = SheetScanner(client=client)
+    try:
+        sheets = await run_in_threadpool(scanner.scan_all_pages, str(clean_path))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except (RuntimeError, OSError) as e:
+        raise HTTPException(status_code=502, detail=f"Sheet scan failed: {e}") from e
+    if not sheets:
+        raise HTTPException(status_code=400, detail="PDF drawing contains no pages to scan.")
+
+    project_id = request.project_id or _default_project_id(request.pdf_path)
+    outcomes: list[SheetTakeoffOutcome] = []
+    errors: list[str] = []
+    for meta in sheets:
+        try:
+            await _persist_sheet(store, meta, project_id)
+            if request.auto_takeoff:
+                outcome, error = await _auto_populate_takeoff(store, clean_path, meta, project_id)
+                outcomes.append(outcome)
+                if error:
+                    errors.append(error)
+        except (OSError, RuntimeError, ValueError) as exc:
+            # One bad sheet must not abort ingestion of the remaining set.
+            errors.append(f"Ingestion failed for {meta.sheet_id}: {exc}")
+    return SheetScanAllResponse(
+        pdf_path=request.pdf_path,
+        project_id=project_id,
+        total_pages=len(sheets),
+        sheets=sheets,
+        takeoff=outcomes,
+        errors=errors,
+    )
 
 
 @router.get("/page-image")
@@ -492,9 +659,13 @@ async def export_takeoff_csv(
     store: TakeoffStoreDep,
     project_id: str | None = None,
     sheet_id: str | None = None,
-    include_items: bool = False,
+    include_items: bool = True,
 ):
-    """Export standard Estimating compatible CSV takeoff file."""
+    """Export standard Estimating compatible CSV takeoff file.
+
+    Item rows (with physical coordinates and footage) are included by
+    default so an export always carries auditable geometry.
+    """
     csv_content = await store.export_csv(project_id=project_id, sheet_id=sheet_id, include_items=include_items)
     return Response(
         content=csv_content,

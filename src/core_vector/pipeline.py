@@ -219,7 +219,7 @@ def run_l2_pipeline(
 
     doc = pymupdf.open(str(path))
     try:
-        if page_num >= len(doc):
+        if page_num < 0 or page_num >= len(doc):
             raise ValueError(f"Page {page_num} does not exist in {path.name} ({len(doc)} pages)")
 
         page = doc[page_num]
