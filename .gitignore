@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 .pytest_cache/
 pytest-of-*/
+.mypy_cache/
+.ruff_cache/
 
 # Node
 node_modules/
@@ -32,3 +34,64 @@ docs/meta_api/*.txt
 # Internal-only research (third-party product material — never committed)
 internal-research/
 .scrape-cache/
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INTERNAL — AI agent harnesses & assistant configuration
+# ──────────────────────────────────────────────────────────────────────────────
+.agents/
+.opencode/
+AGENTS.md
+CLAUDE.md
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INTERNAL — Development planning, task lists & persistent memory
+# ──────────────────────────────────────────────────────────────────────────────
+PLAN.md
+TASKS.md
+task_plan.md
+progress.md
+State.md
+Questions.md
+prd.json
+findings.md
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INTERNAL — Raw internal specification drafts & design working docs
+# ──────────────────────────────────────────────────────────────────────────────
+DESIGN.md
+Data_models.md
+Overview.md
+Tech_stack.md
+User_flows.md
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INTERNAL — Audit logs, session transcripts & internal handoff notes
+# ──────────────────────────────────────────────────────────────────────────────
+docs/AUDIT-*.md
+docs/FIXLOG-*.md
+docs/COMPLIANCE-*.md
+docs/CONTINUATION-PLAN.md
+docs/PLAN-STATUS.md
+docs/OPENCODE-HANDOFF-*.md
+docs/SUBMISSION.md
+docs/hackathon/
+docs/meta_api/SESSION_*.md
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INTERNAL — Agent knowledge corpus & internal research notes
+# ──────────────────────────────────────────────────────────────────────────────
+docs/knowledge/
+docs/research/
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INTERNAL — Concept/branding assets & internal design exploration
+# ──────────────────────────────────────────────────────────────────────────────
+docs/stitch_assets/
+docs/specs/WEAVE-AND-AI-TOOLING-DECISION.md
+docs/specs/VISUAL-DESIGN-PALETTE-STITCH.md
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INTERNAL — Scraper & doc-download utility scripts
+# ──────────────────────────────────────────────────────────────────────────────
+scripts/download_meta_docs.py
+scripts/fetch_knowledge.py
