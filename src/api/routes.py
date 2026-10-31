@@ -166,7 +166,12 @@ async def _auto_populate_takeoff(
         return empty, None
     try:
         pipeline_result = await run_in_threadpool(
-            run_l2_pipeline, str(resolved_pdf), meta.page_index, discipline
+            run_l2_pipeline,
+            str(resolved_pdf),
+            meta.page_index,
+            discipline,
+            # Lengths come from centerline corridors, not boundary perimeters.
+            use_centerline=True,
         )
     except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
         # Fail closed: clear stale vector rows so a failed re-scan can never

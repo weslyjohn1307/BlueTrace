@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Literal, cast
@@ -22,6 +23,8 @@ from src.core_vector.pipeline import extract_sheet_id, infer_discipline
 from src.core_vector.scale_validator import ScaleValidator
 from src.meta_services.client import MetaModelClient
 from src.models.schemas import SheetMetadata
+
+logger = logging.getLogger(__name__)
 
 
 class SheetScanner:
@@ -90,33 +93,61 @@ class SheetScanner:
             sheet_title = ""
             vlm_discipline: str | None = None
 
-            if self.client.is_configured():
-                pix = page.get_pixmap(dpi=150, clip=title_block_clip)
-                img_bytes = pix.tobytes("png")
-                b64_img = base64.b64encode(img_bytes).decode("ascii")
+            # Fail-Closed (agent-os/policies/FAIL_CLOSED.md): any VLM failure
+            # (pixmap/OCR/network/JSON) abstains to deterministic extraction
+            # below; never fabricate sheet_number/title/scale on this path.
+            _native_scale = (scale_raw, scale_ratio, scale_status)
+            try:
+                if self.client.is_configured():
+                    pix = page.get_pixmap(dpi=150, clip=title_block_clip)
+                    img_bytes = pix.tobytes("png")
+                    b64_img = base64.b64encode(img_bytes).decode("ascii")
 
-                prompt = (
-                    "You are inspecting an architectural/engineering title block. "
-                    "Extract: sheet_number (e.g. 'M-2.2', 'P101'), sheet_title, discipline (MECHANICAL, PLUMBING, ELECTRICAL, ARCHITECTURAL, GENERAL), "
-                    "and scale_string. Respond ONLY with valid JSON: "
-                    '{"sheet_number": str, "sheet_title": str, "discipline": str, "scale_string": str}'
+                    prompt = (
+                        "You are inspecting an architectural/engineering title block. "
+                        "Extract: sheet_number (e.g. 'M-2.2', 'P101'), sheet_title, discipline (MECHANICAL, PLUMBING, ELECTRICAL, ARCHITECTURAL, GENERAL), "
+                        "and scale_string. Respond ONLY with valid JSON: "
+                        '{"sheet_number": str, "sheet_title": str, "discipline": str, "scale_string": str}'
+                    )
+                    ocr_res = self.client.parse_crop_ocr(b64_img, prompt=prompt)
+                    # Mock/offline stub payloads are not detections: ignore entirely.
+                    if not ocr_res.get("mock"):
+                        raw = ocr_res.get("raw_content", "")
+                        # Clean markdown codeblocks if present
+                        clean_json = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                        data = json.loads(clean_json)
+                        # Type-validate VLM JSON: only str values are accepted;
+                        # non-strings are treated as absent (fail closed), never
+                        # coerced — a truthy non-str would crash downstream.
+                        _sheet_number = data.get("sheet_number", "")
+                        sheet_number = _sheet_number if isinstance(_sheet_number, str) else ""
+                        _sheet_title = data.get("sheet_title", "")
+                        sheet_title = _sheet_title if isinstance(_sheet_title, str) else ""
+                        _discipline = data.get("discipline", "")
+                        raw_disc = _discipline.strip().upper() if isinstance(_discipline, str) else ""
+                        if raw_disc in {"MECHANICAL", "PLUMBING", "ELECTRICAL", "ARCHITECTURAL", "GENERAL"}:
+                            vlm_discipline = raw_disc
+                        # Fix A: VLM scale is provenance only. It may record
+                        # scale_raw, but must NEVER set scale_ratio or raise
+                        # status above UNVERIFIED — only the deterministic
+                        # native-text parse above may produce VERIFIED, and a
+                        # VLM read must not override a native conflict.
+                        _scale_string = data.get("scale_string", "")
+                        if isinstance(_scale_string, str) and _scale_string and not scale_raw:
+                            scale_raw = _scale_string
+            except Exception as exc:  # noqa: BLE001 -- fail-closed boundary: any VLM/SDK error must abstain, not propagate
+                logger.warning(
+                    "VLM sheet scan failed (page_index=%s): %s: %s",
+                    page_index,
+                    type(exc).__name__,
+                    exc,
                 )
-                ocr_res = self.client.parse_crop_ocr(b64_img, prompt=prompt)
-                raw = ocr_res.get("raw_content", "")
-                try:
-                    # Clean markdown codeblocks if present
-                    clean_json = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-                    data = json.loads(clean_json)
-                    sheet_number = data.get("sheet_number", "")
-                    sheet_title = data.get("sheet_title", "")
-                    raw_disc = str(data.get("discipline", "")).strip().upper()
-                    if raw_disc in {"MECHANICAL", "PLUMBING", "ELECTRICAL", "ARCHITECTURAL", "GENERAL"}:
-                        vlm_discipline = raw_disc
-                    if data.get("scale_string") and not scale_raw:
-                        scale_raw = data.get("scale_string")
-                        scale_ratio, scale_status = ScaleValidator.parse_scale_string(scale_raw)
-                except (json.JSONDecodeError, KeyError, ValueError, TypeError):
-                    sheet_number = ""
+                # Bad JSON also lands here: VLM fields stay empty (fail closed),
+                # and any partial VLM scale is discarded for the native parse.
+                sheet_number = ""
+                sheet_title = ""
+                vlm_discipline = None
+                scale_raw, scale_ratio, scale_status = _native_scale
 
             # Fallback to deterministic extraction if VLM unconfigured or incomplete
             page_full_text = page.get_text("text")
