@@ -19,6 +19,8 @@ dist/
 data/
 *.db
 *.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
 
 # External Offline Research Repos & Large Downloads
 docs/meta_api/meta-model-cookbook/
@@ -27,9 +29,10 @@ docs/research/ECC/
 docs/meta_api/*.raw
 docs/meta_api/*.txt
 
-# Agent Scratch & Logs
+# Agent Scratch, Logs & Ephemeral Teamwork State
 .muse/
 *.log
+.agents/teamwork/
 
 # Internal-only research (third-party product material — never committed)
 internal-research/
@@ -37,37 +40,48 @@ internal-research/
 
 # ──────────────────────────────────────────────────────────────────────────────
 # INTERNAL — AI agent harnesses & assistant configuration
+# Not user-facing or judge-facing: local-only, never pushed.
 # ──────────────────────────────────────────────────────────────────────────────
 .agents/
+.ai/
 .opencode/
+agent-os/
+scripts/install_agent_os.py
+scripts/run_muse_agent.py
 AGENTS.md
 CLAUDE.md
 
 # ──────────────────────────────────────────────────────────────────────────────
 # INTERNAL — Development planning, task lists & persistent memory
 # ──────────────────────────────────────────────────────────────────────────────
-PLAN.md
-TASKS.md
-task_plan.md
-progress.md
-State.md
-Questions.md
-prd.json
-findings.md
+/PLAN.md
+/TASKS.md
+/task_plan.md
+/progress.md
+/State.md
+/Questions.md
+/prd.json
+/findings.md
+docs/planning/
+docs/HANDOFF_TO_OPENCODE.md
+docs/knowledge/
+scratch/
+fixtures/**/sample_*.pdf
 
 # ──────────────────────────────────────────────────────────────────────────────
 # INTERNAL — Raw internal specification drafts & design working docs
 # ──────────────────────────────────────────────────────────────────────────────
-DESIGN.md
-Data_models.md
-Overview.md
-Tech_stack.md
-User_flows.md
+/DESIGN.md
+/Data_models.md
+/Overview.md
+/Tech_stack.md
+/User_flows.md
 
 # ──────────────────────────────────────────────────────────────────────────────
 # INTERNAL — Audit logs, session transcripts & internal handoff notes
 # ──────────────────────────────────────────────────────────────────────────────
 docs/AUDIT-*.md
+docs/AUDIT_*.md
 docs/FIXLOG-*.md
 docs/COMPLIANCE-*.md
 docs/CONTINUATION-PLAN.md
@@ -80,7 +94,6 @@ docs/meta_api/SESSION_*.md
 # ──────────────────────────────────────────────────────────────────────────────
 # INTERNAL — Agent knowledge corpus & internal research notes
 # ──────────────────────────────────────────────────────────────────────────────
-docs/knowledge/
 docs/research/
 
 # ──────────────────────────────────────────────────────────────────────────────
