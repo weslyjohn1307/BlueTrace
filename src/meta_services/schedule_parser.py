@@ -13,7 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from src.meta_services.client import MetaModelClient
+from src.meta_services.client import PROFILE_SCHEDULE_EXTRACTION, MetaModelClient
 from src.store.takeoff_store import TakeoffRecord
 
 
@@ -90,7 +90,7 @@ class ScheduleParser:
             "Return ONLY a JSON array."
         )
 
-        res = self.client.parse_crop_ocr(base64_crop, prompt=prompt)
+        res = self.client.parse_crop_ocr(base64_crop, prompt=prompt, profile=PROFILE_SCHEDULE_EXTRACTION)
         raw = res.get("raw_content", "")
         try:
             clean = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()

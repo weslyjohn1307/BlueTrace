@@ -21,7 +21,7 @@ import pymupdf
 
 from src.core_vector.pipeline import extract_sheet_id, infer_discipline
 from src.core_vector.scale_validator import ScaleValidator
-from src.meta_services.client import MetaModelClient
+from src.meta_services.client import PROFILE_SHEET_RECON, MetaModelClient
 from src.models.schemas import SheetMetadata
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ class SheetScanner:
                         "and scale_string. Respond ONLY with valid JSON: "
                         '{"sheet_number": str, "sheet_title": str, "discipline": str, "scale_string": str}'
                     )
-                    ocr_res = self.client.parse_crop_ocr(b64_img, prompt=prompt)
+                    ocr_res = self.client.parse_crop_ocr(b64_img, prompt=prompt, profile=PROFILE_SHEET_RECON)
                     # Mock/offline stub payloads are not detections: ignore entirely.
                     if not ocr_res.get("mock"):
                         raw = ocr_res.get("raw_content", "")
