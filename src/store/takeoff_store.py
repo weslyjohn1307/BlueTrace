@@ -708,7 +708,84 @@ class TakeoffStore:
                 (project_id,),
             ) as cur:
                 return [dict(row) for row in await cur.fetchall()]
+    async def apply_sheet_calibration(
+        self, sheet_id: str, scale_ratio: float, scale_raw: str
+    ) -> tuple[int, int]:
+        """Atomically mark a sheet CALIBRATED and recompute VECTOR_ENGINE footage.
 
+        Fail-closed: recomputed rows stay ``SUGGESTED`` with
+        ``review_required = 1`` — calibration makes footage PROVISIONAL only.
+        Only an explicit human Accept via ``update_item_status`` may clear it.
+        Every VECTOR_ENGINE row on the sheet gets
+        ``total_length_ft = round(geom_pt * scale_ratio / 864, 2)`` (72 pt per
+        paper inch, 12 inches per foot) with status untouched. Manual,
+        hover, and VLM rows are untouched. Bad/missing geometry rows are
+        skipped (counted, left with ``review_required = 1``). Each recomputed
+        row gets a ``review_events`` audit row (action
+        ``SHEET_CALIBRATION``). Returns ``(updated, skipped)``.
+        """
+        if not math.isfinite(scale_ratio) or scale_ratio <= 0:
+            raise ValueError(f"scale_ratio must be positive, got {scale_ratio!r}.")
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute("SELECT sheet_id FROM sheets WHERE sheet_id = ?", (sheet_id,)) as cur:
+                if await cur.fetchone() is None:
+                    raise KeyError(f"Sheet '{sheet_id}' not found")
+            await db.execute(
+                "UPDATE sheets SET scale_ratio = ?, scale_raw = ?, scale_status = 'CALIBRATED' WHERE sheet_id = ?",
+                (float(scale_ratio), scale_raw, sheet_id),
+            )
+            async with db.execute(
+                "SELECT item_id, geometry_json, status FROM takeoff_items WHERE sheet_id = ? AND source = 'VECTOR_ENGINE'",
+                (sheet_id,),
+            ) as cur:
+                rows = await cur.fetchall()
+            updated = 0
+            skipped = 0
+            now = _utc_now_iso()
+            for row in rows:
+                try:
+                    geometry = json.loads(row["geometry_json"]) if row["geometry_json"] else {}
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                geom_pt: float | None = None
+                if isinstance(geometry, dict):
+                    raw = geometry.get("geometric_length_pt")
+                    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+                        geom_pt = float(raw)
+                    if geom_pt is None:
+                        pts = geometry.get("points")
+                        if isinstance(pts, list) and len(pts) >= 2:
+                            try:
+                                total = 0.0
+                                for i in range(len(pts) - 1):
+                                    total += math.hypot(
+                                        float(pts[i + 1][0]) - float(pts[i][0]),
+                                        float(pts[i + 1][1]) - float(pts[i][1]),
+                                    )
+                                if total > 0 and math.isfinite(total):
+                                    geom_pt = total
+                            except (TypeError, ValueError, IndexError, OverflowError):
+                                geom_pt = None
+                if geom_pt is None or not math.isfinite(geom_pt) or geom_pt <= 0:
+                    skipped += 1
+                    continue
+                total_length_ft = round(geom_pt * float(scale_ratio) / 864.0, 2)
+                await db.execute(
+                    "UPDATE takeoff_items SET total_length_ft = ?, review_required = 1, updated_at = ? WHERE item_id = ?",
+                    (total_length_ft, now, row["item_id"]),
+                )
+                prev_status = dict(row).get("status", "SUGGESTED")
+                await db.execute(
+                    """
+                    INSERT INTO review_events (event_id, item_id, action, previous_status, new_status, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (str(uuid.uuid4()), row["item_id"], "SHEET_CALIBRATION", prev_status, prev_status, now),
+                )
+                updated += 1
+            await db.commit()
+            return updated, skipped
     async def add_takeoff_item(self, record: TakeoffRecord) -> str:
         """Insert a single takeoff record."""
         defaults = _load_provenance_defaults()

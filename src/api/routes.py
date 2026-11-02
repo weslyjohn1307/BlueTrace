@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from src.core_vector.pipeline import run_l2_pipeline
+from src.core_vector.scale_validator import ScaleValidator
 from src.meta_services.client import MetaModelClient
 from src.meta_services.copilot import TakeoffCopilot
 from src.meta_services.legend_scanner import LegendScanner, LegendScanResult
@@ -32,6 +33,8 @@ from src.models.schemas import (
     MetaFileUploadResponse,
     ProjectSummaryResponse,
     SessionStatePayload,
+    SheetCalibrationRequest,
+    SheetCalibrationResponse,
     SheetMetadata,
     UploadResponse,
 )
@@ -439,6 +442,57 @@ async def scan_all_sheets(
         sheets=sheets,
         takeoff=outcomes,
         errors=errors,
+    )
+
+
+@router.patch("/sheets/{sheet_id}/calibration", response_model=SheetCalibrationResponse)
+async def calibrate_sheet_scale(
+    sheet_id: str,
+    body: SheetCalibrationRequest,
+    store: TakeoffStoreDep,
+):
+    """Two-point manual scale calibration for a sheet.
+
+    Derives the denominator ratio from the paper distance between p1/p2 and
+    the stated real-world feet/inches, snaps a canonical scale string, marks
+    the sheet CALIBRATED, and recomputes VECTOR_ENGINE footage atomically.
+    A paper line shorter than 5 pt is a 400 (never a silent scale).
+    """
+    import math as _math
+
+    try:
+        p1x, p1y = float(body.p1[0]), float(body.p1[1])
+        p2x, p2y = float(body.p2[0]), float(body.p2[1])
+    except (TypeError, ValueError, IndexError) as e:
+        raise HTTPException(status_code=422, detail=f"Calibration points must be [x, y] pairs: {e}") from e
+    length_pt = _math.hypot(p2x - p1x, p2y - p1y)
+    if length_pt < 5:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Calibration line too short: L_pt={length_pt:.2f} < 5 pt.",
+        )
+    try:
+        ratio = ScaleValidator.calculate_scale_ratio(body.p1, body.p2, body.real_ft, body.real_in)
+        scale_raw = ScaleValidator.derive_architectural_scale_string(ratio)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    try:
+        calibrated = await store.apply_sheet_calibration(sheet_id, ratio, scale_raw)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if isinstance(calibrated, (tuple, list)):
+        updated, skipped = int(calibrated[0]), int(calibrated[1])
+    else:
+        updated, skipped = int(calibrated), 0
+    return SheetCalibrationResponse(
+        sheet_id=sheet_id,
+        scale_ratio=ratio,
+        scale_raw=scale_raw,
+        scale_status="CALIBRATED",
+        updated_items=updated,
+        skipped_items=skipped,
     )
 
 

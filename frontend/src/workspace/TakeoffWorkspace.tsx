@@ -4,7 +4,8 @@ import { GlobalTopNav } from '../app/GlobalTopNav';
 import { ModeBanner } from '../components/ModeBanner';
 import { useTakeoffSession } from './hooks/useTakeoffSession';
 import { UploadCard } from './components/UploadCard';
-import { SheetCanvas, type CanvasPin, type VectorRun } from './components/SheetCanvas';
+import { SheetCanvas, type CalibrationResult, type CanvasPin, type VectorRun } from './components/SheetCanvas';
+import { CalibrationModal } from './components/CalibrationModal';
 import { HoverBadge } from './components/HoverBadge';
 import { SheetTree, type SheetItemData } from './components/SheetTree';
 import { LedgerPanel } from './components/LedgerPanel';
@@ -25,7 +26,7 @@ import { mapReconcileGhostPins, pinFocusCoords } from './utils/reconcilePins';
 type RightTab = 'ledger' | 'schedule';
 
 export const TakeoffWorkspace: React.FC = () => {
-  const { state, checkBackend, selectFile, openFixture, selectSheet, setItemStatus, reset, refreshLedger } =
+  const { state, checkBackend, selectFile, openFixture, selectSheet, setItemStatus, reset, refreshLedger, applyCalibrationResult } =
     useTakeoffSession();
   const [badge, setBadge] = useState<CursorCropResponse | null>(null);
   const [badgeBusy, setBadgeBusy] = useState(false);
@@ -43,6 +44,20 @@ export const TakeoffWorkspace: React.FC = () => {
   const [rightTab, setRightTab] = useState<RightTab>('ledger');
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  // Two-point calibration session state: points from the canvas, modal
+  // confirm posts to the backend, then the session (sheet meta + ledger)
+  // refreshes so footage recomputes under the calibrated scale.
+  const [calPoints, setCalPoints] = useState<{ p1: [number, number]; p2: [number, number] } | null>(null);
+  const [calOpen, setCalOpen] = useState(false);
+  const [calSubmitting, setCalSubmitting] = useState(false);
+  const [calError, setCalError] = useState<string | null>(null);
+  const [calibrationResult, setCalibrationResult] = useState<CalibrationResult | null>(null);
+
+  // Ruler overlay is per-sheet evidence: never let it leak across sheets.
+  const activeSheetId = state.activeSheetId;
+  useEffect(() => {
+    setCalibrationResult(null);
+  }, [activeSheetId]);
 
   useEffect(() => {
     void checkBackend();
@@ -155,6 +170,61 @@ export const TakeoffWorkspace: React.FC = () => {
       timestamp: Date.now(),
     });
   };
+
+  const handleCalibrationPointsSelected = useCallback((p1: [number, number], p2: [number, number]) => {
+    setCalPoints({ p1, p2 });
+    setCalError(null);
+    setCalOpen(true);
+  }, []);
+
+  const handleCalibrationCancel = useCallback(() => {
+    setCalOpen(false);
+    setCalPoints(null);
+    setCalError(null);
+    setCalSubmitting(false);
+  }, []);
+
+  const handleCalibrationConfirm = useCallback(
+    async (payload: { realFt: number; realIn: number }) => {
+      if (!activeSheet || !calPoints) return;
+      setCalSubmitting(true);
+      setCalError(null);
+      try {
+        const resp = await apiClient.calibrateSheetScale(activeSheet.meta.sheet_id, {
+          p1: calPoints.p1,
+          p2: calPoints.p2,
+          real_ft: payload.realFt,
+          real_in: payload.realIn,
+        });
+        const lengthPt = Math.hypot(calPoints.p2[0] - calPoints.p1[0], calPoints.p2[1] - calPoints.p1[1]);
+        setCalibrationResult({
+          p1: calPoints.p1,
+          p2: calPoints.p2,
+          lengthPt,
+          scaleRatio: resp.scale_ratio,
+          scaleRaw: resp.scale_raw,
+        });
+        await applyCalibrationResult(activeSheet.meta.sheet_id, {
+          scale_ratio: resp.scale_ratio,
+          scale_raw: resp.scale_raw,
+          scale_status: 'CALIBRATED',
+        });
+        setCalOpen(false);
+        setCalPoints(null);
+      } catch (err) {
+        setCalError(
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Calibration failed. Previous scale is unchanged.'
+        );
+      } finally {
+        setCalSubmitting(false);
+      }
+    },
+    [activeSheet, calPoints, applyCalibrationResult]
+  );
 
   const runReconcile = useCallback(
     async (scheduled: ReconcileScheduledItem[], planSymbols?: ReconcilePlanSymbol[]) => {
@@ -541,6 +611,10 @@ export const TakeoffWorkspace: React.FC = () => {
                 vectorRuns={vectorRuns}
                 cropEnabled={true}
                 scaleRatio={activeSheet.meta.scale_ratio ?? undefined}
+                scaleStatus={activeSheet.meta.scale_status}
+                calibrationResult={calibrationResult}
+                onCalibrationPointsSelected={handleCalibrationPointsSelected}
+                onCalibrationCancel={handleCalibrationCancel}
                 discipline={activeSheet.meta.discipline}
                 selectedPinId={selectedPinId}
                 projectId={state.projectName || null}
@@ -639,6 +713,20 @@ export const TakeoffWorkspace: React.FC = () => {
             </aside>
           )}
         </main>
+      )}
+
+      {/* Two-point scale calibration dialog + session refresh on confirm */}
+      {calPoints && (
+        <CalibrationModal
+          open={calOpen}
+          p1={calPoints.p1}
+          p2={calPoints.p2}
+          lengthPt={Math.hypot(calPoints.p2[0] - calPoints.p1[0], calPoints.p2[1] - calPoints.p1[1])}
+          isSubmitting={calSubmitting}
+          submitError={calError}
+          onConfirm={(payload) => void handleCalibrationConfirm(payload)}
+          onCancel={handleCalibrationCancel}
+        />
       )}
 
       {/* Persistent Bottom-Right Copilot Quick Trigger */}

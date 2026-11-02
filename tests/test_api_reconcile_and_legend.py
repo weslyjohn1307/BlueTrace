@@ -450,6 +450,194 @@ def test_legend_negative_page_index_is_422(seeded_client: TestClient):
     assert res.status_code == 422, res.text
 
 
+def test_sheet_calibration_endpoint(seeded_client: TestClient, isolated_takeoff_store) -> None:
+    """TASK-CAL-002: PATCH /api/sheets/{sheet_id}/calibration marks CALIBRATED."""
+    import asyncio as _asyncio
+
+    from src.store.takeoff_store import TakeoffRecord
+
+    async def _seed_vector() -> None:
+        await isolated_takeoff_store.add_takeoff_item(
+            TakeoffRecord(
+                item_id="vec-cal-1",
+                project_id="proj-1",
+                sheet_id=SHEET_ID,
+                category="DUCTWORK",
+                system="General",
+                dimension_label="Unknown - size TBD",
+                status="SUGGESTED",
+                source="VECTOR_ENGINE",
+                total_length_ft=0.0,
+                count=1,
+                geometry={
+                    "type": "polyline",
+                    "points": [[0.0, 0.0], [18.0, 0.0]],
+                    "coordinate_space": "pdf_user_space_pt",
+                    "geometric_length_pt": 18.0,
+                },
+                confidence=None,
+                review_required=True,
+            )
+        )
+        await isolated_takeoff_store.add_takeoff_item(
+            TakeoffRecord(
+                item_id="manual-1",
+                project_id="proj-1",
+                sheet_id=SHEET_ID,
+                category="DUCTWORK",
+                system="Supply Air",
+                dimension_label="Manual",
+                status="ACCEPTED",
+                source="MANUAL",
+                total_length_ft=5.0,
+                count=1,
+                geometry={"type": "point", "coordinates": [10.0, 10.0]},
+                confidence=0.9,
+                review_required=False,
+            )
+        )
+
+    _asyncio.run(_seed_vector())
+
+    # 1 ft real over 18 pt paper -> ratio 48 -> 1/4" scale.
+    res = seeded_client.patch(
+        f"/api/sheets/{SHEET_ID}/calibration",
+        json={"p1": [0.0, 0.0], "p2": [18.0, 0.0], "real_ft": 1.0, "real_in": 0.0},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["sheet_id"] == SHEET_ID
+    assert body["scale_ratio"] == pytest.approx(48.0)
+    assert body["scale_raw"] == '1/4" = 1\'-0"'
+    assert body["scale_status"] == "CALIBRATED"
+    assert body["updated_items"] == 1
+    assert body["skipped_items"] == 0
+
+    sheet = _asyncio.run(isolated_takeoff_store.get_sheet(SHEET_ID))
+    assert sheet is not None
+    assert sheet["scale_status"] == "CALIBRATED"
+    assert sheet["scale_ratio"] == pytest.approx(48.0)
+
+    items = _asyncio.run(isolated_takeoff_store.list_items(sheet_id=SHEET_ID))
+    by_id = {item.item_id: item for item in items}
+    # 18 pt * 48 / 864 = 1.0 ft — fail-closed: footage set but still
+    # SUGGESTED + review_required until a human Accepts.
+    assert by_id["vec-cal-1"].total_length_ft == pytest.approx(1.0)
+    assert by_id["vec-cal-1"].review_required is True
+    assert by_id["vec-cal-1"].status == "SUGGESTED"
+    # Manual rows untouched.
+    assert by_id["manual-1"].total_length_ft == pytest.approx(5.0)
+
+
+def test_sheet_calibration_endpoint_skipped_geometry_and_audit(seeded_client: TestClient, isolated_takeoff_store) -> None:
+    """1 good + 1 corrupt-geometry VECTOR row -> updated=1 skipped=1, audit row written."""
+    import asyncio as _asyncio
+
+    import aiosqlite as _aiosqlite
+
+    from src.store.takeoff_store import TakeoffRecord
+
+    async def _seed() -> None:
+        await isolated_takeoff_store.add_takeoff_item(
+            TakeoffRecord(
+                item_id="vec-good",
+                project_id="proj-1",
+                sheet_id=SHEET_ID,
+                category="DUCTWORK",
+                system="General",
+                dimension_label="Unknown - size TBD",
+                status="SUGGESTED",
+                source="VECTOR_ENGINE",
+                total_length_ft=0.0,
+                count=1,
+                geometry={
+                    "type": "polyline",
+                    "points": [[0.0, 0.0], [18.0, 0.0]],
+                    "coordinate_space": "pdf_user_space_pt",
+                    "geometric_length_pt": 18.0,
+                },
+                confidence=None,
+                review_required=True,
+            )
+        )
+        await isolated_takeoff_store.add_takeoff_item(
+            TakeoffRecord(
+                item_id="vec-corrupt",
+                project_id="proj-1",
+                sheet_id=SHEET_ID,
+                category="DUCTWORK",
+                system="General",
+                dimension_label="Unknown - size TBD",
+                status="SUGGESTED",
+                source="VECTOR_ENGINE",
+                total_length_ft=0.0,
+                count=1,
+                geometry={"type": "polyline", "points": [["bad", None]]},
+                confidence=None,
+                review_required=True,
+            )
+        )
+
+    _asyncio.run(_seed())
+    res = seeded_client.patch(
+        f"/api/sheets/{SHEET_ID}/calibration",
+        json={"p1": [0.0, 0.0], "p2": [18.0, 0.0], "real_ft": 1.0, "real_in": 0.0},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["updated_items"] == 1
+    assert body["skipped_items"] == 1
+
+    items = _asyncio.run(isolated_takeoff_store.list_items(sheet_id=SHEET_ID))
+    by_id = {item.item_id: item for item in items}
+    assert by_id["vec-good"].total_length_ft == pytest.approx(1.0)
+    assert by_id["vec-good"].review_required is True
+    assert by_id["vec-good"].status == "SUGGESTED"
+    assert by_id["vec-corrupt"].total_length_ft == pytest.approx(0.0)
+    assert by_id["vec-corrupt"].review_required is True
+
+    async def _audit_count() -> int:
+        async with _aiosqlite.connect(isolated_takeoff_store.db_path) as db, db.execute(
+            "SELECT COUNT(*) FROM review_events WHERE item_id = 'vec-good' AND action = 'SHEET_CALIBRATION'"
+        ) as cur:
+            row = await cur.fetchone()
+            return int(row[0])
+
+    assert _asyncio.run(_audit_count()) >= 1
+
+
+def test_sheet_calibration_endpoint_schema_validation_is_422(seeded_client: TestClient) -> None:
+    """p1/p2 finiteness, real_ft>=0, 0<=real_in<12, total>0 -> 422."""
+    bad_payloads = [
+        {"p1": ["Infinity", 0.0], "p2": [18.0, 0.0], "real_ft": 1.0},
+        {"p1": [0.0, 0.0], "p2": [18.0, "NaN"], "real_ft": 1.0},
+        {"p1": [0.0, "abc"], "p2": [18.0, 0.0], "real_ft": 1.0},
+        {"p1": [0.0, 0.0], "p2": [18.0, 0.0], "real_ft": -1.0},
+        {"p1": [0.0, 0.0], "p2": [18.0, 0.0], "real_ft": 1.0, "real_in": 12.0},
+        {"p1": [0.0, 0.0], "p2": [18.0, 0.0], "real_ft": 1.0, "real_in": -0.5},
+        {"p1": [0.0, 0.0], "p2": [18.0, 0.0], "real_ft": 0.0, "real_in": 0.0},
+    ]
+    for payload in bad_payloads:
+        res = seeded_client.patch(f"/api/sheets/{SHEET_ID}/calibration", json=payload)
+        assert res.status_code == 422, (payload, res.text)
+
+
+def test_sheet_calibration_endpoint_short_line_is_400(seeded_client: TestClient) -> None:
+    res = seeded_client.patch(
+        f"/api/sheets/{SHEET_ID}/calibration",
+        json={"p1": [0.0, 0.0], "p2": [2.0, 0.0], "real_ft": 10.0},
+    )
+    assert res.status_code == 400, res.text
+
+
+def test_sheet_calibration_endpoint_unknown_sheet_is_404(seeded_client: TestClient) -> None:
+    res = seeded_client.patch(
+        "/api/sheets/NOPE-999/calibration",
+        json={"p1": [0.0, 0.0], "p2": [100.0, 0.0], "real_ft": 10.0},
+    )
+    assert res.status_code == 404, res.text
+
+
 def test_legend_rejects_pdf_outside_containment(unconfigured_client: TestClient):
     res = unconfigured_client.post(
         f"/api/sheets/{SHEET_ID}/legend", json={"pdf_path": "../outside.pdf"}

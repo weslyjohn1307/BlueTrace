@@ -290,6 +290,24 @@ export interface ReconciliationReport {
 
 export type ReconcileResponse = ReconciliationReport;
 
+/** POST/PATCH /api/sheets/{sheet_id}/calibration — mirrors backend `SheetCalibrationRequest`. */
+export interface SheetCalibrationRequest {
+  p1: [number, number];
+  p2: [number, number];
+  real_ft: number;
+  real_in?: number;
+}
+
+/** Mirrors backend `SheetCalibrationResponse`. */
+export interface SheetCalibrationResponse {
+  sheet_id: string;
+  scale_ratio: number;
+  scale_raw: string;
+  scale_status: 'CALIBRATED';
+  updated_items: number;
+  skipped_items: number;
+}
+
 /** Mirrors backend `LegendSymbolEntry` (src/meta_services/legend_scanner.py). */
 export interface LegendSymbolEntry {
   symbol_id: string;

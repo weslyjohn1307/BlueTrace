@@ -302,6 +302,22 @@ export function useTakeoffSession() {
     setState((prev) => ({ ...EMPTY_STATE, backendOnline: prev.backendOnline, aiConfigured: prev.aiConfigured }));
   }, []);
 
+  const applyCalibrationResult = useCallback(
+    async (
+      sheetId: string,
+      patch: { scale_ratio: number | null; scale_raw: string | null; scale_status: SheetMetadata['scale_status'] }
+    ) => {
+      setState((prev) => ({
+        ...prev,
+        sheets: prev.sheets.map((s) =>
+          s.meta.sheet_id === sheetId ? { ...s, meta: { ...s.meta, ...patch } } : s
+        ),
+      }));
+      await refreshLedger(state.projectName, sheetId);
+    },
+    [state.projectName, refreshLedger]
+  );
+
   return {
     state,
     checkBackend,
@@ -314,5 +330,6 @@ export function useTakeoffSession() {
     refreshLedger: () => refreshLedger(state.projectName, state.activeSheetId),
     setItemStatus,
     reset,
+    applyCalibrationResult,
   };
 }

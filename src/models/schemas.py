@@ -118,6 +118,72 @@ class UploadResponse(BaseModel):
     sha256: str
 
 
+class SheetCalibrationRequest(BaseModel):
+    p1: list[float] = Field(..., description="[x, y] in PDF points (top-left origin)")
+    p2: list[float] = Field(..., description="[x, y] in PDF points (top-left origin)")
+    real_ft: float = Field(..., description="Real-world feet portion of the calibration run")
+    real_in: float = Field(default=0.0, description="Real-world extra inches portion")
+
+    @field_validator("p1", "p2")
+    @classmethod
+    def validate_point(cls, v: Any) -> Any:
+        import math as _math
+
+        if not isinstance(v, (list, tuple)) or len(v) != 2:
+            raise ValueError("Calibration points must be [x, y] pairs.")
+        coords = [float(x) for x in v]
+        if not all(_math.isfinite(c) for c in coords):
+            raise ValueError("Calibration points must be finite numbers.")
+        return coords
+
+    @field_validator("real_ft")
+    @classmethod
+    def validate_real_ft(cls, v: Any) -> float:
+        import math as _math
+
+        number = float(v)
+        if not _math.isfinite(number):
+            raise ValueError("real_ft must be finite.")
+        if number < 0:
+            raise ValueError("real_ft must be >= 0.")
+        return number
+
+    @field_validator("real_in")
+    @classmethod
+    def validate_real_in(cls, v: Any) -> float:
+        import math as _math
+
+        number = float(v)
+        if not _math.isfinite(number):
+            raise ValueError("real_in must be finite.")
+        if number < 0 or number >= 12:
+            raise ValueError("real_in must satisfy 0 <= real_in < 12.")
+        return number
+
+    @field_validator("real_in", mode="after")
+    @classmethod
+    def validate_total_distance(cls, v: float, info: Any) -> float:
+        import math as _math
+
+        ft = info.data.get("real_ft", 0.0) if isinstance(info.data, dict) else 0.0
+        try:
+            total = float(ft) * 12.0 + float(v)
+        except (TypeError, ValueError):
+            raise ValueError("Real-world distance must be numeric.")
+        if not _math.isfinite(total) or total <= 0:
+            raise ValueError("Real-world calibration distance must be greater than 0.")
+        return v
+
+
+class SheetCalibrationResponse(BaseModel):
+    sheet_id: str
+    scale_ratio: float
+    scale_raw: str
+    scale_status: Literal["CALIBRATED"] = "CALIBRATED"
+    updated_items: int
+    skipped_items: int = 0
+
+
 class MetaFileUploadRequest(BaseModel):
     file_path: str
 

@@ -204,3 +204,70 @@ class TestRepresentativeFixtures:
             assert is_valid is True
             pipe_feet = round(72.0 * ft_per_pt, 2)
             assert val_feet == pipe_feet
+
+
+class TestScaleValidatorSnapping:
+    """TASK-CAL-001: two-point calibration ratio math + canonical snapping."""
+
+    def test_scale_validator_snapping_exact_denominators(self):
+        cases = [
+            (96.0, '1/8" = 1\'-0"'),
+            (64.0, '3/16" = 1\'-0"'),
+            (48.0, '1/4" = 1\'-0"'),
+            (32.0, '3/8" = 1\'-0"'),
+            (24.0, '1/2" = 1\'-0"'),
+            (16.0, '3/4" = 1\'-0"'),
+            (12.0, '1" = 1\'-0"'),
+            (8.0, '1-1/2" = 1\'-0"'),
+            (4.0, '3" = 1\'-0"'),
+        ]
+        for ratio, expected in cases:
+            assert ScaleValidator.derive_architectural_scale_string(ratio) == expected
+
+    def test_scale_validator_snapping_within_tolerance(self):
+        # 1% off 48 -> snaps to 1/4"
+        assert ScaleValidator.derive_architectural_scale_string(48.0 * 1.01) == '1/4" = 1\'-0"'
+        assert ScaleValidator.derive_architectural_scale_string(96.0 * 0.99) == '1/8" = 1\'-0"'
+
+    def test_scale_validator_snapping_custom_outside_tolerance(self):
+        label = ScaleValidator.derive_architectural_scale_string(50.0)
+        assert label.startswith("Custom")
+        assert label == 'Custom (1" = 4\'-2.0")'
+        label2 = ScaleValidator.derive_architectural_scale_string(100.0)
+        assert label2.startswith("Custom")
+        assert label2 == 'Custom (1" = 8\'-4.0")'
+
+    def test_scale_validator_snapping_ratio_math(self):
+        # 10 ft real over 150 pt paper: (120 in * 72) / 150 = 57.6 -> Custom
+        ratio = ScaleValidator.calculate_scale_ratio([0.0, 0.0], [150.0, 0.0], 10.0)
+        assert ratio == pytest.approx((10.0 * 12.0 * 72.0) / 150.0)
+        assert ScaleValidator.derive_architectural_scale_string(ratio).startswith("Custom")
+        # Exact 1/4" = 1'-0" (48): 12 in real over 18 pt paper -> 12*72/18 = 48
+        ratio2 = ScaleValidator.calculate_scale_ratio((0.0, 0.0), (18.0, 0.0), 1.0)
+        assert ratio2 == pytest.approx(48.0)
+        assert ScaleValidator.derive_architectural_scale_string(ratio2) == '1/4" = 1\'-0"'
+        # ft + in variant: 10 ft 6 in over 150 pt
+        ratio3 = ScaleValidator.calculate_scale_ratio([0.0, 0.0], [150.0, 0.0], 10.0, 6.0)
+        assert ratio3 == pytest.approx(((10.0 * 12.0 + 6.0) * 72.0) / 150.0)
+
+    def test_scale_validator_snapping_rejects_short_and_nonpositive(self):
+        with pytest.raises(ValueError):
+            ScaleValidator.calculate_scale_ratio([0.0, 0.0], [4.9, 0.0], 10.0)
+        with pytest.raises(ValueError):
+            ScaleValidator.calculate_scale_ratio([5.0, 5.0], [5.0, 5.0], 10.0)
+        with pytest.raises(ValueError):
+            ScaleValidator.calculate_scale_ratio([0.0, 0.0], [150.0, 0.0], 0.0)
+        with pytest.raises(ValueError):
+            ScaleValidator.calculate_scale_ratio([0.0, 0.0], [150.0, 0.0], -2.0)
+
+    def test_scale_validator_snapping_rejects_bad_inches_range(self):
+        with pytest.raises(ValueError):
+            ScaleValidator.calculate_scale_ratio([0.0, 0.0], [150.0, 0.0], 10.0, 12.0)
+        with pytest.raises(ValueError):
+            ScaleValidator.calculate_scale_ratio([0.0, 0.0], [150.0, 0.0], 10.0, -1.0)
+        with pytest.raises(ValueError):
+            ScaleValidator.calculate_scale_ratio([0.0, 0.0], [150.0, 0.0], -1.0, 0.0)
+
+    def test_scale_validator_snapping_custom_string_format(self):
+        # X = ratio // 12 ft, Y = round(ratio % 12, 1) in
+        assert ScaleValidator.derive_architectural_scale_string(57.6) == 'Custom (1" = 4\'-9.6")'

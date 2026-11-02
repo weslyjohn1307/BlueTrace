@@ -12,6 +12,8 @@ import type {
   ReconciliationReport,
   ScheduleParseResponse,
   SegmentResponse,
+  SheetCalibrationRequest,
+  SheetCalibrationResponse,
   SheetMetadata,
   SheetScanAllResponse,
   TakeoffRecord,
@@ -249,6 +251,17 @@ export function createApiClient(config: ApiClientConfig = {}) {
         body,
         signal,
       });
+    },
+
+    async calibrateSheetScale(
+      sheetId: string,
+      payload: SheetCalibrationRequest,
+      signal?: AbortSignal
+    ): Promise<SheetCalibrationResponse> {
+      return request<SheetCalibrationResponse>(
+        `/api/sheets/${encodeURIComponent(sheetId)}/calibration`,
+        { method: 'PATCH', body: payload, signal }
+      );
     },
 
     async segmentConcept(

@@ -28,6 +28,37 @@ import { getDisciplineColor } from '../utils/disciplineColors';
 
 export type ToolMode = 'select' | 'pan' | 'quickdraw' | 'segment' | 'calibrate';
 
+export type CalibratePhase = 'IDLE' | 'AWAITING_P1' | 'AWAITING_P2' | 'INPUT_MODAL_OPEN';
+
+export interface CalibrationResult {
+  p1: [number, number];
+  p2: [number, number];
+  lengthPt: number;
+  scaleRatio?: number;
+  scaleRaw?: string;
+}
+
+/** Snap a calibration endpoint to 0/45/90 deg when Shift is held. */
+export function snapCalibrationPoint(
+  p1: Point,
+  raw: Point,
+  shiftKey: boolean
+): Point {
+  if (!shiftKey) return raw;
+  const dx = raw.x - p1.x;
+  const dy = raw.y - p1.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist === 0) return raw;
+  const angle = Math.atan2(dy, dx);
+  const step = Math.PI / 4;
+  const snapped = Math.round(angle / step) * step;
+  return { x: p1.x + dist * Math.cos(snapped), y: p1.y + dist * Math.sin(snapped) };
+}
+
+export function calibrationLengthPt(p1: Point, p2: Point): number {
+  return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+}
+
 export interface CanvasPin {
   id: string;
   /** PDF points, top-left origin. */
@@ -101,7 +132,10 @@ export interface SheetCanvasProps {
     translationY: number;
     mode?: TransformState['mode'];
   } | null;
-}
+  calibrationResult?: CalibrationResult | null;
+  scaleStatus?: string;
+  onCalibrationPointsSelected?: (p1: [number, number], p2: [number, number]) => void;
+  onCalibrationCancel?: () => void;}
 
 const SYSTEM_RUN_COLORS: Record<string, string> = {
   supply: '#0099ff',
@@ -183,7 +217,10 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   projectId,
   onViewportSave,
   initialTransform,
-}) => {
+  calibrationResult = null,
+  scaleStatus,
+  onCalibrationPointsSelected,
+  onCalibrationCancel,}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [transform, setTransform] = useState<TransformState>(() => initialTransformOrFit(initialTransform));
@@ -193,6 +230,26 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   const [toolMode, setToolMode] = useState<ToolMode>('quickdraw');
   const [segmentedPolygons, setSegmentedPolygons] = useState<SegmentedPolygon[]>([]);
   const [isSegmenting, setIsSegmenting] = useState(false);
+
+  // Two-point scale calibration state machine:
+  // IDLE -> AWAITING_P1 -> AWAITING_P2 -> INPUT_MODAL_OPEN (Escape cancels).
+  const [calibratePhase, setCalibratePhase] = useState<CalibratePhase>('IDLE');
+  const [calP1, setCalP1] = useState<Point | null>(null);
+  const [calP2, setCalP2] = useState<Point | null>(null);
+  const [calPreview, setCalPreview] = useState<Point | null>(null);
+
+  const enterCalibrateMode = useCallback(() => {
+    setToolMode('calibrate');
+    setCalibratePhase((prev) => (prev === 'IDLE' ? 'AWAITING_P1' : prev));
+  }, []);
+
+  const cancelCalibration = useCallback(() => {
+    setCalibratePhase('IDLE');
+    setCalP1(null);
+    setCalP2(null);
+    setCalPreview(null);
+    onCalibrationCancel?.();
+  }, [onCalibrationCancel]);
 
   // Pin hover & drag state
   const [hoveredPin, setHoveredPin] = useState<CanvasPin | null>(null);
@@ -532,6 +589,9 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
     }
     const page = screenPointToPagePoint(screen, transformRef.current);
     setCursor({ screen, page });
+    if (toolMode === 'calibrate' && calP1 && calibratePhase === 'AWAITING_P2') {
+      setCalPreview(snapCalibrationPoint(calP1, page, (e as React.MouseEvent).shiftKey));
+    }
     if (cropEnabled && imgLoaded && (toolMode === 'quickdraw' || toolMode === 'select')) {
       scheduleHoverCrop();
     }
@@ -539,6 +599,32 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0 && e.button !== 1) return;
+    if (toolMode === 'calibrate') {
+      // Two-point capture: first click locks P1, second click locks P2.
+      const el = containerRef.current;
+      const rect = el ? el.getBoundingClientRect() : { left: 0, top: 0 };
+      const screenPt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const pagePt = screenPointToPagePoint(screenPt, transformRef.current);
+      if (calibratePhase === 'AWAITING_P1' || (calibratePhase === 'IDLE' && !calP1)) {
+        if (calibratePhase === 'IDLE') setCalibratePhase('AWAITING_P1');
+        setCalP1(pagePt);
+        setCalPreview(pagePt);
+        setCalibratePhase('AWAITING_P2');
+        return;
+      }
+      if (calibratePhase === 'AWAITING_P2' && calP1) {
+        const snapped = snapCalibrationPoint(calP1, pagePt, e.shiftKey);
+        setCalP2(snapped);
+        setCalPreview(null);
+        setCalibratePhase('INPUT_MODAL_OPEN');
+        onCalibrationPointsSelected?.(
+          [Math.round(calP1.x * 100) / 100, Math.round(calP1.y * 100) / 100],
+          [Math.round(snapped.x * 100) / 100, Math.round(snapped.y * 100) / 100]
+        );
+        return;
+      }
+      return;
+    }
     if (toolMode === 'pan' || spacePressedRef.current || e.button === 1) {
       panningRef.current = { startX: e.clientX, startY: e.clientY, moved: false };
       return;
@@ -581,6 +667,12 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      if (calibratePhase !== 'IDLE') {
+        cancelCalibration();
+        return;
+      }
+    }
     if (e.key === ' ' && !spacePressedRef.current) {
       spacePressedRef.current = true;
     } else if (e.key === 'v' || e.key === 'V') {
@@ -596,7 +688,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
     } else if (e.key === 's' || e.key === 'S') {
       setToolMode('segment');
     } else if (e.key === 'c' || e.key === 'C') {
-      setToolMode('calibrate');
+      enterCalibrateMode();
     } else if (e.key === '0') {
       fitToContainer();
     } else if (e.key === '+' || e.key === '=') {
@@ -772,7 +864,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
           <button
             type="button"
             title="Scale Calibration Ruler [C]"
-            onClick={() => setToolMode('calibrate')}
+            onClick={enterCalibrateMode}
             className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
               toolMode === 'calibrate'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
@@ -1070,7 +1162,87 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             <line x1={0} y1={cursor.page.y} x2={widthPt} y2={cursor.page.y} />
           </g>
         )}
+
+        {/* Calibration rubberband (P1 -> live cursor) while awaiting P2 */}
+        {toolMode === 'calibrate' && calP1 && (calPreview || calP2) && calibratePhase === 'AWAITING_P2' && (
+          <g data-testid="calibration-rubberband">
+            <line
+              x1={calP1.x}
+              y1={calP1.y}
+              x2={(calPreview ?? calP2)?.x ?? calP1.x}
+              y2={(calPreview ?? calP2)?.y ?? calP1.y}
+              stroke="#f59e0b"
+              strokeWidth={2}
+              strokeDasharray="6 3"
+            />
+            <circle cx={calP1.x} cy={calP1.y} r={4} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.5} />
+          </g>
+        )}
+
+        {/* Committed calibration ruler overlay (amber dashed + ticks + dimension text) */}
+        {calibrationResult && (
+          <g data-testid="calibration-overlay">
+            <line
+              x1={calibrationResult.p1[0]}
+              y1={calibrationResult.p1[1]}
+              x2={calibrationResult.p2[0]}
+              y2={calibrationResult.p2[1]}
+              stroke="#f59e0b"
+              strokeWidth={2.5}
+              strokeDasharray="8 4"
+            />
+            {[0, 0.25, 0.5, 0.75, 1].map((t) => {
+              const tx = calibrationResult.p1[0] + (calibrationResult.p2[0] - calibrationResult.p1[0]) * t;
+              const ty = calibrationResult.p1[1] + (calibrationResult.p2[1] - calibrationResult.p1[1]) * t;
+              return <circle key={t} cx={tx} cy={ty} r={2.5} fill="#f59e0b" />;
+            })}
+            <text
+              x={(calibrationResult.p1[0] + calibrationResult.p2[0]) / 2 + 8}
+              y={(calibrationResult.p1[1] + calibrationResult.p2[1]) / 2 - 8}
+              fill="#fbbf24"
+              fontSize={12}
+              fontFamily="monospace"
+              fontWeight="bold"
+            >
+              {calibrationResult.scaleRaw ?? `${calibrationResult.lengthPt.toFixed(1)} pt`}
+            </text>
+          </g>
+        )}
       </svg>
+
+      {/* Calibrate phase status chip */}
+      {toolMode === 'calibrate' && (
+        <div
+          data-testid="calibrate-status"
+          className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-lg bg-amber-950/90 border border-amber-500/40 text-amber-200 text-[11px] font-mono"
+        >
+          {calibratePhase === 'AWAITING_P1' && 'CALIBRATE: click first point (P1) — Shift snaps 0/45/90°'}
+          {calibratePhase === 'AWAITING_P2' && 'CALIBRATE: click second point (P2) — Shift snaps 0/45/90° — Esc cancels'}
+          {calibratePhase === 'INPUT_MODAL_OPEN' && 'CALIBRATE: enter real-world distance — Esc cancels'}
+          {calibratePhase === 'IDLE' && 'CALIBRATE: ready'}
+        </div>
+      )}
+
+      {/* Committed-points modal placeholder (real CalibrationModal is hosted by the workspace) */}
+      {calibratePhase === 'INPUT_MODAL_OPEN' && calP1 && calP2 && (
+        <div
+          data-testid="calibration-input-modal"
+          className="absolute top-28 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-lg bg-slate-900/95 border border-amber-500/40 text-amber-100 text-[11px] font-mono"
+        >
+          P1 [{calP1.x.toFixed(1)}, {calP1.y.toFixed(1)}] → P2 [{calP2.x.toFixed(1)}, {calP2.y.toFixed(1)}]
+        </div>
+      )}
+
+      {/* Emerald calibrated badge once the sheet scale is CALIBRATED */}
+      {scaleStatus === 'CALIBRATED' && (
+        <div
+          data-testid="calibrated-badge"
+          className="absolute top-3 left-3 z-30 flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-[11px] font-mono font-semibold"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          <span>CALIBRATED{calibrationResult?.scaleRaw ? ` // ${calibrationResult.scaleRaw}` : ''}</span>
+        </div>
+      )}
 
       {/* Compass Bearing & Orientation Dial (Stitch Screen 3 & 4) */}
       <div
