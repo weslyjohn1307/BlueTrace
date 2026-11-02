@@ -25,9 +25,11 @@ if sys.platform == "win32":
 
 
 @pytest.fixture(autouse=True)
-def clean_global_state() -> Iterator[None]:
+def clean_global_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     set_takeoff_store(None)
     reset_byok_state()
+    monkeypatch.setenv("MODEL_API_KEY", "")
+    monkeypatch.setenv("META_API_KEY", "")
     yield
     set_takeoff_store(None)
     reset_byok_state()

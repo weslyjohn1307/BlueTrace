@@ -7,17 +7,19 @@ import os
 import re
 import time
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from src.core_vector.pipeline import run_l2_pipeline
 from src.meta_services.client import MetaModelClient
 from src.meta_services.copilot import TakeoffCopilot
+from src.meta_services.legend_scanner import LegendScanner, LegendScanResult
 from src.meta_services.schedule_parser import ScheduleParser
 from src.meta_services.sheet_scanner import SheetScanner
 from src.models.schemas import (
@@ -30,6 +32,12 @@ from src.models.schemas import (
     MetaFileUploadResponse,
     SheetMetadata,
     UploadResponse,
+)
+from src.store.reconciler import (
+    PlanSymbolInstance,
+    ReconciliationReport,
+    ScheduledEquipmentItem,
+    reconcile_takeoff,
 )
 from src.store.takeoff_store import (
     LedgerSummaryRow,
@@ -247,6 +255,41 @@ class SegmentConceptRequest(BaseModel):
     concept_prompt: str = "mechanical equipment boundary"
 
 
+class TakeoffReconcileRequest(BaseModel):
+    project_id: str | None = None
+    sheet_id: str | None = None
+    # Validated by the engine's own models: a missing/invalid location_pt,
+    # empty tag/label, or missing schedule_sheet is a 422, never defaulted.
+    scheduled_items: list[ScheduledEquipmentItem] = Field(..., min_length=1)
+    plan_symbols: list[PlanSymbolInstance] | None = None
+    symbol_counts: dict[str, int] | None = None
+
+    @field_validator("symbol_counts")
+    @classmethod
+    def validate_symbol_counts(cls, v: dict[str, int] | None) -> dict[str, int] | None:
+        if v is None:
+            return v
+        for tag, count in v.items():
+            if not tag.strip():
+                raise ValueError("symbol_counts tags cannot be empty.")
+            if count < 0:
+                raise ValueError("symbol_counts counts cannot be negative.")
+        return v
+
+    @model_validator(mode="after")
+    def reject_plan_symbols_and_symbol_counts(self):
+        if self.plan_symbols is not None and self.symbol_counts is not None:
+            raise ValueError(
+                "plan_symbols and symbol_counts are mutually exclusive; provide only one."
+            )
+        return self
+
+
+class LegendScanRequest(BaseModel):
+    pdf_path: str
+    page_index: int | None = Field(default=None, ge=0)
+
+
 @router.get("/health")
 async def health_check(client: MetaClientDep):
     return {
@@ -291,6 +334,63 @@ async def scan_drawing_sheet(
         # inside); scan-all is the surface that reports per-sheet errors.
         await _auto_populate_takeoff(store, clean_path, meta, project_id)
     return meta
+
+
+@router.post("/sheets/{sheet_id}/legend")
+async def scan_sheet_legend(
+    sheet_id: str,
+    request: LegendScanRequest,
+    client: MetaClientDep,
+    store: TakeoffStoreDep,
+):
+    """Extract a sheet's legend symbol dictionary via muse-spark-1.3.
+
+    Fail-closed: an unconfigured Meta client must not reach the scanner's
+    mock path (which fabricates symbols), so the route returns an explicit
+    review-required result with no symbols instead.
+    """
+    clean_path = resolve_contained_pdf(request.pdf_path)
+    try:
+        sheet = await store.get_sheet(sheet_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Sheet lookup failed: {e}") from e
+    if sheet is None:
+        raise HTTPException(status_code=404, detail=f"Sheet '{sheet_id}' not found")
+    if request.page_index is not None:
+        page_index = request.page_index
+    else:
+        try:
+            page_index = int(sheet["page_index"])
+        except (TypeError, ValueError) as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Stored page_index for sheet '{sheet_id}' is invalid: {sheet['page_index']!r}",
+            ) from e
+
+    if not client.is_configured():
+        return LegendScanResult(
+            sheet_id=sheet_id,
+            legend_detected=False,
+            legend_bbox_pt=None,
+            symbols=[],
+            abbreviations={},
+            confidence=0.0,
+            mock=False,
+            review_required=True,
+        ).to_dict()
+
+    try:
+        scanner = LegendScanner(client=client)
+        result = await run_in_threadpool(scanner.scan_sheet, str(clean_path), page_index=page_index)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Legend scan failed: {e}") from e
+    if result.sheet_id != sheet_id:
+        # The scanner derives its own id from the PDF stem; the requested
+        # sheet id is the contract and must not leak a silent mismatch.
+        result = replace(result, sheet_id=sheet_id)
+    return result.to_dict()
 
 
 @router.post("/sheets/scan-all", response_model=SheetScanAllResponse)
@@ -613,6 +713,44 @@ async def stream_copilot(
 # ---------------------------------------------------------
 # Takeoff Ledger & Store Endpoints
 # ---------------------------------------------------------
+
+
+@router.post("/takeoff/reconcile", response_model=ReconciliationReport)
+async def reconcile_takeoff_route(request: TakeoffReconcileRequest):
+    """Reconcile scheduled equipment against plan symbols (deterministic, offline).
+
+    Only ``reconcile_takeoff`` is called: the dict/store convenience wrappers
+    fabricate confidence/coordinate defaults and are forbidden here.
+    Ghost-pin ``location_pt`` values in the report are dock/suggested
+    placement coordinates, never measured equipment locations.
+    """
+    try:
+        if request.plan_symbols is not None:
+            return reconcile_takeoff(
+                scheduled_items=request.scheduled_items,
+                plan_symbols=request.plan_symbols,
+                project_id=request.project_id or "",
+                sheet_id=request.sheet_id,
+            )
+        if request.symbol_counts is not None:
+            return reconcile_takeoff(
+                scheduled_items=request.scheduled_items,
+                symbol_counts=request.symbol_counts,
+                project_id=request.project_id or "",
+                sheet_id=request.sheet_id,
+            )
+        return reconcile_takeoff(
+            scheduled_items=request.scheduled_items,
+            plan_symbols=[],
+            project_id=request.project_id or "",
+            sheet_id=request.sheet_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except (RuntimeError, OSError) as e:
+        raise HTTPException(status_code=502, detail=f"Reconciliation failed: {e}") from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Reconciliation failed: {e}") from e
 
 
 @router.get("/takeoff/items", response_model=list[TakeoffRecord])
