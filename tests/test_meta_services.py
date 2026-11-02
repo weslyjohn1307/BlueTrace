@@ -7,6 +7,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from src.api.main import app
+from src.meta_services.client import MetaModelClient
 from src.meta_services.copilot import TakeoffCopilot
 from src.meta_services.schedule_parser import ScheduleParser
 from src.meta_services.sheet_scanner import SheetScanner
@@ -126,6 +127,26 @@ async def test_copilot_coordinate_grounding(tmp_path: Path):
     assert res_sc_cal.scale_verified is True
 
 
+@pytest.mark.asyncio
+async def test_segment_concept_unconfigured_abstains_no_fabricated_polygon():
+    """Regression (FAIL_CLOSED.md): unconfigured SAM must abstain, not
+    return a fixed polygon with invented confidence."""
+    client = MetaModelClient(api_key="mock_key_unconfigured")
+    assert client.is_configured() is False
+
+    result = await client.segment_concept_async(
+        base64.b64encode(b"crop_bytes").decode("ascii"),
+        concept_prompt="air handling unit boundary",
+    )
+
+    assert result["concept"] == "air handling unit boundary"
+    assert result["polygons"] == []
+    assert result["masks"] == []
+    assert result["confidence"] == 0.0
+    assert result["mock"] is True
+    assert result["review_required"] is True
+
+
 def test_api_meta_services_endpoints(isolated_takeoff_store):
     client = TestClient(app)
 
@@ -181,7 +202,12 @@ def test_api_meta_services_endpoints(isolated_takeoff_store):
     )
     assert seg_res.status_code == 200
     seg_data = seg_res.json()
-    assert len(seg_data["polygons"]) > 0
+    # Fail-closed offline abstention: no fabricated polygon, confidence 0.
+    assert seg_data["polygons"] == []
+    assert seg_data["masks"] == []
+    assert seg_data["confidence"] == 0.0
+    assert seg_data["mock"] is True
+    assert seg_data["review_required"] is True
 
     # 5. Copilot endpoint (fail-closed for uncalibrated sheet)
     copilot_res = client.post(
