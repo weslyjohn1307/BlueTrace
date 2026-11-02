@@ -23,6 +23,7 @@ import {
 import { LaserScanLoader } from './LaserScanLoader';
 import { VectorTraceCard } from './VectorTraceCard';
 import { PinHoverCard } from './PinHoverCard';
+import { SymbolPinsOverlay } from './SymbolPinsOverlay';
 import { apiClient } from '../../api/client';
 import { getDisciplineColor } from '../utils/disciplineColors';
 
@@ -1035,7 +1036,10 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
         )}
 
         {/* CAD Takeoff & Ghost Pins with Interactive Affordances & Sonar Rings */}
-        {pins.map((pin) => {
+        {/* Symbol-swarm detections (kind === 'symbol') render via SymbolPinsOverlay below. */}
+        {pins
+          .filter((p) => p.kind !== 'symbol')
+          .map((pin) => {
           const isGhost = pin.kind === 'ghost' || pin.status === 'UNPLACED_GHOST';
           const isSelected = selectedPinId === pin.id;
           const displayLabel = pin.label || pin.tag;
@@ -1153,7 +1157,22 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
               )}
             </g>
           );
-        })}
+          })}
+        {/* Symbol-swarm pin layer: system colors + amber review pulse */}
+        <SymbolPinsOverlay
+          pins={pins.filter((p) => p.kind === 'symbol')}
+          onSelectPin={
+            onSelectPin
+              ? (symbolPin) =>
+                  onSelectPin(
+                    pins.find((p) => p.id === symbolPin.id) ?? {
+                      ...symbolPin,
+                      kind: 'symbol' as const,
+                    }
+                  )
+              : undefined
+          }
+        />
 
         {/* CAD Precision Crosshair Lines */}
         {cursor && (

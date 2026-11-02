@@ -84,7 +84,7 @@ class TakeoffRecord(BaseModel):
     system: str = "General"
     dimension_label: str = "Unknown"
     status: Literal["SUGGESTED", "ACCEPTED", "CORRECTED", "REJECTED", "CANNOT_DETERMINE"] = "SUGGESTED"
-    source: Literal["QUICKDRAW_HOVER", "VECTOR_ENGINE", "VLM_DETECTION", "MANUAL"] = "VECTOR_ENGINE"
+    source: Literal["QUICKDRAW_HOVER", "VECTOR_ENGINE", "VLM_DETECTION", "MANUAL", "SYMBOL_SWARM"] = "VECTOR_ENGINE"
     total_length_ft: float = 0.0
     count: int = 1
     geometry: dict[str, Any] | list[Any] = Field(default_factory=dict)
@@ -154,6 +154,41 @@ CORRECTION_REASONS = frozenset({
 
 # Actions whose spelling also triggers the mandatory-reason rule.
 _REASON_REQUIRED_ACTIONS = frozenset({"CORRECT", "REJECT"})
+
+# TASK-SYM-005: legend label -> canvas system mapping for symbol pins.
+# Labels arrive from the exemplar vocabulary (legend_scanner); anything
+# unrecognized stays "General" so no discipline is ever fabricated.
+_SYMBOL_LABEL_SYSTEMS: dict[str, str] = {
+    "SD": "Supply",
+    "VD": "Supply",
+    "VAV": "Supply",
+    "CD": "Supply",
+    "S": "Supply",
+    "RG": "Return",
+    "RA": "Return",
+    "R": "Return",
+    "EF": "Exhaust",
+    "ED": "Exhaust",
+    "EX": "Exhaust",
+    "E": "Exhaust",
+    "FD": "Fire",
+    "FSD": "Fire",
+    "SMOKE": "Fire",
+    "F": "Fire",
+}
+
+
+def symbol_label_to_system(label: object) -> str:
+    """Map a legend symbol label to its canvas system (fail-open to General).
+
+    Matching is case-insensitive on the stripped label. Unknown, blank, or
+    non-string labels return ``"General"`` -- the ledger never invents a
+    discipline from an unrecognized glyph.
+    """
+    if not isinstance(label, str):
+        return "General"
+    return _SYMBOL_LABEL_SYSTEMS.get(label.strip().upper(), "General")
+
 
 # Target statuses that always require a structured override reason.
 _REASON_REQUIRED_STATUSES = frozenset({"CORRECTED", "REJECTED"})
@@ -1173,6 +1208,120 @@ class TakeoffStore:
             await db.commit()
         return len(records)
 
+    async def persist_verified_symbols(
+        self,
+        outcome_records: list[dict[str, Any]],
+        *,
+        project_id: str,
+        sheet_id: str,
+    ) -> list[str]:
+        """Persist symbol-swarm outcome detections as SUGGESTED equipment pins.
+
+        Consumes :func:`run_swarm` OUTCOME RECORDS (never the flat helper):
+        only ``status == "OK"`` records contribute detections, and each
+        item's ``review_required`` is the OR of its detection flag and its
+        parent record flag (escalate-only). Tile-relative ``tile_bbox``
+        boxes are un-tiled to sheet PDF points via the tiling math; a
+        detection that cannot be measured (missing offsets, malformed or
+        zero-area box) is skipped, never placed at a fabricated origin.
+
+        Fail-closed ledger rules, always applied:
+          - ``category="EQUIPMENT"``, ``system`` from the label map,
+            ``dimension_label=<label>``, ``status="SUGGESTED"``,
+            ``source="SYMBOL_SWARM"``. Items are NEVER written as ACCEPTED.
+          - An empty input list returns ``[]`` (mirrors ``run_swarm`` when
+            every tile is EMPTY: legitimately nothing to persist).
+          - A non-empty input that yields no symbol labels (every raw
+            detection rejected upstream, every tile failed, or every label
+            blank) raises ``ValueError("NO_EXEMPLARS: ...")`` instead of a
+            silent zero-row persist.
+          - Detections without a finite confidence persist with
+            ``review_required=True`` (unmeasured confidence is never
+            trusted silently).
+
+        Returns the new ``item_id`` list in outcome/detection order.
+        """
+        from src.meta_services.tiling import SymbolCandidate, untile_candidate
+
+        if not outcome_records:
+            return []
+        labels = {
+            str(det.get("symbol_label", "")).strip()
+            for record in outcome_records
+            if isinstance(record, dict) and record.get("status") == "OK"
+            for det in (record.get("detections") or [])
+            if isinstance(det, dict) and str(det.get("symbol_label", "")).strip()
+        }
+        if not labels:
+            raise ValueError(
+                f"NO_EXEMPLARS: {len(outcome_records)} outcome record(s) yielded "
+                "no symbol labels (raw detections all rejected or every tile "
+                "failed); refusing a silent zero-row persist."
+            )
+        records: list[TakeoffRecord] = []
+        for record in outcome_records:
+            if not isinstance(record, dict) or record.get("status") != "OK":
+                continue
+            record_flag = bool(record.get("review_required", False))
+            for det in record.get("detections") or []:
+                if not isinstance(det, dict):
+                    continue
+                label = str(det.get("symbol_label", "")).strip()
+                if not label:
+                    continue
+                try:
+                    confidence = float(det.get("confidence"))
+                except (TypeError, ValueError):
+                    confidence = float("nan")
+                needs_review = record_flag or bool(det.get("review_required", False))
+                if not math.isfinite(confidence):
+                    needs_review = True
+                    confidence = None
+                try:
+                    candidate = SymbolCandidate(
+                        symbol_label=label,
+                        tile_col=int(det.get("tile_col", -1)),
+                        tile_row=int(det.get("tile_row", -1)),
+                        x_offset_px=int(det["x_offset_px"]),
+                        y_offset_px=int(det["y_offset_px"]),
+                        tile_bbox=tuple(float(v) for v in det["tile_bbox"]),  # type: ignore[arg-type]
+                        confidence=confidence if confidence is not None else 0.0,
+                        review_required=needs_review,
+                    )
+                    bbox_pt = untile_candidate(candidate)
+                except (KeyError, TypeError, ValueError):
+                    continue
+                x0, y0, x1, y1 = bbox_pt
+                records.append(
+                    TakeoffRecord(
+                        project_id=project_id,
+                        sheet_id=sheet_id,
+                        category="EQUIPMENT",
+                        system=symbol_label_to_system(label),
+                        dimension_label=label,
+                        status="SUGGESTED",
+                        source="SYMBOL_SWARM",
+                        total_length_ft=0.0,
+                        count=1,
+                        geometry={
+                            "bbox_pt": [x0, y0, x1, y1],
+                            "center_pt": [(x0 + x1) / 2.0, (y0 + y1) / 2.0],
+                            "tile_bbox": list(det["tile_bbox"]),
+                            "tile_col": det.get("tile_col"),
+                            "tile_row": det.get("tile_row"),
+                        },
+                        confidence=confidence,
+                        review_required=needs_review or candidate.review_required,
+                    )
+                )
+        if not records:
+            raise ValueError(
+                "NO_EXEMPLARS: all raw detections were rejected at persist "
+                "time (unmeasurable geometry); refusing a silent zero-row persist."
+            )
+        await self.bulk_add_takeoff_items(records)
+        return [record.item_id for record in records]
+
     async def update_item_status(
         self,
         item_id: str,
@@ -1335,6 +1484,25 @@ class TakeoffStore:
                 if row:
                     return dict(row)
         return None
+    async def list_feedback_events(
+        self, *, training_eligible: int | None = None
+    ) -> list[dict[str, Any]]:
+        """List engineer feedback tuples, optionally gated on eligibility.
+
+        Read-only helper for the dataset curation slice: pass
+        ``training_eligible=1`` for the consented training pool.
+        """
+        query = "SELECT * FROM engineer_feedback_events"
+        params: list[Any] = []
+        if training_eligible is not None:
+            query += " WHERE training_eligible = ?"
+            params.append(int(training_eligible))
+        query += " ORDER BY created_at ASC, rowid ASC"
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute(query, params) as cur:
+                return [dict(row) for row in await cur.fetchall()]
+
     async def get_item_history(self, item_id: str) -> list[dict[str, Any]]:
         """Return the append-only audit trail for one item, oldest first."""
         async with self._session() as db:

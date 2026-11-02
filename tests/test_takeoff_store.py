@@ -960,3 +960,243 @@ async def test_recalibration_demotes_accepted_to_suggested(tmp_path: Path):
         rows = await cur.fetchall()
     assert len(rows) == 1
     assert tuple(rows[0]) == ("ACCEPTED", "SUGGESTED", "SHEET_CALIBRATION")
+
+
+async def _seed_project_sheet(store: TakeoffStore, project_id: str, sheet_id: str) -> None:
+    await store.insert_project(project_id, f"Project {project_id}")
+    await store.insert_sheet(
+        sheet_id,
+        project_id,
+        page_index=0,
+        sheet_number="M-101",
+        sheet_title="Mechanical",
+        discipline="HVAC",
+        scale_raw='1/4" = 1\'-0"',
+        scale_ratio=48.0,
+        scale_status="VERIFIED",
+        width_pt=3024.0,
+        height_pt=2160.0,
+    )
+
+
+def _swarm_ok_record(
+    detections: list[dict],
+    *,
+    tile_index: int = 0,
+    review_required: bool = False,
+    status: str = "OK",
+) -> dict:
+    return {
+        "tile_index": tile_index,
+        "tile_col": 0,
+        "tile_row": 0,
+        "status": status,
+        "detections": detections,
+        "review_required": review_required,
+        "x_offset_px": 0,
+        "y_offset_px": 0,
+    }
+
+
+def _swarm_detection(
+    label: str,
+    tile_bbox: list[float],
+    confidence: float | None = 0.95,
+    *,
+    review_required: bool = False,
+) -> dict:
+    return {
+        "symbol_label": label,
+        "tile_bbox": tile_bbox,
+        "confidence": confidence,
+        "tile_index": 0,
+        "tile_col": 0,
+        "tile_row": 0,
+        "x_offset_px": 0,
+        "y_offset_px": 0,
+        "review_required": review_required,
+    }
+
+
+async def test_symbol_pin_persistence(tmp_path: Path):
+    """SYM-005: swarm outcome records persist as SUGGESTED equipment pins."""
+    from src.store.takeoff_store import symbol_label_to_system
+
+    store = TakeoffStore(db_path=tmp_path / "test_symbol_pins.sqlite3")
+    await store.initialize()
+    await _seed_project_sheet(store, "proj_sym", "sheet_sym")
+
+    assert symbol_label_to_system("SD") == "Supply"
+    assert symbol_label_to_system("rg") == "Return"
+    assert symbol_label_to_system("EF") == "Exhaust"
+    assert symbol_label_to_system("fd") == "Fire"
+    assert symbol_label_to_system("Mystery-9") == "General"
+
+    records = [
+        _swarm_ok_record(
+            [
+                _swarm_detection("SD", [100.0, 100.0, 200.0, 200.0], 0.95),
+                _swarm_detection("RG", [300.0, 300.0, 400.0, 400.0], 0.20, review_required=True),
+            ]
+        ),
+        _swarm_ok_record([], tile_index=1),
+        {
+            "tile_index": 2,
+            "tile_col": 1,
+            "tile_row": 0,
+            "status": "PARSE_FAILED",
+            "detections": [],
+            "review_required": True,
+            "error": "UNPARSEABLE_MODEL_JSON",
+        },
+    ]
+    item_ids = await store.persist_verified_symbols(records, project_id="proj_sym", sheet_id="sheet_sym")
+    assert len(item_ids) == 2
+
+    items = await store.list_items(sheet_id="sheet_sym")
+    assert len(items) == 2
+    by_label = {item.dimension_label: item for item in items}
+    sd, rg = by_label["SD"], by_label["RG"]
+    for item in items:
+        assert item.category == "EQUIPMENT"
+        assert item.status == "SUGGESTED"
+        assert item.source == "SYMBOL_SWARM"
+        assert item.count == 1
+    assert sd.system == "Supply"
+    assert sd.review_required is False
+    assert sd.confidence == pytest.approx(0.95)
+    # Demoted borderline detection keeps its review flag on the ledger.
+    assert rg.system == "Return"
+    assert rg.review_required is True
+    # Tile bbox [100..200] at offset 0 -> sheet px [102.4..204.8] -> pt x0.48.
+    assert sd.geometry["bbox_pt"][0] == pytest.approx(102.4 * 0.48)
+    assert sd.geometry["center_pt"][0] == pytest.approx(153.6 * 0.48)
+
+    # Empty input mirrors run_swarm all-EMPTY: nothing to persist, no raise.
+    assert await store.persist_verified_symbols([], project_id="proj_sym", sheet_id="sheet_sym") == []
+
+    # Non-empty input with no usable labels fails closed, never silent.
+    with pytest.raises(ValueError, match="NO_EXEMPLARS"):
+        await store.persist_verified_symbols(
+            [_swarm_ok_record([]), _swarm_ok_record([], tile_index=1)],
+            project_id="proj_sym",
+            sheet_id="sheet_sym",
+        )
+    with pytest.raises(ValueError, match="NO_EXEMPLARS"):
+        await store.persist_verified_symbols(
+            [_swarm_ok_record([], tile_index=7, review_required=True, status="PARSE_FAILED")],
+            project_id="proj_sym",
+            sheet_id="sheet_sym",
+        )
+
+    # Unmeasurable geometry is skipped; unmeasurable confidence escalates.
+    ids = await store.persist_verified_symbols(
+        [
+            _swarm_ok_record(
+                [
+                    _swarm_detection("XX-BAD", [0.0, 0.0, 0.0, 50.0], 0.9),
+                    _swarm_detection("SD", [10.0, 10.0, 60.0, 60.0], None),
+                ]
+            )
+        ],
+        project_id="proj_sym",
+        sheet_id="sheet_sym",
+    )
+    assert len(ids) == 1
+    items = await store.list_items(sheet_id="sheet_sym")
+    nan_item = next(i for i in items if i.item_id == ids[0])
+    assert nan_item.review_required is True
+    assert nan_item.confidence is None
+
+
+async def test_dataset_curation_export(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """FDBK-004: curated export holds only eligible rows, zero package bleed.
+
+    Phase 2 always writes ``training_eligible == 0`` (no adjudication UI
+    yet), so live exports are empty by design; eligible rows are seeded
+    here with direct SQL to prove the curator gates.
+    """
+    import json as _json
+
+    import aiosqlite as _aiosqlite
+
+    from src.meta_services.dataset_curator import DatasetCurator
+
+    store = TakeoffStore(db_path=tmp_path / "test_curation.sqlite3")
+    await store.initialize()
+    monkeypatch.chdir(tmp_path)
+    await _seed_project_sheet(store, "proj_pkg_a", "sheet_a1")
+    await _seed_project_sheet(store, "proj_pkg_b", "sheet_b1")
+    await _seed_project_sheet(store, "demo Playground", "sheet_demo1")
+
+    async def seed_feedback(
+        feedback_id: str,
+        project_id: str,
+        sheet_id: str,
+        *,
+        action: str,
+        eligible: int,
+        task_type: str = "symbol_detection",
+    ) -> None:
+        async with _aiosqlite.connect(store.db_path) as db:
+            await db.execute(
+                """INSERT INTO engineer_feedback_events (
+                    feedback_id, project_id, sheet_id, item_id, task_type,
+                    action, previous_status, new_status, original_output_json,
+                    corrected_output_json, correction_reason, bounding_box_pt_json,
+                    crop_storage_relpath, model_version, prompt_version,
+                    reviewer_session_id, training_eligible, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    feedback_id, project_id, sheet_id, None, task_type,
+                    action, "SUGGESTED", "CORRECTED", '{"label": "SD"}',
+                    '{"label": "RG"}', "WRONG_SYSTEM_CLASSIFICATION",
+                    "[10.0, 10.0, 60.0, 60.0]",
+                    f"data/feedback/crops/{project_id}/{feedback_id}.png",
+                    "muse-spark-1.3", "sym-v1", "reviewer-1", eligible,
+                    "2026-11-02T00:00:00+00:00",
+                ),
+            )
+            await db.commit()
+
+    await seed_feedback("fb-a1", "proj_pkg_a", "sheet_a1", action="CORRECT", eligible=1)
+    await seed_feedback("fb-a2", "proj_pkg_a", "sheet_a1", action="REJECT", eligible=1)
+    await seed_feedback("fb-a3", "proj_pkg_a", "sheet_a1", action="CORRECT", eligible=0)
+    await seed_feedback("fb-b1", "proj_pkg_b", "sheet_b1", action="CORRECT", eligible=1)
+    await seed_feedback("fb-und", "proj_pkg_b", "sheet_b1", action="CANNOT_DETERMINE", eligible=1)
+    await seed_feedback("fb-demo", "demo Playground", "sheet_demo1", action="CORRECT", eligible=1)
+
+    curator = DatasetCurator()
+    summary = await curator.export_dataset(
+        store, out_dir=tmp_path / "curated", eval_fraction=0.5, seed=7
+    )
+    assert summary["ineligible_excluded"] >= 1
+    assert summary["undetermined_excluded"] == 1
+    assert summary["demo_excluded"] == 1
+
+    train_rows = [
+        _json.loads(line)
+        for line in (tmp_path / "curated" / "train.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    eval_rows = [
+        _json.loads(line)
+        for line in (tmp_path / "curated" / "eval.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    all_rows = train_rows + eval_rows
+    assert len(all_rows) == 3
+    assert {row["feedback_id"] for row in all_rows} == {"fb-a1", "fb-a2", "fb-b1"}
+    for row in all_rows:
+        assert row["training_eligible"] == 1
+        assert row["action"] != "CANNOT_DETERMINE"
+        assert "demo" not in str(row["project_id"]).lower()
+        assert row["crop_relpath"].endswith(".png") and ".." not in row["crop_relpath"]
+    # Drawing-package holdout: no package appears in both splits.
+    train_pkgs = {row["project_id"] for row in train_rows}
+    eval_pkgs = {row["project_id"] for row in eval_rows}
+    assert train_pkgs and eval_pkgs
+    assert not (train_pkgs & eval_pkgs)
+    manifest = _json.loads((tmp_path / "curated" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["train_count"] == len(train_rows)
+    assert manifest["eval_count"] == len(eval_rows)
