@@ -14,13 +14,17 @@ import {
   calculateFitTransform,
   panByScreenDelta,
   screenPointToPagePoint,
+  pagePointToScreenPoint,
   zoomAroundScreenAnchor,
+  zoomToPageCoordinate,
   type Point,
   type TransformState,
 } from '../../utils/transform';
 import { LaserScanLoader } from './LaserScanLoader';
 import { VectorTraceCard } from './VectorTraceCard';
+import { PinHoverCard } from './PinHoverCard';
 import { apiClient } from '../../api/client';
+import { getDisciplineColor } from '../utils/disciplineColors';
 
 export type ToolMode = 'select' | 'pan' | 'quickdraw' | 'segment' | 'calibrate';
 
@@ -29,8 +33,22 @@ export interface CanvasPin {
   /** PDF points, top-left origin. */
   x: number;
   y: number;
-  kind: 'ghost' | 'evidence' | 'item';
+  kind: 'ghost' | 'evidence' | 'item' | 'symbol';
   label?: string;
+  tag?: string;
+  discipline?: string;
+  system?: string;
+  status?: string;
+  equipmentType?: string;
+  cfm?: number;
+  scheduled_qty?: number;
+  plan_qty?: number;
+  confidence?: number;
+  reviewRequired?: boolean;
+  description?: string;
+  isGhost?: boolean;
+  variance?: number;
+  severity?: 'CRITICAL' | 'WARNING' | 'INFO';
 }
 
 export interface SegmentedPolygon {
@@ -63,6 +81,10 @@ export interface SheetCanvasProps {
   renderBadge?: (screen: Point, pagePt: [number, number]) => React.ReactNode;
   scaleRatio?: number;
   discipline?: string;
+  selectedPinId?: string | null;
+  onSelectPin?: (pin: CanvasPin) => void;
+  onPlaceGhostPin?: (ghostId: string, pagePoint: [number, number]) => void;
+  focusTarget?: { x: number; y: number; zoom?: number; timestamp?: number } | null;
 }
 
 const SYSTEM_RUN_COLORS: Record<string, string> = {
@@ -80,10 +102,21 @@ function vectorRunColor(system?: string): string {
 }
 
 const PIN_COLORS: Record<CanvasPin['kind'], string> = {
-  ghost: '#F59E0B',
+  ghost: '#d97706',
   evidence: '#22D3EE',
   item: '#34D399',
+  symbol: '#0284c7',
 };
+
+function getPinFill(pin: CanvasPin): string {
+  if (pin.discipline) {
+    return getDisciplineColor(pin.discipline);
+  }
+  if (pin.system) {
+    return getDisciplineColor(pin.system);
+  }
+  return PIN_COLORS[pin.kind] ?? '#34D399';
+}
 
 const HOVER_DEBOUNCE_MS = 400;
 const CROP_WINDOW_PT = 150;
@@ -100,6 +133,10 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   renderBadge,
   scaleRatio,
   discipline = 'MEP-HVAC',
+  selectedPinId,
+  onSelectPin,
+  onPlaceGhostPin,
+  focusTarget,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -110,6 +147,11 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   const [toolMode, setToolMode] = useState<ToolMode>('quickdraw');
   const [segmentedPolygons, setSegmentedPolygons] = useState<SegmentedPolygon[]>([]);
   const [isSegmenting, setIsSegmenting] = useState(false);
+
+  // Pin hover & drag state
+  const [hoveredPin, setHoveredPin] = useState<CanvasPin | null>(null);
+  const pinHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draggedGhostIdRef = useRef<string | null>(null);
 
   const spacePressedRef = useRef(false);
   const panningRef = useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
@@ -125,6 +167,24 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
     const rect = el.getBoundingClientRect();
     setTransform(calculateFitTransform({ width: rect.width, height: rect.height }, { width: widthPt, height: heightPt }));
   }, [widthPt, heightPt]);
+
+  // Center on focusTarget coordinate when provided (e.g. from copilot citation)
+  useEffect(() => {
+    if (!focusTarget) return;
+    const el = containerRef.current;
+    const rect = el ? el.getBoundingClientRect() : null;
+    const viewportWidth = rect && rect.width > 0 ? rect.width : 1200;
+    const viewportHeight = rect && rect.height > 0 ? rect.height : 800;
+    const targetScale = focusTarget.zoom ?? 1.5;
+    setTransform(
+      zoomToPageCoordinate(
+        { width: viewportWidth, height: viewportHeight },
+        { width: widthPt, height: heightPt },
+        { x: focusTarget.x, y: focusTarget.y },
+        targetScale
+      )
+    );
+  }, [focusTarget, widthPt, heightPt]);
 
   // Refit when the sheet image changes; track container resizes.
   useEffect(() => {
@@ -247,8 +307,8 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
         }
         areaPt2 = Math.abs(areaPt2) / 2;
 
-        // Convert to sq ft if scale ratio is known
-        const areaSqFt = scaleRatio && scaleRatio > 0 ? areaPt2 * (scaleRatio * scaleRatio) : undefined;
+        // Convert to sq ft if scale ratio is known (scaleRatio / 864 ft/pt conversion)
+        const areaSqFt = scaleRatio && scaleRatio > 0 ? areaPt2 * Math.pow(scaleRatio / 864, 2) : undefined;
 
         setSegmentedPolygons((prev) => [
           ...prev,
@@ -312,10 +372,27 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
     panningRef.current = null;
   };
 
+  const handlePinMouseEnter = (pin: CanvasPin) => {
+    if (pinHoverTimerRef.current) clearTimeout(pinHoverTimerRef.current);
+    pinHoverTimerRef.current = setTimeout(() => {
+      setHoveredPin(pin);
+    }, HOVER_DEBOUNCE_MS);
+  };
+
+  const handlePinMouseLeave = () => {
+    if (pinHoverTimerRef.current) {
+      clearTimeout(pinHoverTimerRef.current);
+      pinHoverTimerRef.current = null;
+    }
+    setHoveredPin(null);
+  };
+
   const handleMouseLeave = () => {
     panningRef.current = null;
     setCursor(null);
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    if (pinHoverTimerRef.current) clearTimeout(pinHoverTimerRef.current);
+    setHoveredPin(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -390,6 +467,46 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
       onMouseLeave={handleMouseLeave}
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
+      onDragOver={(e) => {
+        e.preventDefault();
+        try {
+          e.dataTransfer.dropEffect = 'move';
+        } catch {
+          // ignore
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        let ghostId = draggedGhostIdRef.current;
+        if (e.dataTransfer) {
+          try {
+            const data = e.dataTransfer.getData('text/plain');
+            if (data) ghostId = data;
+          } catch {
+            // ignore
+          }
+        }
+        if (ghostId && onPlaceGhostPin) {
+          const el = containerRef.current;
+          const rect = el ? el.getBoundingClientRect() : { left: 0, top: 0, width: 1200, height: 800 };
+          const rawClientX = (e as unknown as { clientX?: number }).clientX;
+          const rawClientY = (e as unknown as { clientY?: number }).clientY;
+          const clientX =
+            typeof rawClientX === 'number' && !Number.isNaN(rawClientX)
+              ? rawClientX
+              : (cursorRef.current?.screen.x ?? 400);
+          const clientY =
+            typeof rawClientY === 'number' && !Number.isNaN(rawClientY)
+              ? rawClientY
+              : (cursorRef.current?.screen.y ?? 300);
+          const screenPt = { x: clientX - (rect.left || 0), y: clientY - (rect.top || 0) };
+          const pagePt = screenPointToPagePoint(screenPt, transformRef.current);
+          const clampedX = Math.max(0, Math.min(widthPt || 3024, pagePt.x));
+          const clampedY = Math.max(0, Math.min(heightPt || 2160, pagePt.y));
+          onPlaceGhostPin(ghostId, [clampedX, clampedY]);
+        }
+        draggedGhostIdRef.current = null;
+      }}
     >
       {/* Laser Scan Loading Experience */}
       {!imgLoaded && !imgError && (
@@ -527,9 +644,9 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
           </div>
 
           <VectorTraceCard
-            totalRuns={vectorRuns.length > 0 ? vectorRuns.length : 329}
-            totalLengthFt={vectorRuns.length > 0 ? vectorRuns.reduce((acc, r) => acc + (r.length_ft ?? 0), 0) : 1840}
-            confidence={0.998}
+            totalRuns={vectorRuns.length}
+            totalLengthFt={vectorRuns.reduce((acc, r) => acc + (r.length_ft ?? 0), 0)}
+            confidence={vectorRuns.length > 0 ? 0.998 : 0}
             scaleVerified={scaleRatio !== undefined && scaleRatio > 0}
           />
         </>
@@ -606,44 +723,154 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             </polyline>
           ))}
 
-        {/* CAD Takeoff & Ghost Pins with Stitch Sonar Rings */}
-        {pins.map((pin) => (
-          <g key={pin.id}>
-            {pin.kind === 'ghost' && (
-              <>
-                <circle cx={pin.x} cy={pin.y} r={8} className="sonar-ring stroke-amber-400" fill="none" strokeWidth={1.5} />
-                <circle cx={pin.x} cy={pin.y} r={8} className="sonar-ring-delayed stroke-amber-400" fill="none" strokeWidth={1} />
-              </>
-            )}
-            {pin.kind === 'evidence' && (
-              <circle cx={pin.x} cy={pin.y} r={8} className="sonar-ring stroke-cyan-400" fill="none" strokeWidth={1.5} />
-            )}
-            <circle
-              cx={pin.x}
-              cy={pin.y}
-              r={9}
-              fill={PIN_COLORS[pin.kind]}
-              fillOpacity={0.85}
-              stroke="#ffffff"
-              strokeWidth={2}
+        {/* Left Margin Ghost Pin Staging Dock Visual */}
+        {pins.some((p) => (p.kind === 'ghost' || p.status === 'UNPLACED_GHOST') && p.x <= 100) && (
+          <g opacity={0.6} className="select-none pointer-events-none">
+            <rect
+              x={20}
+              y={70}
+              width={80}
+              height={Math.max(120, pins.filter((p) => p.kind === 'ghost' || p.status === 'UNPLACED_GHOST').length * 35 + 40)}
+              fill="#0f172a"
+              fillOpacity={0.6}
+              stroke="#d97706"
+              strokeWidth={1.5}
+              strokeDasharray="4 2"
+              rx={6}
             />
-            {pin.label && (
-              <g transform={`translate(${pin.x + 12}, ${pin.y - 10})`}>
-                <rect
-                  rx={4}
-                  width={pin.label.length * 7.5 + 16}
-                  height={18}
-                  fill={pin.kind === 'ghost' ? '#78350f' : '#083344'}
-                  stroke={pin.kind === 'ghost' ? '#f59e0b' : '#06b6d4'}
-                  strokeWidth={1}
-                />
-                <text x={8} y={13} fill="#ffffff" fontSize={11} fontFamily="monospace" fontWeight="bold">
-                  {pin.label}
-                </text>
-              </g>
-            )}
+            <text
+              x={26}
+              y={88}
+              fill="#d97706"
+              fontSize={8}
+              fontFamily="monospace"
+              fontWeight="bold"
+            >
+              STAGING DOCK
+            </text>
           </g>
-        ))}
+        )}
+
+        {/* CAD Takeoff & Ghost Pins with Interactive Affordances & Sonar Rings */}
+        {pins.map((pin) => {
+          const isGhost = pin.kind === 'ghost' || pin.status === 'UNPLACED_GHOST';
+          const isSelected = selectedPinId === pin.id;
+          const displayLabel = pin.label || pin.tag;
+          const pinFill = getPinFill(pin);
+
+          return (
+            <g
+              key={pin.id}
+              data-testid="canvas-pin"
+              data-discipline={pin.discipline}
+              data-status={pin.status}
+              data-ghost={isGhost ? 'true' : undefined}
+              className="pointer-events-auto cursor-pointer"
+              {...(isGhost ? ({ draggable: true } as Record<string, unknown>) : {})}
+              onDragStart={(e) => {
+                draggedGhostIdRef.current = pin.id;
+                if (e.dataTransfer) {
+                  try {
+                    e.dataTransfer.setData('text/plain', pin.id);
+                  } catch {
+                    // Safe in jsdom
+                  }
+                }
+              }}
+              onMouseEnter={() => handlePinMouseEnter(pin)}
+              onMouseLeave={handlePinMouseLeave}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectPin?.(pin);
+              }}
+            >
+              {/* Selected pin halo ring */}
+              {isSelected && (
+                <circle
+                  cx={pin.x}
+                  cy={pin.y}
+                  r={14}
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeWidth={2}
+                  data-testid="selected-pin-halo"
+                  className="animate-pulse"
+                />
+              )}
+
+              {/* Ghost pin sonar radar pulse rings */}
+              {isGhost && (
+                <>
+                  <circle
+                    cx={pin.x}
+                    cy={pin.y}
+                    r={8}
+                    className="sonar-ring stroke-amber-400"
+                    fill="none"
+                    strokeWidth={1.5}
+                  />
+                  <circle
+                    cx={pin.x}
+                    cy={pin.y}
+                    r={8}
+                    className="sonar-ring-delayed stroke-amber-400"
+                    fill="none"
+                    strokeWidth={1}
+                  />
+                </>
+              )}
+
+              {/* Evidence pin pulse ring */}
+              {pin.kind === 'evidence' && (
+                <circle
+                  cx={pin.x}
+                  cy={pin.y}
+                  r={8}
+                  className="sonar-ring stroke-cyan-400"
+                  fill="none"
+                  strokeWidth={1.5}
+                />
+              )}
+
+              {/* Large invisible hit area for Doherty target acquisition */}
+              <circle cx={pin.x} cy={pin.y} r={18} fill="transparent" />
+
+              {/* Pin marker with 2px white stroke ensuring >= 3:1 contrast */}
+              <circle
+                cx={pin.x}
+                cy={pin.y}
+                r={9}
+                fill={pinFill}
+                fillOpacity={0.9}
+                stroke="#ffffff"
+                strokeWidth={2}
+              />
+
+              {displayLabel && (
+                <g transform={`translate(${pin.x + 12}, ${pin.y - 10})`}>
+                  <rect
+                    rx={4}
+                    width={displayLabel.length * 7.5 + 16}
+                    height={18}
+                    fill={isGhost ? '#78350f' : '#083344'}
+                    stroke={isGhost ? '#f59e0b' : '#06b6d4'}
+                    strokeWidth={1}
+                  />
+                  <text
+                    x={8}
+                    y={13}
+                    fill="#ffffff"
+                    fontSize={11}
+                    fontFamily="monospace"
+                    fontWeight="bold"
+                  >
+                    {displayLabel}
+                  </text>
+                </g>
+              )}
+            </g>
+          );
+        })}
 
         {/* CAD Precision Crosshair Lines */}
         {cursor && (
@@ -696,6 +923,17 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
       </div>
 
       {cursor && renderBadge && renderBadge(cursor.screen, [cursor.page.x, cursor.page.y])}
+
+      {/* Instant Doherty HUD Pin Hover Card */}
+      {hoveredPin && (
+        <PinHoverCard
+          pin={hoveredPin}
+          screenX={pagePointToScreenPoint({ x: hoveredPin.x, y: hoveredPin.y }, transform).x}
+          screenY={pagePointToScreenPoint({ x: hoveredPin.x, y: hoveredPin.y }, transform).y}
+          onSelect={onSelectPin}
+          onPlaceOnCanvas={onPlaceGhostPin ? (p) => onPlaceGhostPin(p.id, [p.x, p.y]) : undefined}
+        />
+      )}
     </div>
   );
 };

@@ -149,3 +149,37 @@ export function resetToFit(
 ): TransformState {
   return calculateFitTransform(viewport, page, padding);
 }
+
+/**
+ * Calculates a transform that centers a specific page coordinate in the viewport
+ * at the desired zoom scale.
+ */
+export function zoomToPageCoordinate(
+  viewport: Dimensions,
+  _page: Dimensions | null | undefined,
+  targetPoint: Point,
+  targetScale: number = 1.0
+): TransformState {
+  const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, targetScale));
+  return {
+    scale,
+    translationX: viewport.width / 2 - targetPoint.x * scale,
+    translationY: viewport.height / 2 - targetPoint.y * scale,
+    mode: 'manual',
+  };
+}
+
+/**
+ * Convenience alias for centering viewport on a drawing coordinate.
+ */
+export const centerOnDrawingPoint = (
+  viewport: Dimensions,
+  targetPoint: Point,
+  targetScale: number = 1.0
+): TransformState => zoomToPageCoordinate(viewport, undefined, targetPoint, targetScale);
+
+/**
+ * Canonical CAD matrix aliases conforming to Rule 03 (CAD Matrix Discipline).
+ */
+export const drawingToScreen = pagePointToScreenPoint;
+export const screenToDrawing = screenPointToPagePoint;

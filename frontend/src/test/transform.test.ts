@@ -6,6 +6,10 @@ import {
   zoomAroundScreenAnchor,
   panByScreenDelta,
   resetToFit,
+  zoomToPageCoordinate,
+  centerOnDrawingPoint,
+  drawingToScreen,
+  screenToDrawing,
 } from '../utils/transform';
 
 describe('Transform Math Engine', () => {
@@ -109,5 +113,32 @@ describe('Transform Math Engine', () => {
     const pt = screenPointToPagePoint({ x: 100, y: 100 }, zeroScale);
     expect(pt.x).toBe(0);
     expect(pt.y).toBe(0);
+  });
+
+  it('centers viewport exactly on specified page coordinate with zoomToPageCoordinate', () => {
+    const targetPoint = { x: 500, y: 400 };
+    const targetScale = 1.5;
+
+    const centered = zoomToPageCoordinate(viewport, pageAvexis, targetPoint, targetScale);
+    expect(centered.mode).toBe('manual');
+    expect(centered.scale).toBe(1.5);
+
+    // After centering, targetPoint mapped to screen MUST be at viewport center (width/2, height/2)
+    const screenCenter = pagePointToScreenPoint(targetPoint, centered);
+    expect(screenCenter.x).toBeCloseTo(viewport.width / 2, 5);
+    expect(screenCenter.y).toBeCloseTo(viewport.height / 2, 5);
+  });
+
+  it('verifies centerOnDrawingPoint alias and drawingToScreen / screenToDrawing aliases', () => {
+    const targetPoint = { x: 750, y: 620 };
+    const centered = centerOnDrawingPoint(viewport, targetPoint, 2.0);
+    const screenPt = drawingToScreen(targetPoint, centered);
+
+    expect(screenPt.x).toBeCloseTo(viewport.width / 2, 5);
+    expect(screenPt.y).toBeCloseTo(viewport.height / 2, 5);
+
+    const roundtrip = screenToDrawing(screenPt, centered);
+    expect(roundtrip.x).toBeCloseTo(targetPoint.x, 5);
+    expect(roundtrip.y).toBeCloseTo(targetPoint.y, 5);
   });
 });

@@ -11,8 +11,16 @@ import { LedgerPanel } from './components/LedgerPanel';
 import { SchedulePanel } from './components/SchedulePanel';
 import { CopilotDrawer } from './components/CopilotDrawer';
 import { ByokDialog } from './components/ByokDialog';
-import { apiClient } from '../api/client';
-import type { CursorCropResponse } from '../api/contracts';
+import { apiClient, ApiError } from '../api/client';
+import { Filter } from 'lucide-react';
+import type {
+  CursorCropResponse,
+  DiscrepancyItem,
+  ReconcilePlanSymbol,
+  ReconcileScheduledItem,
+  ScheduledItem,
+} from '../api/contracts';
+import { mapReconcileGhostPins, pinFocusCoords } from './utils/reconcilePins';
 
 type RightTab = 'ledger' | 'schedule';
 
@@ -24,6 +32,12 @@ export const TakeoffWorkspace: React.FC = () => {
   const [badgeCursor, setBadgeCursor] = useState<[number, number] | null>(null);
   const [ghostPins, setGhostPins] = useState<CanvasPin[]>([]);
   const [evidencePins, setEvidencePins] = useState<CanvasPin[]>([]);
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
+  const [focusTarget, setFocusTarget] = useState<{ x: number; y: number; zoom?: number; timestamp?: number } | null>(null);
+  const [disciplineFilter, setDisciplineFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [discrepancies, setDiscrepancies] = useState<DiscrepancyItem[]>([]);
+  const [reconcileError, setReconcileError] = useState<string | null>(null);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [byokOpen, setByokOpen] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('ledger');
@@ -91,8 +105,175 @@ export const TakeoffWorkspace: React.FC = () => {
     })
     .map((item) => {
       const coords = (item.geometry as { coordinates: number[] }).coordinates;
-      return { id: item.item_id, x: coords[0], y: coords[1], kind: 'item' as const };
+      return {
+        id: item.item_id,
+        x: coords[0],
+        y: coords[1],
+        kind: 'item' as const,
+        label: item.dimension_label,
+        tag: item.dimension_label,
+        system: item.system,
+        status: item.status,
+        confidence: item.confidence ?? undefined,
+      };
     });
+
+  const handlePlaceGhostPin = (ghostId: string, pagePoint: [number, number]) => {
+    setGhostPins((prev) =>
+      prev.map((pin) =>
+        pin.id === ghostId || pin.tag === ghostId
+          ? {
+              ...pin,
+              x: pagePoint[0],
+              y: pagePoint[1],
+              status: 'ACCEPTED',
+              kind: 'item',
+            }
+          : pin
+      )
+    );
+    setDiscrepancies((prev) =>
+      prev.map((d) =>
+        d.item_id === ghostId || `ghost-${d.tag}` === ghostId || d.tag === ghostId
+          ? {
+              ...d,
+              status: 'MATCHED',
+              location_pt: pagePoint,
+              variance: 0,
+              plan_qty: d.schedule_qty,
+            }
+          : d
+      )
+    );
+  };
+
+  const handleLocateItem = (coords: [number, number], zoom = 1.5) => {
+    setFocusTarget({
+      x: coords[0],
+      y: coords[1],
+      zoom,
+      timestamp: Date.now(),
+    });
+  };
+
+  const runReconcile = useCallback(
+    async (scheduled: ReconcileScheduledItem[], planSymbols?: ReconcilePlanSymbol[]) => {
+      if (scheduled.length === 0) return;
+      setReconcileError(null);
+      try {
+        const derivedSymbols: ReconcilePlanSymbol[] =
+          planSymbols ??
+          (state.activeSheetId
+            ? itemPins.map((pin) => ({
+                label: pin.tag || pin.label || pin.id,
+                sheet_id: state.activeSheetId as string,
+                location_pt: [pin.x, pin.y] as [number, number],
+                system: pin.system,
+              }))
+            : []);
+        const report = await apiClient.reconcileTakeoff({
+          project_id: state.projectName || undefined,
+          sheet_id: state.activeSheetId ?? undefined,
+          scheduled_items: scheduled,
+          plan_symbols: derivedSymbols,
+        });
+        setDiscrepancies(report.discrepancies ?? []);
+        const newGhostPins = mapReconcileGhostPins(report.ghost_pins ?? []);
+        // Wholesale-replace reconcile-sourced ghosts so a successful reconcile
+        // with zero ghosts clears stale UNPLACED ghosts. Placed pins (kind
+        // flipped to 'item' / status ACCEPTED by handlePlaceGhostPin) and
+        // evidence/item pins (held outside ghostPins) are preserved.
+        setGhostPins((prev) => [
+          ...prev.filter((pin) => pin.kind !== 'ghost' || pin.status === 'ACCEPTED'),
+          ...newGhostPins,
+        ]);
+        setReconcileError(null);
+      } catch (err) {
+        // Fail closed: keep existing discrepancies/pins, never fabricate results.
+        setReconcileError(
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Reconciliation failed. Previous results are unchanged.'
+        );
+      }
+    },
+    // itemPins is derived from state.items on every render; reconcile reads the latest via closure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.projectName, state.activeSheetId, state.items]
+  );
+
+  // Convenience overload for SchedulePanel's ScheduledItem[] shape.
+  const runReconcileFromSchedule = useCallback(
+    (scheduled: ScheduledItem[], scheduleSheet: string) => {
+      const mapped: ReconcileScheduledItem[] = scheduled.map((item) => ({
+        tag: item.tag,
+        description: item.description,
+        schedule_sheet: scheduleSheet,
+        quantity: 1,
+        system: item.system,
+        cfm: item.cfm ?? undefined,
+        dimension: item.dimension ?? undefined,
+      }));
+      return runReconcile(mapped);
+    },
+    [runReconcile]
+  );
+
+  const handleEvidence = (boxes: number[][]) => {
+    if (!boxes || boxes.length === 0) return;
+    const newPins: CanvasPin[] = boxes.map((box, i) => {
+      const x = box.length >= 4 ? (box[0] + box[2]) / 2 : box[0];
+      const y = box.length >= 4 ? (box[1] + box[3]) / 2 : box[1];
+      return {
+        id: `evidence-${Date.now()}-${i}`,
+        x,
+        y,
+        kind: 'evidence' as const,
+        label: `Evidence [${x.toFixed(0)}, ${y.toFixed(0)}]`,
+        tag: `EV-${i + 1}`,
+        confidence: 0.99,
+        status: 'MATCHED',
+      };
+    });
+    setEvidencePins(newPins);
+    if (newPins.length > 0) {
+      setFocusTarget({
+        x: newPins[0].x,
+        y: newPins[0].y,
+        zoom: 1.5,
+        timestamp: Date.now(),
+      });
+    }
+  };
+
+  const allPins: CanvasPin[] = [...itemPins, ...ghostPins, ...evidencePins];
+
+  const filteredPins = allPins.filter((pin) => {
+    if (disciplineFilter !== 'ALL') {
+      const disc = (pin.discipline || pin.system || '').toLowerCase();
+      if (!disc.includes(disciplineFilter.toLowerCase())) return false;
+    }
+    if (statusFilter !== 'ALL') {
+      const st = (pin.status || '').toUpperCase();
+      if (statusFilter === 'GHOST' && pin.kind !== 'ghost' && st !== 'UNPLACED_GHOST') {
+        return false;
+      }
+      if (
+        statusFilter === 'DISCREPANCIES' &&
+        st !== 'UNDERCOUNT' &&
+        st !== 'OVERCOUNT' &&
+        st !== 'UNPLACED_GHOST'
+      ) {
+        return false;
+      }
+      if (statusFilter === 'MATCHED' && st !== 'MATCHED' && st !== 'ACCEPTED') {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const handleCrop = async (cursorPt: [number, number], imageBase64: string) => {
     if (!activeSheet || badgeBusy) return;
@@ -220,6 +401,15 @@ export const TakeoffWorkspace: React.FC = () => {
               <span className="truncate">{state.error}</span>
             </div>
           )}
+          {reconcileError && (
+            <div
+              role="alert"
+              className={`absolute ${state.error ? 'top-12' : 'top-2'} left-1/2 -translate-x-1/2 z-40 flex items-center space-x-2 max-w-xl px-3 py-2 rounded-lg bg-amber-950/90 backdrop-blur-md border border-amber-500/40 text-amber-200 text-[11px] font-mono shadow-lg`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span className="truncate">{reconcileError}</span>
+            </div>
+          )}
 
           {/* Left Sheet Tree Sidebar (Progressive Disclosure) */}
           {leftSidebarOpen && (
@@ -249,6 +439,42 @@ export const TakeoffWorkspace: React.FC = () => {
                 <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
                   {activeSheet.meta.discipline}
                 </span>
+
+                {/* Multi-Axis Discipline & Status Filter Bar */}
+                <div className="hidden xl:flex items-center space-x-1.5 pl-3 border-l border-slate-800 text-[10px]">
+                  <Filter className="w-3 h-3 text-slate-500" />
+                  <span className="text-slate-500">Trade:</span>
+                  {(['ALL', 'Supply', 'Return', 'Exhaust'] as const).map((disc) => (
+                    <button
+                      key={disc}
+                      type="button"
+                      onClick={() => setDisciplineFilter(disc)}
+                      className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                        disciplineFilter === disc
+                          ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {disc}
+                    </button>
+                  ))}
+                  <span className="text-slate-700">|</span>
+                  <span className="text-slate-500">Status:</span>
+                  {(['ALL', 'MATCHED', 'DISCREPANCIES', 'GHOST'] as const).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setStatusFilter(st)}
+                      className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                        statusFilter === st
+                          ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center space-x-2 shrink-0">
@@ -283,11 +509,19 @@ export const TakeoffWorkspace: React.FC = () => {
                 imageUrl={apiClient.getPageImageUrl(activeSheet.pdfPath, activeSheet.pageIndex, 150)}
                 widthPt={activeSheet.meta.width_pt}
                 heightPt={activeSheet.meta.height_pt}
-                pins={[...itemPins, ...ghostPins, ...evidencePins]}
+                pins={filteredPins}
                 vectorRuns={vectorRuns}
                 cropEnabled={true}
                 scaleRatio={activeSheet.meta.scale_ratio ?? undefined}
                 discipline={activeSheet.meta.discipline}
+                selectedPinId={selectedPinId}
+                onSelectPin={(pin) => {
+                  setSelectedPinId(pin.id);
+                  const focus = pinFocusCoords(pin);
+                  if (focus) handleLocateItem(focus);
+                }}
+                onPlaceGhostPin={handlePlaceGhostPin}
+                focusTarget={focusTarget}
                 onCropRequest={(pt, b64) => void handleCrop(pt, b64)}
                 renderBadge={(screen) =>
                   badge ? (
@@ -363,6 +597,9 @@ export const TakeoffWorkspace: React.FC = () => {
                     pdfPath={activeSheet.pdfPath}
                     pageIndex={activeSheet.pageIndex}
                     onGhostPins={setGhostPins}
+                    onReconcile={(scheduled, scheduleSheet) =>
+                      void runReconcileFromSchedule(scheduled, scheduleSheet)
+                    }
                     onLinked={() => void refreshLedger()}
                   />
                 )}
@@ -389,16 +626,20 @@ export const TakeoffWorkspace: React.FC = () => {
         open={copilotOpen}
         onClose={() => setCopilotOpen(false)}
         sheetId={state.activeSheetId}
-        onEvidence={(boxes) =>
-          setEvidencePins(
-            boxes.map((box, i) => ({
-              id: `evidence-${i}-${box.join('-')}`,
-              x: (box[0] + box[2]) / 2,
-              y: (box[1] + box[3]) / 2,
-              kind: 'evidence' as const,
-            }))
-          )
-        }
+        onEvidence={handleEvidence}
+        discrepancies={discrepancies}
+        onLocateItem={handleLocateItem}
+        onPlaceGhostPin={(ghostId) => {
+          handlePlaceGhostPin(ghostId, [400.0, 300.0]);
+        }}
+        onDismissDiscrepancy={(id) => {
+          setDiscrepancies((prev) => prev.filter((d) => d.item_id !== id));
+        }}
+        onVerifyDiscrepancy={(id) => {
+          setDiscrepancies((prev) =>
+            prev.map((d) => (d.item_id === id ? { ...d, severity: 'INFO' } : d))
+          );
+        }}
       />
 
       {/* BYOK Meta API Key Dialog */}

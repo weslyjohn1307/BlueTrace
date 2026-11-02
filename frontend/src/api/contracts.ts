@@ -152,3 +152,135 @@ export interface ByokResponse {
   masked_key?: string | null;
   session_id?: string | null;
 }
+
+export type DiscrepancyStatus =
+  | 'MATCHED'
+  | 'UNDERCOUNT'
+  | 'OVERCOUNT'
+  | 'UNSCHEDULED'
+  | 'UNPLACED_GHOST';
+
+export type DiscrepancySeverity = 'INFO' | 'WARNING' | 'CRITICAL';
+
+export interface DiscrepancyItem {
+  item_id: string;
+  tag: string;
+  label?: string;
+  schedule_qty: number;
+  plan_qty: number;
+  variance: number;
+  status: DiscrepancyStatus;
+  severity: DiscrepancySeverity;
+  suggested_action?: string;
+  discipline?: string;
+  system?: string;
+  notes?: string;
+  schedule_sheet?: string;
+  plan_sheets?: string[];
+  location_pt?: [number, number] | null;
+  matched_symbol_ids?: string[];
+  equipment_type?: string;
+  cfm?: number | null;
+}
+
+/** Mirrors backend `ScheduledEquipmentItem` (src/store/reconciler.py). */
+export interface ReconcileScheduledItem {
+  tag: string;
+  description?: string;
+  schedule_sheet: string;
+  row_data?: Record<string, unknown>;
+  quantity?: number;
+  discipline?: string | null;
+  system?: string;
+  cfm?: number | null;
+  dimension?: string | null;
+  entry_id?: string;
+}
+
+/** Mirrors backend `PlanSymbolInstance` (src/store/reconciler.py). */
+export interface ReconcilePlanSymbol {
+  symbol_id?: string;
+  label: string;
+  description?: string;
+  sheet_id: string;
+  location_pt: [number, number];
+  confidence?: number;
+  status?: 'DETECTED' | 'VERIFIED' | 'SUGGESTED' | 'ACCEPTED' | 'REJECTED';
+  bounding_box_pt?: [number, number, number, number] | number[] | null;
+  system?: string;
+  discipline?: string | null;
+  category?: string;
+  source?: 'VLM_DETECTION' | 'VECTOR_ENGINE' | 'MANUAL' | 'QUICKDRAW_HOVER';
+}
+
+/** POST /api/takeoff/reconcile — mirrors backend `TakeoffReconcileRequest`. */
+export interface ReconcileRequest {
+  project_id?: string | null;
+  sheet_id?: string | null;
+  scheduled_items: ReconcileScheduledItem[];
+  plan_symbols?: ReconcilePlanSymbol[] | null;
+  symbol_counts?: Record<string, number> | null;
+}
+
+/** Mirrors backend `GhostPin` (src/store/reconciler.py). */
+export interface ReconcileGhostPin {
+  ghost_id: string;
+  tag: string;
+  description: string;
+  status: 'UNPLACED' | 'PLACED' | 'IGNORED' | string;
+  location_pt: [number, number] | number[] | null;
+  schedule_ref: string;
+  suggested_discipline?: string;
+  suggested_system?: string;
+  quantity?: number;
+  schedule_row_data?: Record<string, unknown>;
+  created_at?: string;
+  placed_sheet_id?: string | null;
+}
+
+/** Mirrors backend `ReconciliationReport` (src/store/reconciler.py). */
+export interface ReconciliationReport {
+  reconciliation_id: string;
+  project_id: string;
+  timestamp: string;
+  total_scheduled: number;
+  total_counted: number;
+  total_matched: number;
+  total_undercounts: number;
+  total_overcounts: number;
+  total_unscheduled: number;
+  total_ghosts: number;
+  match_rate: number;
+  discrepancies: DiscrepancyItem[];
+  ghost_pins: ReconcileGhostPin[];
+  summary_by_discipline: Record<string, unknown>;
+  review_required: boolean;
+}
+
+export type ReconcileResponse = ReconciliationReport;
+
+/** Mirrors backend `LegendSymbolEntry` (src/meta_services/legend_scanner.py). */
+export interface LegendSymbolEntry {
+  symbol_id: string;
+  label: string;
+  description: string;
+  system: string;
+  category: string;
+  bounding_box_pt: [number, number, number, number] | number[];
+  exemplar_crop_base64?: string;
+  confidence: number;
+  status: string;
+}
+
+/** Mirrors backend `LegendScanResult.to_dict()` (src/meta_services/legend_scanner.py). */
+export interface LegendScanResult {
+  sheet_id: string;
+  legend_detected: boolean;
+  legend_bbox_pt: [number, number, number, number] | number[] | null;
+  symbols_count?: number;
+  symbols: LegendSymbolEntry[];
+  abbreviations: Record<string, string>;
+  confidence: number;
+  mock: boolean;
+  review_required: boolean;
+}

@@ -3,7 +3,10 @@ import type {
   CursorCropResponse,
   HealthResponse,
   LedgerSummaryRow,
+  LegendScanResult,
   PageTextResponse,
+  ReconcileRequest,
+  ReconciliationReport,
   ScheduleParseResponse,
   SegmentResponse,
   SheetMetadata,
@@ -215,6 +218,32 @@ export function createApiClient(config: ApiClientConfig = {}) {
       return request<ScheduleParseResponse>('/api/schedule/parse', {
         method: 'POST',
         body: payload,
+        signal,
+      });
+    },
+
+    async reconcileTakeoff(
+      payload: ReconcileRequest,
+      signal?: AbortSignal
+    ): Promise<ReconciliationReport> {
+      return request<ReconciliationReport>('/api/takeoff/reconcile', {
+        method: 'POST',
+        body: payload,
+        signal,
+      });
+    },
+
+    async scanSheetLegend(
+      sheetId: string,
+      pdfPath: string,
+      pageIndex?: number,
+      signal?: AbortSignal
+    ): Promise<LegendScanResult> {
+      const body: Record<string, unknown> = { pdf_path: pdfPath };
+      if (pageIndex !== undefined) body.page_index = pageIndex;
+      return request<LegendScanResult>(`/api/sheets/${encodeURIComponent(sheetId)}/legend`, {
+        method: 'POST',
+        body,
         signal,
       });
     },

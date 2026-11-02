@@ -10,6 +10,7 @@ export interface SchedulePanelProps {
   pdfPath: string | null;
   pageIndex: number;
   onGhostPins: (pins: CanvasPin[]) => void;
+  onReconcile?: (scheduled: ScheduledItem[], scheduleSheet: string) => void | Promise<void>;
   onLinked: () => void;
 }
 
@@ -74,6 +75,7 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
   pdfPath,
   pageIndex,
   onGhostPins,
+  onReconcile,
   onLinked,
 }) => {
   const [busy, setBusy] = useState(false);
@@ -102,16 +104,34 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
       });
       const returnedItems = res.unplaced_ghost_pins ?? [];
       setItems(returnedItems);
-      const pins: CanvasPin[] = returnedItems
-        .filter((item) => item.plan_coordinates_pt)
-        .map((item) => ({
+      let ghostCounter = 0;
+      const pins: CanvasPin[] = returnedItems.map((item) => {
+        let x = 60.0;
+        let y = 100.0 + ghostCounter * 35.0;
+        if (item.plan_coordinates_pt) {
+          x = item.plan_coordinates_pt[0];
+          y = item.plan_coordinates_pt[1];
+        } else {
+          ghostCounter++;
+        }
+        return {
           id: `ghost-${item.tag}`,
-          x: item.plan_coordinates_pt![0],
-          y: item.plan_coordinates_pt![1],
+          x,
+          y,
           kind: 'ghost' as const,
           label: item.tag,
-        }));
+          tag: item.tag,
+          discipline: item.category || 'Mechanical',
+          system: item.system,
+          status: item.located_on_plan ? 'MATCHED' : 'UNPLACED_GHOST',
+          description: item.description,
+          cfm: item.cfm ?? undefined,
+        };
+      });
       onGhostPins(pins);
+      if (onReconcile && returnedItems.length > 0) {
+        await onReconcile(returnedItems, title || 'MEP Equipment Schedule');
+      }
       onLinked();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Schedule parsing failed');
@@ -123,14 +143,34 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
   const loadBenchmarkSchedule = () => {
     setError(null);
     setItems(BENCHMARK_SCHEDULE_ITEMS);
-    const pins: CanvasPin[] = BENCHMARK_SCHEDULE_ITEMS.map((item) => ({
-      id: `ghost-${item.tag}`,
-      x: item.plan_coordinates_pt![0],
-      y: item.plan_coordinates_pt![1],
-      kind: 'ghost' as const,
-      label: item.tag,
-    }));
+    let ghostCounter = 0;
+    const pins: CanvasPin[] = BENCHMARK_SCHEDULE_ITEMS.map((item) => {
+      let x = 60.0;
+      let y = 100.0 + ghostCounter * 35.0;
+      if (item.plan_coordinates_pt) {
+        x = item.plan_coordinates_pt[0];
+        y = item.plan_coordinates_pt[1];
+      } else {
+        ghostCounter++;
+      }
+      return {
+        id: `ghost-${item.tag}`,
+        x,
+        y,
+        kind: 'ghost' as const,
+        label: item.tag,
+        tag: item.tag,
+        discipline: item.category || 'Mechanical',
+        system: item.system,
+        status: item.located_on_plan ? 'MATCHED' : 'UNPLACED_GHOST',
+        description: item.description,
+        cfm: item.cfm ?? undefined,
+      };
+    });
     onGhostPins(pins);
+    if (onReconcile) {
+      void onReconcile(BENCHMARK_SCHEDULE_ITEMS, title || 'MEP Equipment Schedule');
+    }
     onLinked();
   };
 
