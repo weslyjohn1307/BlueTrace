@@ -247,3 +247,129 @@ def test_api_takeoff_routes(isolated_takeoff_store):
     json_res = client.get("/api/takeoff/export/json?project_id=api_proj")
     assert json_res.status_code == 200
     assert json_res.json()["total_accepted_footage_ft"] >= 25.5
+
+
+@pytest.mark.asyncio
+async def test_project_package_hash(tmp_path: Path):
+    import hashlib
+
+    from src.store.takeoff_store import compute_file_sha256
+
+    payload = tmp_path / "package.pdf"
+    payload.write_bytes(b"%PDF-1.4 fake package bytes")
+    expected = hashlib.sha256(b"%PDF-1.4 fake package bytes").hexdigest()
+    assert compute_file_sha256(payload) == expected
+    assert len(expected) == 64
+
+    db_file = tmp_path / "test_pkg_hash.sqlite3"
+    store = TakeoffStore(db_path=db_file)
+    await store.initialize()
+    await store.insert_project(
+        "proj_hash_01",
+        "Hash Facility",
+        package_hash_sha256=expected,
+        file_size_bytes=payload.stat().st_size,
+    )
+    project = await store.get_project("proj_hash_01")
+    assert project is not None
+    assert project["package_hash_sha256"] == expected
+    assert len(project["package_hash_sha256"]) == 64
+    assert project["file_size_bytes"] == payload.stat().st_size
+
+    # Backward-compatible 2-arg call (routes.py) must not wipe stored hash.
+    await store.insert_project("proj_hash_01", "Hash Facility")
+    preserved = await store.get_project("proj_hash_01")
+    assert preserved is not None
+    assert preserved["package_hash_sha256"] == expected
+
+
+@pytest.mark.asyncio
+async def test_equipment_attributes(tmp_path: Path):
+    db_file = tmp_path / "test_equipment.sqlite3"
+    store = TakeoffStore(db_path=db_file)
+    await store.initialize()
+
+    record = TakeoffRecord(
+        item_id="equip_01",
+        project_id="proj_eq",
+        sheet_id="sheet_eq",
+        category="EQUIPMENT",
+        system="Supply Air",
+        dimension_label="VAV Box",
+        airflow_cfm=1200.0,
+        electrical_kw=2.5,
+        inlet_dimension_inches="12x8",
+        equipment_tag="VAV-1-01",
+    )
+    await store.add_takeoff_item(record)
+    items = await store.list_items(project_id="proj_eq")
+    assert len(items) == 1
+    assert items[0].airflow_cfm == 1200.0
+    assert items[0].electrical_kw == 2.5
+    assert items[0].inlet_dimension_inches == "12x8"
+    assert items[0].equipment_tag == "VAV-1-01"
+
+    bulk = TakeoffRecord(
+        item_id="equip_02",
+        project_id="proj_eq",
+        sheet_id="sheet_eq",
+        category="EQUIPMENT",
+        system="Supply Air",
+        dimension_label="Fan Coil",
+        airflow_cfm=800.0,
+        electrical_kw=1.2,
+        inlet_dimension_inches='10" dia',
+        equipment_tag="FCU-2-03",
+    )
+    await store.bulk_add_takeoff_items([bulk])
+
+    vec = TakeoffRecord(
+        item_id="equip_03",
+        project_id="proj_eq",
+        sheet_id="sheet_eq",
+        category="EQUIPMENT",
+        system="Exhaust",
+        dimension_label="Exhaust Fan",
+        source="VECTOR_ENGINE",
+        airflow_cfm=450.0,
+        electrical_kw=0.75,
+        inlet_dimension_inches="14x14",
+        equipment_tag="EF-3-01",
+    )
+    await store.replace_vector_items_for_sheet("proj_eq", "sheet_eq", [vec])
+    after = await store.list_items(project_id="proj_eq")
+    by_id = {item.item_id: item for item in after}
+    assert by_id["equip_03"].airflow_cfm == 450.0
+    assert by_id["equip_03"].equipment_tag == "EF-3-01"
+
+
+@pytest.mark.asyncio
+async def test_provenance_metadata(tmp_path: Path):
+    import json
+
+    db_file = tmp_path / "test_provenance.sqlite3"
+    store = TakeoffStore(db_path=db_file)
+    await store.initialize()
+
+    record = TakeoffRecord(
+        item_id="prov_01",
+        project_id="proj_prov",
+        sheet_id="sheet_prov",
+        category="DUCTWORK",
+        system="Supply Air",
+        dimension_label='16"x10"',
+    )
+    await store.add_takeoff_item(record)
+    items = await store.list_items(project_id="proj_prov")
+    assert len(items) == 1
+
+    config_path = Path("configs/pipeline_version.json")
+    expected = "1.0.0"
+    if config_path.exists():
+        try:
+            expected = str(json.loads(config_path.read_text(encoding="utf-8")).get("version"))
+        except (OSError, ValueError, AttributeError):
+            pass
+    assert items[0].pipeline_version == expected
+    assert items[0].model_version is not None
+    assert items[0].prompt_version is not None

@@ -31,6 +31,51 @@ def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def compute_file_sha256(path: str | Path) -> str:
+    """Return the hex SHA-256 digest of a file's bytes (chunked, no full load)."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _load_provenance_defaults() -> dict[str, str]:
+    """Read pipeline/model/prompt versions with an honest fallback.
+
+    Returns ``{"pipeline_version": ..., "model_version": ..., "prompt_version": ...}``.
+    Missing or unreadable config is never fabricated: values fall back to
+    ``"unknown"`` so downstream consumers can surface ``review_required``.
+    """
+    fallback = {
+        "pipeline_version": "unknown",
+        "model_version": "unknown",
+        "prompt_version": "unknown",
+    }
+    try:
+        config_path = Path(__file__).resolve().parents[2] / "configs" / "pipeline_version.json"
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+        version = str(raw.get("version", "")).strip()
+        if version:
+            fallback["pipeline_version"] = version
+        for key in ("model_version", "prompt_version"):
+            value = str(raw.get(key, "")).strip()
+            if value:
+                fallback[key] = value
+    except (OSError, ValueError, AttributeError):
+        pass
+    return fallback
+
+
+def _provenance_values(record: TakeoffRecord, defaults: dict[str, str]) -> tuple[str, str, str]:
+    """Resolve provenance triplet, auto-filling honest defaults for missing values."""
+    return (
+        record.pipeline_version or defaults["pipeline_version"],
+        record.model_version or defaults["model_version"],
+        record.prompt_version or defaults["prompt_version"],
+    )
+
+
 class TakeoffRecord(BaseModel):
     item_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     project_id: str
@@ -45,6 +90,13 @@ class TakeoffRecord(BaseModel):
     geometry: dict[str, Any] | list[Any] = Field(default_factory=dict)
     confidence: float | None = None
     review_required: bool = False
+    airflow_cfm: float | None = None
+    electrical_kw: float | None = None
+    inlet_dimension_inches: str | None = None
+    equipment_tag: str | None = None
+    pipeline_version: str | None = None
+    model_version: str | None = None
+    prompt_version: str | None = None
     created_at: str = Field(default_factory=_utc_now_iso)
     updated_at: str = Field(default_factory=_utc_now_iso)
 
@@ -248,9 +300,19 @@ class TakeoffStore:
                 CREATE TABLE IF NOT EXISTS projects (
                     project_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
+                    package_hash_sha256 TEXT NOT NULL DEFAULT '',
+                    file_size_bytes INTEGER,
                     created_at TEXT NOT NULL
                 );
             """)
+            async with db.execute("PRAGMA table_info(projects)") as cur:
+                project_columns = [row[1] for row in await cur.fetchall()]
+            if "package_hash_sha256" not in project_columns:
+                await db.execute(
+                    "ALTER TABLE projects ADD COLUMN package_hash_sha256 TEXT NOT NULL DEFAULT ''"
+                )
+            if "file_size_bytes" not in project_columns:
+                await db.execute("ALTER TABLE projects ADD COLUMN file_size_bytes INTEGER")
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS sheets (
                     sheet_id TEXT PRIMARY KEY,
@@ -282,6 +344,13 @@ class TakeoffStore:
                     geometry_json TEXT NOT NULL DEFAULT '{}',
                     confidence REAL,
                     review_required INTEGER NOT NULL DEFAULT 0,
+                    airflow_cfm REAL,
+                    electrical_kw REAL,
+                    inlet_dimension_inches TEXT,
+                    equipment_tag TEXT,
+                    pipeline_version TEXT,
+                    model_version TEXT,
+                    prompt_version TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -293,6 +362,23 @@ class TakeoffStore:
                 await db.execute(
                     "ALTER TABLE takeoff_items ADD COLUMN review_required INTEGER NOT NULL DEFAULT 0"
                 )
+            for _col, _ddl in (
+                ("airflow_cfm", "ALTER TABLE takeoff_items ADD COLUMN airflow_cfm REAL"),
+                ("electrical_kw", "ALTER TABLE takeoff_items ADD COLUMN electrical_kw REAL"),
+                (
+                    "inlet_dimension_inches",
+                    "ALTER TABLE takeoff_items ADD COLUMN inlet_dimension_inches TEXT",
+                ),
+                ("equipment_tag", "ALTER TABLE takeoff_items ADD COLUMN equipment_tag TEXT"),
+                (
+                    "pipeline_version",
+                    "ALTER TABLE takeoff_items ADD COLUMN pipeline_version TEXT",
+                ),
+                ("model_version", "ALTER TABLE takeoff_items ADD COLUMN model_version TEXT"),
+                ("prompt_version", "ALTER TABLE takeoff_items ADD COLUMN prompt_version TEXT"),
+            ):
+                if _col not in columns:
+                    await db.execute(_ddl)
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS review_events (
                     event_id TEXT PRIMARY KEY,
@@ -310,14 +396,39 @@ class TakeoffStore:
             await db.execute("CREATE INDEX IF NOT EXISTS idx_takeoff_status ON takeoff_items(status);")
             await db.commit()
 
-    async def insert_project(self, project_id: str, name: str) -> None:
+    async def insert_project(
+        self,
+        project_id: str,
+        name: str,
+        package_hash_sha256: str = "",
+        file_size_bytes: int | None = None,
+    ) -> None:
         async with self._session() as db:
             await db.execute(
-                """INSERT INTO projects (project_id, name, created_at) VALUES (?, ?, ?)
-                ON CONFLICT(project_id) DO UPDATE SET name = excluded.name""",
-                (project_id, name, _utc_now_iso()),
+                """INSERT INTO projects (project_id, name, package_hash_sha256, file_size_bytes, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(project_id) DO UPDATE SET
+                    name = excluded.name,
+                    package_hash_sha256 = CASE
+                        WHEN excluded.package_hash_sha256 <> '' THEN excluded.package_hash_sha256
+                        ELSE projects.package_hash_sha256
+                    END,
+                    file_size_bytes = COALESCE(excluded.file_size_bytes, projects.file_size_bytes)""",
+                (project_id, name, package_hash_sha256, file_size_bytes, _utc_now_iso()),
             )
             await db.commit()
+
+    async def get_project(self, project_id: str) -> dict[str, Any] | None:
+        """Retrieve project metadata by project_id."""
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute(
+                "SELECT * FROM projects WHERE project_id = ?", (project_id,)
+            ) as cur:
+                row = await cur.fetchone()
+                if row:
+                    return dict(row)
+        return None
 
     async def insert_sheet(
         self,
@@ -376,14 +487,18 @@ class TakeoffStore:
 
     async def add_takeoff_item(self, record: TakeoffRecord) -> str:
         """Insert a single takeoff record."""
+        defaults = _load_provenance_defaults()
+        pipeline_version, model_version, prompt_version = _provenance_values(record, defaults)
         async with self._session() as db:
             await db.execute(
                 """
                 INSERT INTO takeoff_items (
                     item_id, project_id, sheet_id, category, system, dimension_label,
                     status, source, total_length_ft, count, geometry_json, confidence,
-                    review_required, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    review_required, airflow_cfm, electrical_kw, inlet_dimension_inches,
+                    equipment_tag, pipeline_version, model_version, prompt_version,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(item_id) DO UPDATE SET
                     project_id = excluded.project_id, sheet_id = excluded.sheet_id,
                     category = excluded.category, system = excluded.system,
@@ -392,6 +507,13 @@ class TakeoffStore:
                     count = excluded.count, geometry_json = excluded.geometry_json,
                     confidence = excluded.confidence,
                     review_required = excluded.review_required,
+                    airflow_cfm = excluded.airflow_cfm,
+                    electrical_kw = excluded.electrical_kw,
+                    inlet_dimension_inches = excluded.inlet_dimension_inches,
+                    equipment_tag = excluded.equipment_tag,
+                    pipeline_version = excluded.pipeline_version,
+                    model_version = excluded.model_version,
+                    prompt_version = excluded.prompt_version,
                     updated_at = excluded.updated_at
                 """,
                 (
@@ -408,6 +530,13 @@ class TakeoffStore:
                     json.dumps(record.geometry),
                     record.confidence,
                     1 if record.review_required else 0,
+                    record.airflow_cfm,
+                    record.electrical_kw,
+                    record.inlet_dimension_inches,
+                    record.equipment_tag,
+                    pipeline_version,
+                    model_version,
+                    prompt_version,
                     record.created_at,
                     record.updated_at,
                 ),
@@ -419,14 +548,17 @@ class TakeoffStore:
         """Insert multiple records in a single transactional batch."""
         if not records:
             return 0
+        defaults = _load_provenance_defaults()
         async with self._session() as db:
             await db.executemany(
                 """
                 INSERT INTO takeoff_items (
                     item_id, project_id, sheet_id, category, system, dimension_label,
                     status, source, total_length_ft, count, geometry_json, confidence,
-                    review_required, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    review_required, airflow_cfm, electrical_kw, inlet_dimension_inches,
+                    equipment_tag, pipeline_version, model_version, prompt_version,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(item_id) DO UPDATE SET
                     project_id = excluded.project_id, sheet_id = excluded.sheet_id,
                     category = excluded.category, system = excluded.system,
@@ -435,6 +567,13 @@ class TakeoffStore:
                     count = excluded.count, geometry_json = excluded.geometry_json,
                     confidence = excluded.confidence,
                     review_required = excluded.review_required,
+                    airflow_cfm = excluded.airflow_cfm,
+                    electrical_kw = excluded.electrical_kw,
+                    inlet_dimension_inches = excluded.inlet_dimension_inches,
+                    equipment_tag = excluded.equipment_tag,
+                    pipeline_version = excluded.pipeline_version,
+                    model_version = excluded.model_version,
+                    prompt_version = excluded.prompt_version,
                     updated_at = excluded.updated_at
                 """,
                 [
@@ -452,6 +591,11 @@ class TakeoffStore:
                         json.dumps(r.geometry),
                         r.confidence,
                         1 if r.review_required else 0,
+                        r.airflow_cfm,
+                        r.electrical_kw,
+                        r.inlet_dimension_inches,
+                        r.equipment_tag,
+                        *_provenance_values(r, defaults),
                         r.created_at,
                         r.updated_at,
                     )
@@ -504,13 +648,16 @@ class TakeoffStore:
                 (project_id, sheet_id),
             )
             if records:
+                defaults = _load_provenance_defaults()
                 await db.executemany(
                     """
                     INSERT INTO takeoff_items (
                         item_id, project_id, sheet_id, category, system, dimension_label,
                         status, source, total_length_ft, count, geometry_json, confidence,
-                        review_required, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        review_required, airflow_cfm, electrical_kw, inlet_dimension_inches,
+                        equipment_tag, pipeline_version, model_version, prompt_version,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -527,6 +674,11 @@ class TakeoffStore:
                             json.dumps(r.geometry),
                             r.confidence,
                             1 if r.review_required else 0,
+                            r.airflow_cfm,
+                            r.electrical_kw,
+                            r.inlet_dimension_inches,
+                            r.equipment_tag,
+                            *_provenance_values(r, defaults),
                             r.created_at,
                             r.updated_at,
                         )
@@ -574,7 +726,7 @@ class TakeoffStore:
         category: str | None = None,
     ) -> list[TakeoffRecord]:
         """Query items with optional filtering."""
-        query = "SELECT item_id, project_id, sheet_id, category, system, dimension_label, status, source, total_length_ft, count, geometry_json, confidence, review_required, created_at, updated_at FROM takeoff_items WHERE 1=1"
+        query = "SELECT item_id, project_id, sheet_id, category, system, dimension_label, status, source, total_length_ft, count, geometry_json, confidence, review_required, airflow_cfm, electrical_kw, inlet_dimension_inches, equipment_tag, pipeline_version, model_version, prompt_version, created_at, updated_at FROM takeoff_items WHERE 1=1"
         params: list[Any] = []
         if project_id:
             query += " AND project_id = ?"
@@ -612,6 +764,13 @@ class TakeoffStore:
                             geometry=geom,
                             confidence=row["confidence"],
                             review_required=bool(row["review_required"]),
+                            airflow_cfm=row["airflow_cfm"],
+                            electrical_kw=row["electrical_kw"],
+                            inlet_dimension_inches=row["inlet_dimension_inches"],
+                            equipment_tag=row["equipment_tag"],
+                            pipeline_version=row["pipeline_version"],
+                            model_version=row["model_version"],
+                            prompt_version=row["prompt_version"],
                             created_at=row["created_at"],
                             updated_at=row["updated_at"],
                         )

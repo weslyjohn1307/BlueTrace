@@ -20,12 +20,22 @@ class SheetMetadata(BaseModel):
 class ProjectCreate(BaseModel):
     name: str = Field(..., description="Project or building name")
     description: str | None = None
+    package_hash_sha256: str | None = None
+    file_size_bytes: int | None = None
+
+
+class ProjectCreateRequest(BaseModel):
+    name: str = Field(..., description="Project or building name")
+    package_hash_sha256: str = ""
+    file_size_bytes: int | None = None
 
 
 class ProjectResponse(BaseModel):
     project_id: str
     name: str
     created_at: str
+    package_hash_sha256: str = ""
+    file_size_bytes: int | None = None
     meta_file_id: str | None = None
     sheets: list[SheetMetadata] = []
 
