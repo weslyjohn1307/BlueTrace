@@ -51,14 +51,27 @@ def get_unpushed_commits() -> list[tuple[str, str]]:
     return commits
 
 
+def get_python_executable() -> str:
+    """Returns the venv python executable if available, else sys.executable."""
+    venv_py = ROOT / ".venv" / "Scripts" / "python.exe"
+    if venv_py.exists():
+        return str(venv_py)
+    venv_py_posix = ROOT / ".venv" / "bin" / "python"
+    if venv_py_posix.exists():
+        return str(venv_py_posix)
+    return sys.executable
+
+
 def run_pre_push_gates() -> bool:
     """Verifies anti-leak sanitizer and fast regression before pushing."""
     log("Running pre-push safety gates...")
 
+    py_bin = get_python_executable()
+
     # 1. Anti-leak & copyright sanitizer
     sanitizer_script = ROOT / "scripts" / "sanitize_import.py"
     if sanitizer_script.exists():
-        code, out = run_cmd([sys.executable, str(sanitizer_script), "--audit"])
+        code, out = run_cmd([py_bin, str(sanitizer_script), "--audit"])
         if code != 0 or "[FAIL]" in out:
             log(f"GATE FAILED: Sanitizer audit violation:\n{out}")
             return False
@@ -70,7 +83,7 @@ def run_pre_push_gates() -> bool:
     ]
     existing_tests = [t for t in test_files if (ROOT / t).exists()]
     if existing_tests:
-        code, out = run_cmd([sys.executable, "-m", "pytest", *existing_tests, "-q"])
+        code, out = run_cmd([py_bin, "-m", "pytest", *existing_tests, "-q"])
         if code != 0:
             log(f"GATE FAILED: Fast regression tests failed:\n{out}")
             return False
