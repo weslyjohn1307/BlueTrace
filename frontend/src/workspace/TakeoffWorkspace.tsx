@@ -10,6 +10,7 @@ import { HoverBadge } from './components/HoverBadge';
 import { SheetTree, type SheetItemData } from './components/SheetTree';
 import { SheetNavigator } from './components/SheetNavigator';
 import { LedgerPanel } from './components/LedgerPanel';
+import { CorrectionModal, type CorrectionSubmitPayload } from './components/CorrectionModal';
 import { SchedulePanel } from './components/SchedulePanel';
 import { CopilotDrawer } from './components/CopilotDrawer';
 import { ByokDialog } from './components/ByokDialog';
@@ -21,6 +22,7 @@ import type {
   ReconcilePlanSymbol,
   ReconcileScheduledItem,
   ScheduledItem,
+  TakeoffRecord,
 } from '../api/contracts';
 import { mapReconcileGhostPins, pinFocusCoords } from './utils/reconcilePins';
 
@@ -56,6 +58,10 @@ export const TakeoffWorkspace: React.FC = () => {
   const [calSubmitting, setCalSubmitting] = useState(false);
   const [calError, setCalError] = useState<string | null>(null);
   const [calibrationResult, setCalibrationResult] = useState<CalibrationResult | null>(null);
+  // REV-002 correction session: which ledger item the CorrectionModal is editing.
+  const [correctingItem, setCorrectingItem] = useState<TakeoffRecord | null>(null);
+  const [correctionSubmitting, setCorrectionSubmitting] = useState(false);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
 
   // Ruler overlay is per-sheet evidence: never let it leak across sheets.
   const activeSheetId = state.activeSheetId;
@@ -393,6 +399,41 @@ export const TakeoffWorkspace: React.FC = () => {
       setBadge(null);
     }
   }, [badge, badgeCursor, activeSheet, state.projectName, refreshLedger]);
+
+  const handleCorrectionCancel = useCallback(() => {
+    setCorrectingItem(null);
+    setCorrectionError(null);
+    setCorrectionSubmitting(false);
+  }, []);
+
+  const handleCorrectionSubmit = useCallback(
+    async (payload: CorrectionSubmitPayload) => {
+      setCorrectionSubmitting(true);
+      setCorrectionError(null);
+      try {
+        await apiClient.submitItemCorrection(payload.itemId, {
+          status: payload.status,
+          reason: payload.reason,
+          originalProposal: payload.originalProposal,
+          correctedValues: payload.correctedValues,
+        });
+        setCorrectingItem(null);
+        await refreshLedger();
+      } catch (err) {
+        // Fail closed: keep the modal open with the error; ledger is untouched.
+        setCorrectionError(
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Correction failed. Previous values are unchanged.'
+        );
+      } finally {
+        setCorrectionSubmitting(false);
+      }
+    },
+    [refreshLedger]
+  );
 
   // Viewport autosave sink: SheetCanvas debounces manual pan/zoom and calls
   // this with the settled coordinates; the PUT restores on next launch.
@@ -734,6 +775,11 @@ export const TakeoffWorkspace: React.FC = () => {
                     loading={state.itemsLoading}
                     onAccept={(id) => void setItemStatus(id, 'ACCEPTED')}
                     onReject={(id) => void setItemStatus(id, 'REJECTED')}
+                    onCorrect={(id) => {
+                      const item = state.items.find((i) => i.item_id === id) ?? null;
+                      setCorrectionError(null);
+                      setCorrectingItem(item);
+                    }}
                     onExportCsv={() =>
                       void apiClient
                         .exportTakeoffCsv({ project_id: state.projectName, sheet_id: state.activeSheetId ?? undefined })
@@ -775,6 +821,25 @@ export const TakeoffWorkspace: React.FC = () => {
           submitError={calError}
           onConfirm={(payload) => void handleCalibrationConfirm(payload)}
           onCancel={handleCalibrationCancel}
+        />
+      )}
+
+      {/* REV-002 field-level correction dialog */}
+      {correctingItem && (
+        <CorrectionModal
+          open
+          itemId={correctingItem.item_id}
+          itemLabel={correctingItem.dimension_label}
+          initial={{
+            dimensionLabel: correctingItem.dimension_label,
+            cfm: null,
+            system: correctingItem.system,
+            category: correctingItem.category,
+          }}
+          isSubmitting={correctionSubmitting}
+          submitError={correctionError}
+          onSubmit={(payload) => void handleCorrectionSubmit(payload)}
+          onCancel={handleCorrectionCancel}
         />
       )}
 

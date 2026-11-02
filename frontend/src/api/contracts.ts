@@ -362,3 +362,77 @@ export interface LegendScanResult {
   mock: boolean;
   review_required: boolean;
 }
+
+/**
+ * REV-002/REV-003 correction reason taxonomy.
+ *
+ * Backend `CorrectionReasonEnum` (src/models/schemas.py) is the authority and
+ * lands via the p2a track; this string union mirrors it so the UI compiles
+ * against both the current backend and the extended enum without duplicating
+ * authority. `reasonOptions` props accept plain strings for the same reason.
+ */
+export type CorrectionReason =
+  | 'OCR_MISREAD_DIGIT'
+  | 'OCR_MISREAD_SHAPE'
+  | 'WRONG_SYSTEM_CLASSIFICATION'
+  | 'WRONG_SCALE_RATIO'
+  | 'DUPLICATE_ITEM'
+  | 'OUT_OF_SCOPE_SPECIFICATION'
+  | 'INSUFFICIENT_DRAWING_RESOLUTION'
+  | 'NON_STANDARD_SYMBOL_CONVENTION'
+  | 'OTHER_OVERRIDE';
+
+export const CORRECTION_REASONS: readonly CorrectionReason[] = [
+  'OCR_MISREAD_DIGIT',
+  'OCR_MISREAD_SHAPE',
+  'WRONG_SYSTEM_CLASSIFICATION',
+  'WRONG_SCALE_RATIO',
+  'DUPLICATE_ITEM',
+  'OUT_OF_SCOPE_SPECIFICATION',
+  'INSUFFICIENT_DRAWING_RESOLUTION',
+  'NON_STANDARD_SYMBOL_CONVENTION',
+  'OTHER_OVERRIDE',
+];
+
+/** System selector options for the REV-002 correction form. */
+export const CORRECTION_SYSTEMS: readonly string[] = [
+  'Supply',
+  'Return',
+  'Exhaust',
+  'Fire Life Safety',
+];
+
+/** Category selector options for the REV-002 correction form. */
+export const CORRECTION_CATEGORIES: readonly string[] = ['Ductwork', 'Equipment', 'Piping'];
+
+/** Field-level takeoff values carried in a correction payload. */
+export interface CorrectionFieldValues {
+  dimensionLabel: string;
+  cfm?: number | null;
+  system: string;
+  category: string;
+}
+
+/**
+ * Body for `submitItemCorrection`.
+ *
+ * Reuses the existing `PATCH /api/takeoff/items/{item_id}/status` route
+ * (`status` stays within the backend 3-state literal; `action: 'CORRECT'`
+ * marks the human correction) and carries both the original proposal and the
+ * corrected values so the audit trail (REV-004) never loses the estimate
+ * the reviewer overrode. Backend `StatusUpdateRequest` ignores the extra
+ * keys today; the p2a 4-state/reason-enum extension reads them.
+ */
+export interface ItemCorrectionRequest {
+  /** Review status after correction; kept as string for 3-state/4-state compat. */
+  status?: string;
+  reason: string;
+  originalProposal: CorrectionFieldValues;
+  correctedValues: CorrectionFieldValues;
+}
+
+export interface ItemCorrectionResponse {
+  item_id: string;
+  status: string;
+  updated: boolean;
+}

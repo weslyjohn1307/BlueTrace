@@ -4,6 +4,8 @@ import type {
   HealthResponse,
   IntakeJobEvent,
   IntakeJobStatus,
+  ItemCorrectionRequest,
+  ItemCorrectionResponse,
   LedgerSummaryRow,
   LegendScanResult,
   PageTextResponse,
@@ -409,6 +411,32 @@ export function createApiClient(config: ApiClientConfig = {}) {
       return request(`/api/takeoff/items/${encodeURIComponent(itemId)}/status`, {
         method: 'PATCH',
         body: { status, action },
+        signal,
+      });
+    },
+
+    /**
+     * REV-002 field-level correction.
+     *
+     * Same route as `updateTakeoffStatus` (so `test_every_client_endpoint_exists`
+     * stays green) with `action: 'CORRECT'` plus the reason code, the original
+     * proposal, and the corrected values. `status` defaults to a backend-valid
+     * 3-state value; pass an explicit 4-state value once p2a lands it.
+     */
+    async submitItemCorrection(
+      itemId: string,
+      correction: ItemCorrectionRequest,
+      signal?: AbortSignal
+    ): Promise<ItemCorrectionResponse> {
+      return request(`/api/takeoff/items/${encodeURIComponent(itemId)}/status`, {
+        method: 'PATCH',
+        body: {
+          status: correction.status ?? 'ACCEPTED',
+          action: 'CORRECT',
+          reason: correction.reason,
+          original_proposal: correction.originalProposal,
+          corrected_values: correction.correctedValues,
+        },
         signal,
       });
     },

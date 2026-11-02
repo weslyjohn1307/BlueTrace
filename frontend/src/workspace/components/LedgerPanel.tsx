@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, X, Download, ClipboardList } from 'lucide-react';
+import { Check, X, Download, ClipboardList, Pencil } from 'lucide-react';
 import type { LedgerSummaryRow, TakeoffRecord } from '../../api/contracts';
 import { EmptyPanel } from '../../components/EmptyPanel';
 
@@ -9,6 +9,8 @@ export interface LedgerPanelProps {
   loading: boolean;
   onAccept: (itemId: string) => void;
   onReject: (itemId: string) => void;
+  /** REV-002 correction entry point; when omitted no Correct affordance renders. */
+  onCorrect?: (itemId: string) => void;
   onExportCsv: () => void;
   onExportJson: () => void;
 }
@@ -21,6 +23,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
   loading,
   onAccept,
   onReject,
+  onCorrect,
   onExportCsv,
   onExportJson,
 }) => {
@@ -164,6 +167,17 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
                     <Check className="w-3 h-3" />
                     <span>Accept</span>
                   </button>
+                  {onCorrect && (
+                    <button
+                      type="button"
+                      aria-label={`Correct ${item.dimension_label}`}
+                      onClick={() => onCorrect(item.item_id)}
+                      className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-white font-mono text-[11px] cursor-pointer transition-colors shadow-xs"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>Correct</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onReject(item.item_id)}
@@ -171,6 +185,19 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
                   >
                     <X className="w-3 h-3" />
                     <span>Reject</span>
+                  </button>
+                </div>
+              )}
+              {!isSuggested && onCorrect && (
+                <div className="flex pt-1">
+                  <button
+                    type="button"
+                    aria-label={`Correct ${item.dimension_label}`}
+                    onClick={() => onCorrect(item.item_id)}
+                    className="flex items-center space-x-1 px-2 py-1 rounded text-[10px] font-mono text-cyan-400 hover:text-cyan-200 hover:bg-slate-800 cursor-pointer transition-colors"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    <span>Correct</span>
                   </button>
                 </div>
               )}
