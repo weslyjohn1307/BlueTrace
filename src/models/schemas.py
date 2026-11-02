@@ -1,6 +1,30 @@
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+
+class ReviewActionEnum(str, Enum):
+    """Human review actions on a takeoff item (TASK-REV-001)."""
+
+    ACCEPT = "ACCEPT"
+    CORRECT = "CORRECT"
+    REJECT = "REJECT"
+    CANNOT_DETERMINE = "CANNOT_DETERMINE"
+
+
+class CorrectionReasonEnum(str, Enum):
+    """Standard AEC override reason taxonomy (TASK-REV-003)."""
+
+    OCR_MISREAD_DIGIT = "OCR_MISREAD_DIGIT"
+    OCR_MISREAD_SHAPE = "OCR_MISREAD_SHAPE"
+    WRONG_SYSTEM_CLASSIFICATION = "WRONG_SYSTEM_CLASSIFICATION"
+    WRONG_SCALE_RATIO = "WRONG_SCALE_RATIO"
+    DUPLICATE_ITEM = "DUPLICATE_ITEM"
+    OUT_OF_SCOPE_SPECIFICATION = "OUT_OF_SCOPE_SPECIFICATION"
+    INSUFFICIENT_DRAWING_RESOLUTION = "INSUFFICIENT_DRAWING_RESOLUTION"
+    NON_STANDARD_SYMBOL_CONVENTION = "NON_STANDARD_SYMBOL_CONVENTION"
+    OTHER_OVERRIDE = "OTHER_OVERRIDE"
 
 
 class SheetMetadata(BaseModel):

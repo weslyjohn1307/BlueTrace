@@ -226,8 +226,39 @@ async def _auto_populate_takeoff(
 
 
 class StatusUpdateRequest(BaseModel):
-    status: Literal["SUGGESTED", "ACCEPTED", "REJECTED"]
+    status: Literal["SUGGESTED", "ACCEPTED", "CORRECTED", "REJECTED", "CANNOT_DETERMINE"]
     action: str = "USER_REVIEW"
+    # TASK-REV-003: mandatory structured override reason for CORRECT/REJECT.
+    reason: str | None = None
+
+    @model_validator(mode="after")
+    def require_reason_for_overrides(self):
+        from src.store.takeoff_store import CORRECTION_REASONS
+
+        target = str(self.status).strip().upper()
+        action_name = str(self.action or "USER_REVIEW").strip().upper()
+        code = str(self.reason).strip().upper() if self.reason and str(self.reason).strip() else None
+        if code is not None and code not in CORRECTION_REASONS:
+            raise ValueError(
+                f"Unknown correction reason '{self.reason}'. Expected one of: "
+                f"{', '.join(sorted(CORRECTION_REASONS))}."
+            )
+        if (target in ("CORRECTED", "REJECTED") or action_name in ("CORRECT", "REJECT")) and code is None:
+            raise ValueError(
+                f"A correction reason is required for status '{target}' "
+                f"(action '{action_name}')."
+            )
+        return self
+
+
+class ReviewEventResponse(BaseModel):
+    event_id: str
+    item_id: str
+    action: str
+    previous_status: str
+    new_status: str
+    reason: str | None = None
+    timestamp: str
 
 
 class SheetScanRequest(BaseModel):
@@ -1322,11 +1353,42 @@ async def update_takeoff_status(
     body: StatusUpdateRequest,
     store: TakeoffStoreDep,
 ):
-    """One-click Accept, Reject, or Re-suggest human-in-the-loop decision."""
-    success = await store.update_item_status(item_id, body.status, action=body.action)
+    """One-click Accept, Correct, Reject, or Cannot-Determine human decision.
+
+    Fail-closed: unknown items are 404, illegal transitions are 400,
+    acceptance on an UNVERIFIED-scale sheet is 409, and missing/invalid
+    override reasons are 422 (enforced by schema validation above and by
+    the store as defense in depth).
+    """
+    try:
+        success = await store.update_item_status(
+            item_id, body.status, action=body.action, reason=body.reason
+        )
+    except ValueError as e:
+        message = str(e)
+        lowered = message.lower()
+        if "reason" in lowered:
+            raise HTTPException(status_code=422, detail=message) from e
+        if "unverified" in lowered:
+            raise HTTPException(status_code=409, detail=message) from e
+        raise HTTPException(status_code=400, detail=message) from e
     if not success:
         raise HTTPException(status_code=404, detail=f"Takeoff item '{item_id}' not found")
     return {"item_id": item_id, "status": body.status, "updated": True}
+
+
+@router.get("/takeoff/items/{item_id}/history", response_model=list[ReviewEventResponse])
+async def get_takeoff_item_history(
+    item_id: str,
+    store: TakeoffStoreDep,
+):
+    """Chronological append-only audit trail for one takeoff item."""
+    history = await store.get_item_history(item_id)
+    if not history:
+        items = await store.list_items()
+        if not any(i.item_id == item_id for i in items):
+            raise HTTPException(status_code=404, detail=f"Takeoff item '{item_id}' not found")
+    return history
 
 
 @router.get("/takeoff/summary", response_model=list[LedgerSummaryRow])

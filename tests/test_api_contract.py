@@ -27,7 +27,7 @@ CLIENT_TS = Path(__file__).resolve().parents[1] / "frontend" / "src" / "api" / "
 
 BASE_URL_DEFAULT = "/api"
 # Quoted strings that look like paths but are not endpoints.
-NON_ENDPOINTS = {BASE_URL_DEFAULT}
+NON_ENDPOINTS = {BASE_URL_DEFAULT, "/"}
 
 
 def _normalise_client_path(raw: str) -> str:
@@ -127,7 +127,28 @@ def test_crop_ocr_fails_closed_without_a_key(client: TestClient):
     assert body["confidence"] == 0.0
 
 
-def test_takeoff_ledger_roundtrip(client: TestClient):
+def test_takeoff_ledger_roundtrip(client: TestClient, isolated_takeoff_store):
+    import asyncio as _asyncio
+
+    # Fail-closed ACCEPT gate needs a VERIFIED parent sheet row.
+    async def _seed_sheet() -> None:
+        await isolated_takeoff_store.insert_project("contract_proj", "Contract Project")
+        await isolated_takeoff_store.insert_sheet(
+            sheet_id="contract_sheet",
+            project_id="contract_proj",
+            page_index=0,
+            sheet_number="M-1",
+            sheet_title="Contract Plan",
+            discipline="MECHANICAL",
+            scale_raw='1/4" = 1\'-0"',
+            scale_ratio=48.0,
+            scale_status="VERIFIED",
+            width_pt=1224.0,
+            height_pt=792.0,
+        )
+
+    _asyncio.run(_seed_sheet())
+
     created = client.post(
         "/api/takeoff/items",
         json={
@@ -623,3 +644,199 @@ def test_feedback_events_crop_project_guard_and_nulls(
         }
     )
     assert bad_page.status_code == 422
+async def _seed_review_sheet(store, project_id: str, sheet_id: str, scale_status: str) -> None:
+    await store.insert_project(project_id, "Review Machine Facility")
+    await store.insert_sheet(
+        sheet_id=sheet_id,
+        project_id=project_id,
+        page_index=0,
+        sheet_number="M-1.0",
+        sheet_title="Review Machine Plan",
+        discipline="MECHANICAL",
+        scale_raw='1/4" = 1\'-0"',
+        scale_ratio=48.0,
+        scale_status=scale_status,
+        width_pt=1224.0,
+        height_pt=792.0,
+    )
+
+
+def _add_review_item(store, item_id: str, project_id: str, sheet_id: str):
+    from src.store.takeoff_store import TakeoffRecord
+
+    return TakeoffRecord(
+        item_id=item_id,
+        project_id=project_id,
+        sheet_id=sheet_id,
+        category="DUCTWORK",
+        system="Supply Air",
+        dimension_label='24"x12"',
+        status="SUGGESTED",
+        source="VECTOR_ENGINE",
+        total_length_ft=32.5,
+        count=1,
+    )
+
+
+async def test_four_state_review_machine(isolated_takeoff_store):
+    """TASK-REV-001: valid transitions succeed; invalid ones are 400; UNVERIFIED accept is 409."""
+    from starlette.testclient import TestClient
+
+    from src.api.main import app
+
+    store = isolated_takeoff_store
+    await _seed_review_sheet(store, "rev4_proj", "rev4_verified", "VERIFIED")
+    await _seed_review_sheet(store, "rev4_proj", "rev4_unverified", "UNVERIFIED")
+    for item_id, sheet_id in [
+        ("rev4_accept_ok", "rev4_verified"),
+        ("rev4_correct", "rev4_verified"),
+        ("rev4_cnd", "rev4_verified"),
+        ("rev4_unver", "rev4_unverified"),
+        ("rev4_bad", "rev4_verified"),
+    ]:
+        await store.add_takeoff_item(_add_review_item(store, item_id, "rev4_proj", sheet_id))
+
+    client = TestClient(app)
+
+    # SUGGESTED -> ACCEPTED on a VERIFIED sheet succeeds.
+    res = client.patch(
+        "/api/takeoff/items/rev4_accept_ok/status",
+        json={"status": "ACCEPTED", "action": "ACCEPT"},
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ACCEPTED"
+
+    # SUGGESTED -> ACCEPTED on an UNVERIFIED sheet is fail-closed with 409.
+    res = client.patch(
+        "/api/takeoff/items/rev4_unver/status",
+        json={"status": "ACCEPTED", "action": "ACCEPT"},
+    )
+    assert res.status_code == 409
+
+    # SUGGESTED -> CORRECTED with a reason code succeeds.
+    res = client.patch(
+        "/api/takeoff/items/rev4_correct/status",
+        json={"status": "CORRECTED", "action": "CORRECT", "reason": "OCR_MISREAD_DIGIT"},
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "CORRECTED"
+
+    # CORRECTED -> SUGGESTED is outside the matrix: 400.
+    res = client.patch(
+        "/api/takeoff/items/rev4_correct/status",
+        json={"status": "SUGGESTED", "action": "USER_REVIEW"},
+    )
+    assert res.status_code == 400
+
+    # CORRECTED -> ACCEPTED is legal.
+    res = client.patch(
+        "/api/takeoff/items/rev4_correct/status",
+        json={"status": "ACCEPTED", "action": "ACCEPT"},
+    )
+    assert res.status_code == 200
+
+    # ACCEPTED -> SUGGESTED is outside the matrix: 400.
+    res = client.patch(
+        "/api/takeoff/items/rev4_accept_ok/status",
+        json={"status": "SUGGESTED", "action": "USER_REVIEW"},
+    )
+    assert res.status_code == 400
+
+    # SUGGESTED -> CANNOT_DETERMINE succeeds and keeps review_required set.
+    res = client.patch(
+        "/api/takeoff/items/rev4_cnd/status",
+        json={"status": "CANNOT_DETERMINE", "action": "CANNOT_DETERMINE"},
+    )
+    assert res.status_code == 200
+    items = await store.list_items(project_id="rev4_proj")
+    cnd = next(i for i in items if i.item_id == "rev4_cnd")
+    assert cnd.status == "CANNOT_DETERMINE"
+    assert cnd.review_required is True
+
+    # Unknown status spelling is rejected by schema validation: 422.
+    res = client.patch(
+        "/api/takeoff/items/rev4_bad/status",
+        json={"status": "APPROVED", "action": "USER_REVIEW"},
+    )
+    assert res.status_code == 422
+
+    # Unknown item is 404.
+    res = client.patch(
+        "/api/takeoff/items/does-not-exist/status",
+        json={"status": "ACCEPTED", "action": "ACCEPT"},
+    )
+    assert res.status_code == 404
+
+    # History endpoint returns the chronological audit trail.
+    history = client.get("/api/takeoff/items/rev4_correct/history")
+    assert history.status_code == 200
+    rows = history.json()
+    assert len(rows) == 2
+    assert [r["previous_status"] for r in rows] == ["SUGGESTED", "CORRECTED"]
+    assert [r["new_status"] for r in rows] == ["CORRECTED", "ACCEPTED"]
+    assert rows[0]["reason"] == "OCR_MISREAD_DIGIT"
+    assert history.json() == sorted(rows, key=lambda r: r["timestamp"])
+    assert client.get("/api/takeoff/items/does-not-exist/history").status_code == 404
+
+
+async def test_reason_code_validation(isolated_takeoff_store):
+    """TASK-REV-003: CORRECT/REJECT without a reason is 422; valid reasons pass."""
+    from starlette.testclient import TestClient
+
+    from src.api.main import app
+
+    store = isolated_takeoff_store
+    await _seed_review_sheet(store, "rev3_proj", "rev3_verified", "VERIFIED")
+    for item_id in ("rev3_correct", "rev3_reject", "rev3_accept", "rev3_bad_reason"):
+        await store.add_takeoff_item(_add_review_item(store, item_id, "rev3_proj", "rev3_verified"))
+
+    client = TestClient(app)
+
+    # CORRECT without a reason fails validation with 422.
+    res = client.patch(
+        "/api/takeoff/items/rev3_correct/status",
+        json={"status": "CORRECTED", "action": "CORRECT"},
+    )
+    assert res.status_code == 422
+
+    # REJECT without a reason fails validation with 422.
+    res = client.patch(
+        "/api/takeoff/items/rev3_reject/status",
+        json={"status": "REJECTED", "action": "REJECT"},
+    )
+    assert res.status_code == 422
+
+    # Unknown reason codes are rejected with 422.
+    res = client.patch(
+        "/api/takeoff/items/rev3_bad_reason/status",
+        json={"status": "REJECTED", "action": "REJECT", "reason": "MADE_UP_CODE"},
+    )
+    assert res.status_code == 422
+
+    # Valid reason codes pass for both CORRECT and REJECT.
+    res = client.patch(
+        "/api/takeoff/items/rev3_correct/status",
+        json={
+            "status": "CORRECTED",
+            "action": "CORRECT",
+            "reason": "WRONG_SYSTEM_CLASSIFICATION",
+        },
+    )
+    assert res.status_code == 200
+    res = client.patch(
+        "/api/takeoff/items/rev3_reject/status",
+        json={"status": "REJECTED", "action": "REJECT", "reason": "DUPLICATE_ITEM"},
+    )
+    assert res.status_code == 200
+
+    # ACCEPT never requires a reason.
+    res = client.patch(
+        "/api/takeoff/items/rev3_accept/status",
+        json={"status": "ACCEPTED", "action": "ACCEPT"},
+    )
+    assert res.status_code == 200
+
+    # The persisted audit row carries the structured reason code.
+    history = client.get("/api/takeoff/items/rev3_reject/history")
+    assert history.status_code == 200
+    assert history.json()[-1]["reason"] == "DUPLICATE_ITEM"

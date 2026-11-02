@@ -16,6 +16,7 @@ import type {
   ProjectSummary,
   ReconcileRequest,
   ReconciliationReport,
+  ReviewEvent,
   ScheduleParseResponse,
   SegmentResponse,
   SheetCalibrationRequest,
@@ -406,13 +407,19 @@ export function createApiClient(config: ApiClientConfig = {}) {
 
     async updateTakeoffStatus(
       itemId: string,
-      status: 'SUGGESTED' | 'ACCEPTED' | 'REJECTED',
+      status: 'SUGGESTED' | 'ACCEPTED' | 'CORRECTED' | 'REJECTED' | 'CANNOT_DETERMINE',
       action = 'USER_REVIEW',
-      signal?: AbortSignal
+      options?: { reason?: string; signal?: AbortSignal }
     ): Promise<{ item_id: string; status: string; updated: boolean }> {
       return request(`/api/takeoff/items/${encodeURIComponent(itemId)}/status`, {
         method: 'PATCH',
-        body: { status, action },
+        body: { status, action, ...(options?.reason ? { reason: options.reason } : {}) },
+        signal: options?.signal,
+      });
+    },
+
+    async getTakeoffItemHistory(itemId: string, signal?: AbortSignal): Promise<ReviewEvent[]> {
+      return request<ReviewEvent[]>(`/api/takeoff/items/${encodeURIComponent(itemId)}/history`, {
         signal,
       });
     },

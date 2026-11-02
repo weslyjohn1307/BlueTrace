@@ -6,7 +6,8 @@
  */
 
 export type ScaleStatus = 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED';
-export type ReviewStatus = 'SUGGESTED' | 'ACCEPTED' | 'REJECTED';
+export type ReviewStatus = 'SUGGESTED' | 'ACCEPTED' | 'CORRECTED' | 'REJECTED' | 'CANNOT_DETERMINE';
+export type ReviewAction = 'ACCEPT' | 'CORRECT' | 'REJECT' | 'CANNOT_DETERMINE';
 export type TakeoffCategory = 'DUCTWORK' | 'PIPING' | 'EQUIPMENT' | 'FIXTURE';
 export type TakeoffSource = 'QUICKDRAW_HOVER' | 'VECTOR_ENGINE' | 'VLM_DETECTION' | 'MANUAL';
 
@@ -100,6 +101,17 @@ export interface TakeoffRecord {
   review_required?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** One row of the append-only review audit trail. Mirrors backend `ReviewEventResponse`. */
+export interface ReviewEvent {
+  event_id: string;
+  item_id: string;
+  action: string;
+  previous_status: ReviewStatus;
+  new_status: ReviewStatus;
+  reason?: CorrectionReason | null;
+  timestamp: string;
 }
 
 export interface SheetTakeoffOutcome {

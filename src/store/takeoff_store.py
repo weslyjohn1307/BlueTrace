@@ -3,7 +3,7 @@
 Provides durable, transactional storage for:
   - Sheets and project metadata
   - Takeoff line items (linework runs, equipment symbols, fittings)
-  - SUGGESTED / ACCEPTED / REJECTED human-in-the-loop review workflow
+  - SUGGESTED / ACCEPTED / CORRECTED / REJECTED / CANNOT_DETERMINE human-in-the-loop review workflow
   - Multi-discipline ledger aggregation and rollup
   - Standard Estimating CSV and JSON export
 """
@@ -83,7 +83,7 @@ class TakeoffRecord(BaseModel):
     category: Literal["DUCTWORK", "PIPING", "EQUIPMENT", "FIXTURE"]
     system: str = "General"
     dimension_label: str = "Unknown"
-    status: Literal["SUGGESTED", "ACCEPTED", "REJECTED"] = "SUGGESTED"
+    status: Literal["SUGGESTED", "ACCEPTED", "CORRECTED", "REJECTED", "CANNOT_DETERMINE"] = "SUGGESTED"
     source: Literal["QUICKDRAW_HOVER", "VECTOR_ENGINE", "VLM_DETECTION", "MANUAL"] = "VECTOR_ENGINE"
     total_length_ft: float = 0.0
     count: int = 1
@@ -126,6 +126,50 @@ _SESSION_DEFAULTS: dict[str, Any] = {
 }
 
 _SESSION_TOOL_MODES = frozenset({"select", "pan", "quickdraw", "segment", "calibrate"})
+
+
+# TASK-REV-001: validated 4-state (+SUGGESTED origin) review transition matrix.
+# Missing keys are terminal: only the listed outgoing edges are legal.
+REVIEW_TRANSITIONS: dict[str, frozenset[str]] = {
+    "SUGGESTED": frozenset({"ACCEPTED", "CORRECTED", "REJECTED", "CANNOT_DETERMINE"}),
+    "CORRECTED": frozenset({"ACCEPTED", "REJECTED"}),
+    "ACCEPTED": frozenset({"CORRECTED", "REJECTED", "CANNOT_DETERMINE"}),
+    "REJECTED": frozenset({"SUGGESTED", "ACCEPTED", "CORRECTED", "CANNOT_DETERMINE"}),
+    "CANNOT_DETERMINE": frozenset({"SUGGESTED", "ACCEPTED", "CORRECTED", "REJECTED"}),
+}
+
+# TASK-REV-003: standard AEC override reason taxonomy (mirrors
+# src/models/schemas.py::CorrectionReasonEnum; stored as plain TEXT).
+CORRECTION_REASONS = frozenset({
+    "OCR_MISREAD_DIGIT",
+    "OCR_MISREAD_SHAPE",
+    "WRONG_SYSTEM_CLASSIFICATION",
+    "WRONG_SCALE_RATIO",
+    "DUPLICATE_ITEM",
+    "OUT_OF_SCOPE_SPECIFICATION",
+    "INSUFFICIENT_DRAWING_RESOLUTION",
+    "NON_STANDARD_SYMBOL_CONVENTION",
+    "OTHER_OVERRIDE",
+})
+
+# Actions whose spelling also triggers the mandatory-reason rule.
+_REASON_REQUIRED_ACTIONS = frozenset({"CORRECT", "REJECT"})
+
+# Target statuses that always require a structured override reason.
+_REASON_REQUIRED_STATUSES = frozenset({"CORRECTED", "REJECTED"})
+
+# Fail-closed ACCEPT allowlist: a takeoff item may transition to ACCEPTED
+# only while its parent sheet's scale_status is VERIFIED or CALIBRATED.
+# Anything else (UNVERIFIED, NULL/empty, conflicts, garbage, missing sheet
+# row) refuses the transition. Deliberately an allowlist, not a denylist.
+_ACCEPT_SCALE_ALLOWLIST = frozenset({"VERIFIED", "CALIBRATED"})
+
+
+def _accept_scale_allowed(scale_status: object) -> bool:
+    """Return True only for VERIFIED/CALIBRATED sheet scale (ACCEPT gate)."""
+    if not isinstance(scale_status, str):
+        return False
+    return scale_status.strip().upper() in _ACCEPT_SCALE_ALLOWLIST
 
 
 def _polyline_points(result: dict[str, Any]) -> list[list[float]]:
@@ -399,6 +443,11 @@ class TakeoffStore:
             ):
                 if _col not in columns:
                     await db.execute(_ddl)
+            # TASK-REV-004: review_events is an append-only audit log that
+            # intentionally outlives the items it references (sheet cleanup
+            # removes item rows but retains audit rows). It therefore carries
+            # no foreign key to takeoff_items; a FK would forbid the
+            # append-only delete path under PRAGMA foreign_keys=ON.
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS review_events (
                     event_id TEXT PRIMARY KEY,
@@ -406,10 +455,51 @@ class TakeoffStore:
                     action TEXT NOT NULL,
                     previous_status TEXT NOT NULL,
                     new_status TEXT NOT NULL,
-                    timestamp TEXT NOT NULL,
-                    FOREIGN KEY (item_id) REFERENCES takeoff_items(item_id)
+                    reason TEXT,
+                    timestamp TEXT NOT NULL
                 );
             """)
+            # Migration for databases created before the reason column existed.
+            async with db.execute("PRAGMA table_info(review_events)") as cur:
+                review_columns = [row[1] for row in await cur.fetchall()]
+            if "reason" not in review_columns:
+                await db.execute("ALTER TABLE review_events ADD COLUMN reason TEXT")
+                review_columns.append("reason")
+            # Migration for databases whose review_events still carries the
+            # legacy FOREIGN KEY to takeoff_items: rebuild without it so
+            # append-only cleanup (delete items, keep events) is not blocked.
+            async with db.execute(
+                "SELECT sql FROM sqlite_master WHERE name = 'review_events'"
+            ) as cur:
+                ddl_row = await cur.fetchone()
+            ddl_text = str(ddl_row[0]).upper() if ddl_row and ddl_row[0] else ""
+            if "REFERENCES" in ddl_text or "FOREIGN KEY" in ddl_text:
+                await db.execute("ALTER TABLE review_events RENAME TO review_events_legacy")
+                await db.execute("""
+                    CREATE TABLE review_events (
+                        event_id TEXT PRIMARY KEY,
+                        item_id TEXT NOT NULL,
+                        action TEXT NOT NULL,
+                        previous_status TEXT NOT NULL,
+                        new_status TEXT NOT NULL,
+                        reason TEXT,
+                        timestamp TEXT NOT NULL
+                    );
+                """)
+                legacy_has_reason = "reason" in review_columns
+                reason_expr = "reason" if legacy_has_reason else "NULL"
+                await db.execute(
+                    f"""
+                    INSERT INTO review_events
+                        (event_id, item_id, action, previous_status, new_status, reason, timestamp)
+                    SELECT event_id, item_id, action, previous_status, new_status, {reason_expr}, timestamp
+                    FROM review_events_legacy
+                    """
+                )
+                await db.execute("DROP TABLE review_events_legacy")
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_review_events_item ON review_events(item_id);"
+            )
             # Create indexes
             await db.execute("CREATE INDEX IF NOT EXISTS idx_takeoff_project ON takeoff_items(project_id);")
             await db.execute("CREATE INDEX IF NOT EXISTS idx_takeoff_sheet ON takeoff_items(sheet_id);")
@@ -818,16 +908,18 @@ class TakeoffStore:
     ) -> tuple[int, int]:
         """Atomically mark a sheet CALIBRATED and recompute VECTOR_ENGINE footage.
 
-        Fail-closed: recomputed rows stay ``SUGGESTED`` with
+        Fail-closed: every recomputed row is demoted to ``SUGGESTED`` with
         ``review_required = 1`` — calibration makes footage PROVISIONAL only.
-        Only an explicit human Accept via ``update_item_status`` may clear it.
-        Every VECTOR_ENGINE row on the sheet gets
+        An ACCEPTED row never survives recalibration; only an explicit human
+        Accept via ``update_item_status`` may clear it. Every VECTOR_ENGINE
+        row on the sheet gets
         ``total_length_ft = round(geom_pt * scale_ratio / 864, 2)`` (72 pt per
-        paper inch, 12 inches per foot) with status untouched. Manual,
+        paper inch, 12 inches per foot). Manual,
         hover, and VLM rows are untouched. Bad/missing geometry rows are
         skipped (counted, left with ``review_required = 1``). Each recomputed
         row gets a ``review_events`` audit row (action
-        ``SHEET_CALIBRATION``). Returns ``(updated, skipped)``.
+        ``SHEET_CALIBRATION``, ``previous_status`` -> ``SUGGESTED``).
+        Returns ``(updated, skipped)``.
         """
         if not math.isfinite(scale_ratio) or scale_ratio <= 0:
             raise ValueError(f"scale_ratio must be positive, got {scale_ratio!r}.")
@@ -876,17 +968,17 @@ class TakeoffStore:
                     skipped += 1
                     continue
                 total_length_ft = round(geom_pt * float(scale_ratio) / 864.0, 2)
+                prev_status = str(dict(row).get("status", "SUGGESTED") or "SUGGESTED").upper()
                 await db.execute(
-                    "UPDATE takeoff_items SET total_length_ft = ?, review_required = 1, updated_at = ? WHERE item_id = ?",
+                    "UPDATE takeoff_items SET total_length_ft = ?, status = 'SUGGESTED', review_required = 1, updated_at = ? WHERE item_id = ?",
                     (total_length_ft, now, row["item_id"]),
                 )
-                prev_status = dict(row).get("status", "SUGGESTED")
                 await db.execute(
                     """
                     INSERT INTO review_events (event_id, item_id, action, previous_status, new_status, timestamp)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (str(uuid.uuid4()), row["item_id"], "SHEET_CALIBRATION", prev_status, prev_status, now),
+                    (str(uuid.uuid4()), row["item_id"], "SHEET_CALIBRATION", prev_status, "SUGGESTED", now),
                 )
                 updated += 1
             await db.commit()
@@ -1014,20 +1106,12 @@ class TakeoffStore:
     async def delete_vector_items_for_sheet(self, project_id: str, sheet_id: str) -> int:
         """Remove prior VECTOR_ENGINE rows for one sheet so re-scans stay idempotent.
 
-        Review events referencing those rows are removed in the same
-        transaction (foreign-key safe). Manual and hover-sourced rows on the
-        same sheet are never touched.
+        Review events are append-only (TASK-REV-004) and are never deleted:
+        audit rows referencing removed items are retained as immutable
+        history. Manual and hover-sourced rows on the same sheet are never
+        touched.
         """
         async with self._session() as db:
-            await db.execute(
-                """
-                DELETE FROM review_events WHERE item_id IN (
-                    SELECT item_id FROM takeoff_items
-                    WHERE project_id = ? AND sheet_id = ? AND source = 'VECTOR_ENGINE'
-                )
-                """,
-                (project_id, sheet_id),
-            )
             cursor = await db.execute(
                 "DELETE FROM takeoff_items WHERE project_id = ? AND sheet_id = ? AND source = 'VECTOR_ENGINE'",
                 (project_id, sheet_id),
@@ -1038,17 +1122,12 @@ class TakeoffStore:
     async def replace_vector_items_for_sheet(
         self, project_id: str, sheet_id: str, records: list[TakeoffRecord]
     ) -> int:
-        """Atomically replace one sheet's VECTOR_ENGINE rows in one transaction."""
+        """Atomically replace one sheet's VECTOR_ENGINE rows in one transaction.
+
+        Review events are append-only (TASK-REV-004): prior audit rows are
+        retained even though the replaced item rows are removed.
+        """
         async with self._session() as db:
-            await db.execute(
-                """
-                DELETE FROM review_events WHERE item_id IN (
-                    SELECT item_id FROM takeoff_items
-                    WHERE project_id = ? AND sheet_id = ? AND source = 'VECTOR_ENGINE'
-                )
-                """,
-                (project_id, sheet_id),
-            )
             await db.execute(
                 "DELETE FROM takeoff_items WHERE project_id = ? AND sheet_id = ? AND source = 'VECTOR_ENGINE'",
                 (project_id, sheet_id),
@@ -1097,29 +1176,86 @@ class TakeoffStore:
     async def update_item_status(
         self,
         item_id: str,
-        new_status: Literal["SUGGESTED", "ACCEPTED", "REJECTED"],
+        new_status: Literal["SUGGESTED", "ACCEPTED", "CORRECTED", "REJECTED", "CANNOT_DETERMINE"],
         action: str = "USER_REVIEW",
+        reason: str | None = None,
     ) -> bool:
-        """Update review status of an item and log the review audit event."""
+        """Update review status of an item and log the review audit event.
+
+        Enforces the TASK-REV-001 transition matrix (``REVIEW_TRANSITIONS``):
+        anything outside the listed outgoing edges raises ``ValueError``.
+        TASK-REV-003: transitions into ``CORRECTED``/``REJECTED`` (or actions
+        ``CORRECT``/``REJECT``) require a ``CorrectionReasonEnum`` code.
+        Fail-closed scale gate: ``ACCEPTED`` is allowed ONLY when the parent
+        sheet's ``scale_status`` is ``VERIFIED`` or ``CALIBRATED``
+        (allowlist). A missing sheet row, ``NULL``/empty status, or any other
+        value (``UNVERIFIED``, conflicts, garbage) raises ``ValueError``
+        mentioning ``UNVERIFIED`` (routes map it to HTTP 409).
+        ``CANNOT_DETERMINE`` keeps ``review_required = 1``.
+        """
+        target = str(new_status).strip().upper()
+        if target not in REVIEW_TRANSITIONS:
+            raise ValueError(f"Unknown review status '{new_status}'.")
+        action_name = str(action or "USER_REVIEW").strip().upper() or "USER_REVIEW"
+        reason_code = str(reason).strip().upper() if reason is not None and str(reason).strip() else None
+        if reason_code is not None and reason_code not in CORRECTION_REASONS:
+            raise ValueError(
+                f"Unknown correction reason '{reason}'. Expected one of: "
+                f"{', '.join(sorted(CORRECTION_REASONS))}."
+            )
+        if (target in _REASON_REQUIRED_STATUSES or action_name in _REASON_REQUIRED_ACTIONS) and reason_code is None:
+            raise ValueError(
+                f"A correction reason is required for status '{target}' "
+                f"(action '{action_name}')."
+            )
         now = _utc_now_iso()
         async with self._session() as db:
-            async with db.execute("SELECT status FROM takeoff_items WHERE item_id = ?", (item_id,)) as cur:
+            db.row_factory = sqlite3.Row
+            async with db.execute(
+                "SELECT item_id, sheet_id, status FROM takeoff_items WHERE item_id = ?",
+                (item_id,),
+            ) as cur:
                 row = await cur.fetchone()
-                if not row:
+                if row is None:
                     return False
-                prev_status = row[0]
-
+                prev_status = str(row["status"]).upper()
+                sheet_id = str(row["sheet_id"])
+            allowed = REVIEW_TRANSITIONS.get(prev_status)
+            if allowed is None or target not in allowed:
+                raise ValueError(
+                    f"Invalid review transition from '{prev_status}' to '{target}'."
+                )
+            if target == "ACCEPTED":
+                async with db.execute(
+                    "SELECT scale_status FROM sheets WHERE sheet_id = ?", (sheet_id,)
+                ) as cur:
+                    sheet_row = await cur.fetchone()
+                if sheet_row is None:
+                    raise ValueError(
+                        f"Cannot transition item '{item_id}' to ACCEPTED: parent "
+                        f"sheet '{sheet_id}' has no sheet record, treated as "
+                        f"UNVERIFIED scale (fail-closed)."
+                    )
+                observed_status = sheet_row["scale_status"]
+                if not _accept_scale_allowed(observed_status):
+                    raise ValueError(
+                        f"Cannot transition item '{item_id}' to ACCEPTED while parent "
+                        f"sheet '{sheet_id}' scale_status is '{observed_status}' "
+                        f"(requires VERIFIED or CALIBRATED; treated as UNVERIFIED "
+                        f"fail-closed)."
+                    )
+            review_required = 1 if target in ("SUGGESTED", "CANNOT_DETERMINE") else 0
             await db.execute(
-                "UPDATE takeoff_items SET status = ?, updated_at = ? WHERE item_id = ?",
-                (new_status, now, item_id),
+                "UPDATE takeoff_items SET status = ?, review_required = ?, updated_at = ? WHERE item_id = ?",
+                (target, review_required, now, item_id),
             )
             event_id = str(uuid.uuid4())
             await db.execute(
                 """
-                INSERT INTO review_events (event_id, item_id, action, previous_status, new_status, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO review_events (event_id, item_id, action, previous_status, new_status, reason, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (event_id, item_id, action, prev_status, new_status, now),
+                (event_id, item_id, action_name, prev_status, target, reason_code, now),
             )
             await db.commit()
             return True
@@ -1199,7 +1335,18 @@ class TakeoffStore:
                 if row:
                     return dict(row)
         return None
-
+    async def get_item_history(self, item_id: str) -> list[dict[str, Any]]:
+        """Return the append-only audit trail for one item, oldest first."""
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute(
+                """
+                SELECT event_id, item_id, action, previous_status, new_status, reason, timestamp
+                FROM review_events WHERE item_id = ? ORDER BY timestamp ASC, rowid ASC
+                """,
+                (item_id,),
+            ) as cur:
+                return [dict(row) for row in await cur.fetchall()]
     async def list_items(
         self,
         project_id: str | None = None,

@@ -88,6 +88,22 @@ async def test_review_status_transition(tmp_path: Path):
     store = TakeoffStore(db_path=db_file)
     await store.initialize()
 
+    # Fail-closed ACCEPT gate needs a VERIFIED parent sheet row.
+    await store.insert_project("p1", "Review Facility")
+    await store.insert_sheet(
+        sheet_id="s1",
+        project_id="p1",
+        page_index=0,
+        sheet_number="M-1.0",
+        sheet_title="Review Plan",
+        discipline="MECHANICAL",
+        scale_raw='1/4" = 1\'-0"',
+        scale_ratio=48.0,
+        scale_status="VERIFIED",
+        width_pt=1224.0,
+        height_pt=792.0,
+    )
+
     item = TakeoffRecord(
         item_id="item_rev_01",
         project_id="p1",
@@ -107,8 +123,10 @@ async def test_review_status_transition(tmp_path: Path):
     items = await store.list_items(sheet_id="s1")
     assert items[0].status == "ACCEPTED"
 
-    # Reject
-    updated2 = await store.update_item_status("item_rev_01", "REJECTED", action="DISMISS_BADGE")
+    # Reject (TASK-REV-003: REJECTED requires a structured reason code).
+    updated2 = await store.update_item_status(
+        "item_rev_01", "REJECTED", action="DISMISS_BADGE", reason="DUPLICATE_ITEM"
+    )
     assert updated2 is True
 
     items2 = await store.list_items(sheet_id="s1")
@@ -202,7 +220,28 @@ async def test_ledger_rollup_and_exports(tmp_path: Path):
 
 
 def test_api_takeoff_routes(isolated_takeoff_store):
+    import asyncio as _asyncio
+
     client = TestClient(app)
+
+    # Fail-closed ACCEPT gate needs a VERIFIED parent sheet row.
+    async def _seed_sheet() -> None:
+        await isolated_takeoff_store.insert_project("api_proj", "API Project")
+        await isolated_takeoff_store.insert_sheet(
+            sheet_id="api_sheet",
+            project_id="api_proj",
+            page_index=0,
+            sheet_number="M-1",
+            sheet_title="API Plan",
+            discipline="MECHANICAL",
+            scale_raw='1/4" = 1\'-0"',
+            scale_ratio=48.0,
+            scale_status="VERIFIED",
+            width_pt=1224.0,
+            height_pt=792.0,
+        )
+
+    _asyncio.run(_seed_sheet())
 
     # Create item via API
     res = client.post(
@@ -672,3 +711,252 @@ async def test_feedback_crop_extraction(tmp_path: Path, monkeypatch: pytest.Monk
         capture_feedback_crop(
             str(pdf_path), 0, (100.0, 200.0, 300.0, 400.0), "fb-evil", "../evil"
         )
+async def test_review_events_audit_trail(tmp_path: Path):
+    """TASK-REV-004: 3 modifications produce 3 immutable, chronological rows."""
+    db_file = tmp_path / "test_audit_trail.sqlite3"
+    store = TakeoffStore(db_path=db_file)
+    await store.initialize()
+
+    await store.insert_project("proj_audit", "Audit Facility")
+    await store.insert_sheet(
+        sheet_id="sheet_audit",
+        project_id="proj_audit",
+        page_index=0,
+        sheet_number="M-1.0",
+        sheet_title="Audit Plan",
+        discipline="MECHANICAL",
+        scale_raw='1/4" = 1\'-0"',
+        scale_ratio=48.0,
+        scale_status="VERIFIED",
+        width_pt=1224.0,
+        height_pt=792.0,
+    )
+    await store.add_takeoff_item(
+        TakeoffRecord(
+            item_id="item_audit_01",
+            project_id="proj_audit",
+            sheet_id="sheet_audit",
+            category="DUCTWORK",
+            system="Supply Air",
+            dimension_label='24"x12"',
+            status="SUGGESTED",
+            total_length_ft=32.5,
+        )
+    )
+
+    assert await store.update_item_status(
+        "item_audit_01", "CANNOT_DETERMINE", action="CANNOT_DETERMINE"
+    ) is True
+    assert await store.update_item_status(
+        "item_audit_01", "SUGGESTED", action="USER_REVIEW"
+    ) is True
+    assert await store.update_item_status(
+        "item_audit_01",
+        "REJECTED",
+        action="REJECT",
+        reason="DUPLICATE_ITEM",
+    ) is True
+
+    history = await store.get_item_history("item_audit_01")
+    assert len(history) == 3
+    assert [r["previous_status"] for r in history] == [
+        "SUGGESTED",
+        "CANNOT_DETERMINE",
+        "SUGGESTED",
+    ]
+    assert [r["new_status"] for r in history] == [
+        "CANNOT_DETERMINE",
+        "SUGGESTED",
+        "REJECTED",
+    ]
+    assert history[2]["reason"] == "DUPLICATE_ITEM"
+    assert [r["timestamp"] for r in history] == sorted(r["timestamp"] for r in history)
+
+    # Immutability: re-reading returns identical rows.
+    assert await store.get_item_history("item_audit_01") == history
+
+    # Append-only: sheet cleanup removes item rows but retains every audit row.
+    await store.delete_vector_items_for_sheet("proj_audit", "sheet_audit")
+    retained = await store.get_item_history("item_audit_01")
+    assert len(retained) == 3
+    assert retained == history
+
+
+@pytest.mark.asyncio
+async def test_review_accept_gate_missing_sheet_fail_closed(tmp_path: Path):
+    """HIGH#1: ACCEPT with a bogus sheet_id fails closed (409-path ValueError)."""
+    store = TakeoffStore(db_path=tmp_path / "test_review_nosheet.sqlite3")
+    await store.initialize()
+
+    await store.add_takeoff_item(
+        TakeoffRecord(
+            item_id="item_nosheet_01",
+            project_id="p_nosheet",
+            sheet_id="ghost_sheet",
+            category="DUCTWORK",
+            system="Supply Air",
+            dimension_label='24"x12"',
+            status="SUGGESTED",
+            total_length_ft=10.0,
+            review_required=True,
+        )
+    )
+
+    with pytest.raises(ValueError, match="[Uu][Nn][Vv][Ee][Rr][Ii][Ff][Ii][Ee][Dd]"):
+        await store.update_item_status("item_nosheet_01", "ACCEPTED", action="ACCEPT")
+
+    items = await store.list_items(sheet_id="ghost_sheet")
+    assert items[0].status == "SUGGESTED"
+    assert items[0].review_required is True
+
+
+@pytest.mark.asyncio
+async def test_review_accept_scale_allowlist(tmp_path: Path):
+    """HIGH#2: ACCEPT allowed only for VERIFIED/CALIBRATED sheet scale."""
+    from src.store.takeoff_store import _accept_scale_allowed
+
+    # Unit level: NULL/empty/conflict/garbage refused, allowlist passes.
+    assert _accept_scale_allowed("VERIFIED") is True
+    assert _accept_scale_allowed("CALIBRATED") is True
+    assert _accept_scale_allowed("  calibrated  ") is True
+    assert _accept_scale_allowed("UNVERIFIED") is False
+    assert _accept_scale_allowed(None) is False
+    assert _accept_scale_allowed("") is False
+    assert _accept_scale_allowed("   ") is False
+    assert _accept_scale_allowed("SCALE_CONFLICT") is False
+    assert _accept_scale_allowed("VALID") is False
+    assert _accept_scale_allowed("garbage") is False
+    assert _accept_scale_allowed(48.0) is False
+
+    # Integration level: UNVERIFIED/empty/garbage -> ValueError (HTTP 409
+    # path), VERIFIED/CALIBRATED -> accepted.
+    store = TakeoffStore(db_path=tmp_path / "test_review_allowlist.sqlite3")
+    await store.initialize()
+    await store.insert_project("p_allow", "Allowlist Facility")
+
+    async def _sheet(sheet_id: str, status: str) -> None:
+        await store.insert_sheet(
+            sheet_id=sheet_id,
+            project_id="p_allow",
+            page_index=0,
+            sheet_number="M-1.0",
+            sheet_title="Allowlist Plan",
+            discipline="MECHANICAL",
+            scale_raw='1/4" = 1\'-0"',
+            scale_ratio=48.0,
+            scale_status=status,
+            width_pt=1224.0,
+            height_pt=792.0,
+        )
+
+    await _sheet("sheet_unverified", "UNVERIFIED")
+    await _sheet("sheet_empty", "")
+    await _sheet("sheet_garbage", "SCALE_CONFLICT")
+    await _sheet("sheet_verified", "VERIFIED")
+    await _sheet("sheet_calibrated", "CALIBRATED")
+
+    async def _item(item_id: str, sheet_id: str) -> None:
+        await store.add_takeoff_item(
+            TakeoffRecord(
+                item_id=item_id,
+                project_id="p_allow",
+                sheet_id=sheet_id,
+                category="DUCTWORK",
+                system="Supply Air",
+                dimension_label='24"x12"',
+                status="SUGGESTED",
+                total_length_ft=10.0,
+                review_required=True,
+            )
+        )
+
+    for item_id, sheet_id in [
+        ("item_unverified", "sheet_unverified"),
+        ("item_empty", "sheet_empty"),
+        ("item_garbage", "sheet_garbage"),
+    ]:
+        await _item(item_id, sheet_id)
+        with pytest.raises(ValueError, match="[Uu][Nn][Vv][Ee][Rr][Ii][Ff][Ii][Ee][Dd]"):
+            await store.update_item_status(item_id, "ACCEPTED", action="ACCEPT")
+
+    for item_id, sheet_id in [
+        ("item_verified", "sheet_verified"),
+        ("item_calibrated", "sheet_calibrated"),
+    ]:
+        await _item(item_id, sheet_id)
+        assert (
+            await store.update_item_status(item_id, "ACCEPTED", action="ACCEPT")
+            is True
+        )
+
+    items = {i.item_id: i for i in await store.list_items(project_id="p_allow")}
+    assert items["item_unverified"].review_required is True
+    assert items["item_empty"].review_required is True
+    assert items["item_garbage"].review_required is True
+    assert items["item_verified"].status == "ACCEPTED"
+    assert items["item_calibrated"].status == "ACCEPTED"
+
+
+@pytest.mark.asyncio
+async def test_recalibration_demotes_accepted_to_suggested(tmp_path: Path):
+    """HIGH#3: recalibration demotes ACCEPTED rows to SUGGESTED + audit trail."""
+    import aiosqlite
+
+    store = TakeoffStore(db_path=tmp_path / "test_review_recal.sqlite3")
+    await store.initialize()
+    await store.insert_project("p_recal", "Recal Facility")
+    await store.insert_sheet(
+        sheet_id="sheet_recal",
+        project_id="p_recal",
+        page_index=0,
+        sheet_number="M-1.0",
+        sheet_title="Recal Plan",
+        discipline="MECHANICAL",
+        scale_raw='1/4" = 1\'-0"',
+        scale_ratio=24.0,
+        scale_status="VERIFIED",
+        width_pt=1224.0,
+        height_pt=792.0,
+    )
+    await store.add_takeoff_item(
+        TakeoffRecord(
+            item_id="item_recal_01",
+            project_id="p_recal",
+            sheet_id="sheet_recal",
+            category="DUCTWORK",
+            system="Supply Air",
+            dimension_label='24"x12"',
+            status="ACCEPTED",
+            source="VECTOR_ENGINE",
+            total_length_ft=0.5,
+            count=1,
+            geometry={
+                "type": "polyline",
+                "points": [[0.0, 0.0], [18.0, 0.0]],
+                "coordinate_space": "pdf_user_space_pt",
+                "geometric_length_pt": 18.0,
+            },
+            confidence=None,
+            review_required=False,
+        )
+    )
+
+    updated, skipped = await store.apply_sheet_calibration(
+        "sheet_recal", 48.0, '1/4" = 1\'-0"'
+    )
+    assert updated == 1
+    assert skipped == 0
+
+    items = await store.list_items(sheet_id="sheet_recal")
+    assert items[0].status == "SUGGESTED"
+    assert items[0].review_required is True
+    # 18 pt * 48 / 864 = 1.0 ft recomputed footage.
+    assert items[0].total_length_ft == pytest.approx(1.0)
+
+    async with aiosqlite.connect(store.db_path) as db, db.execute(
+        "SELECT previous_status, new_status, action FROM review_events "
+        "WHERE item_id = 'item_recal_01' AND action = 'SHEET_CALIBRATION'"
+    ) as cur:
+        rows = await cur.fetchall()
+    assert len(rows) == 1
+    assert tuple(rows[0]) == ("ACCEPTED", "SUGGESTED", "SHEET_CALIBRATION")

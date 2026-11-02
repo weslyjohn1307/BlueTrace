@@ -284,7 +284,7 @@ export function useTakeoffSession() {
   );
 
   const setItemStatus = useCallback(
-    async (itemId: string, status: 'SUGGESTED' | 'ACCEPTED' | 'REJECTED') => {
+    async (itemId: string, status: 'SUGGESTED' | 'ACCEPTED' | 'CORRECTED' | 'REJECTED' | 'CANNOT_DETERMINE') => {
       try {
         await apiClient.updateTakeoffStatus(itemId, status, 'USER_REVIEW');
         await refreshLedger(state.projectName, state.activeSheetId);
