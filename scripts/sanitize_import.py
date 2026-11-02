@@ -68,7 +68,7 @@ IGNORED_DIRS = {
     'meta_api', 'meta-model-cookbook', 'meta-oss-cookbook', 'ECC', 'docs/meta_api', 'docs/research/ECC',
     # Internal-only research sanctuary: may discuss third-party products, is
     # gitignored, and must never be committed (see internal-research/README.md).
-    'internal-research', '.scrape-cache',
+    'internal-research', '.scrape-cache', 'teamwork',
 }
 IGNORED_FILES = {
     'AUDIT-2026-10-30-antigravity-slices-0-5.md',
