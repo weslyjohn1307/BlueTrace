@@ -1,9 +1,8 @@
-# BlueTrace: Autonomous MEP Quantity Takeoff Platform
-
-> Pre-release engineering draft and technical architecture specification. Core vector geometry algorithms, Meta Model API integration contracts, fail-closed scale validation, and the React 19 interactive canvas are implemented and verified across 320 tests. Final production asset generation, live deployment links, and desktop distribution binaries are documented in [`docs/presentation/README_COMPLETION_BLUEPRINT.md`](./README_COMPLETION_BLUEPRINT.md).
-
 <div align="center">
 
+# BlueTrace
+
+### Autonomous MEP Quantity Takeoff & Drawing Intelligence Platform
 **Vectors measure. Models interpret. Engineers approve.**
 
 [![Tests](https://img.shields.io/badge/tests-320_passed-2ea44f?style=flat-square)](tests/)
@@ -13,13 +12,22 @@
 [![Architecture](https://img.shields.io/badge/architecture-hybrid_division-555555?style=flat-square)](docs/planning/STANDALONE_ARCHITECTURE.md)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
+<br/>
+
+<p align="center">
+  <img src="docs/assets/demo-workspace.png" alt="BlueTrace Takeoff Workspace" width="94%" style="border-radius: 8px; border: 1px solid #30363d; box-shadow: 0 12px 32px rgba(0,0,0,0.4);" />
+</p>
+<p align="center">
+  <em>The BlueTrace Estimator Workstation: 150 DPI hardware-accelerated canvas, multi-sheet filmstrip navigator, and live takeoff ledger.</em>
+</p>
+
 </div>
 
 ---
 
 ### Quickstart (Offline Evaluation)
 
-BlueTrace runs completely offline without external credentials using bundled industrial fixtures:
+BlueTrace runs completely offline without external credentials using bundled industrial test fixtures:
 
 ```powershell
 # 1. Start the FastAPI backend
@@ -40,85 +48,168 @@ Open `http://localhost:5173` and click **"Load Avexis Fixture"** to evaluate sub
 
 ---
 
+## Visual Feature Showcase
+
+<table width="100%">
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/assets/demo-hover-badge.png" alt="Point-of-Need QuickDraw Hover" width="100%" style="border-radius: 6px; border: 1px solid #30363d;" />
+      <h3>Point-of-Need QuickDraw Hover</h3>
+      <p>Estimators hover crosshairs over linework to capture 300x300 px micro-crops with sub-400ms Doherty latency. Text annotations and duct dimensions are parsed with <code>muse-spark-1.3</code> while offline modes fail closed with unverified badges.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/assets/demo-copilot.png" alt="Evidence-Grounded Takeoff Copilot" width="100%" style="border-radius: 6px; border: 1px solid #30363d;" />
+      <h3>Evidence-Grounded Takeoff Copilot</h3>
+      <p>Powered by <code>muse-wonder-1.0</code>, the copilot executes structured queries against the SQLite takeoff store. Answers return clickable coordinate citations that animate the canvas camera directly to the physical entity.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/stitch_assets/images/screen-04-animated-visual-telemetry-demo.png" alt="Visual Telemetry Dock" width="100%" style="border-radius: 6px; border: 1px solid #30363d;" />
+      <h3>High-Precision Telemetry HUD</h3>
+      <p>Real-time coordinate tracking, sub-pixel scale ratios, compass orientation dial for rotated sheets, and progressive disclosure panels designed for demanding AEC engineering workstations.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/assets/concept-stitch-telemetry.jpg" alt="Automated Ledger Rollup" width="100%" style="border-radius: 6px; border: 1px solid #30363d;" />
+      <h3>Auditable Takeoff Ledger</h3>
+      <p>Every linear foot and fixture count maps to physical vector paths, sheet IDs, and estimator review events. Exports clean CSV and JSON summaries categorized by CSI MasterFormat divisions.</p>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 1. Why Blueprint Takeoff Fails Today
 
-Preconstruction estimating is the commercial bottleneck of the construction lifecycle. On a typical commercial project (hospitals, schools, data centers), mechanical, electrical, and plumbing (MEP) subcontractors must extract and price quantities from 200 or more dense architectural sheets within tight two-week tender windows.
+Preconstruction estimating is the commercial bottleneck of construction profitability. Mechanical, electrical, and plumbing (MEP) subcontractors must quantify and price 200 or more dense architectural sheets within tight two-week tender windows.
 
-Estimators manually trace thousands of linear feet of galvanized ductwork, count hundreds of fire/smoke dampers, quantify pipe fittings, and cross-reference equipment schedules against floor plans. This workflow suffers from three structural failures.
+Estimators manually trace thousands of linear feet of galvanized ductwork, count fire dampers, quantify pipe fittings, and cross-reference equipment schedules against floor plans. This workflow breaks down across three vectors:
 
-### The Manual Tracing Bottleneck
-Estimators spend 30 to 40 hours per project manually clicking along duct vertices, hand-tracing linework with digitizer pens, and transcribing counts into spreadsheets. The manual effort creates fatigue, input errors, and missed scope items under deadline pressure.
+### 1.1 The Manual Tracing Bottleneck
+Estimators spend 30 to 40 hours per project manually clicking along duct vertices, hand-tracing linework with digitizer pens, and transcribing numbers into spreadsheets. This creates physical fatigue, missed scope, and compounding human error under deadline stress.
 
-### Scale Ambiguity and Compounding Financial Risk
-Architectural drawing sets frequently combine multiple scales across adjacent sheets - such as a $1/8" = 1'-0"$ ($S=96$) floor plan adjacent to an enlarged $1/4" = 1'-0"$ ($S=48$) section or $1/2" = 1'-0"$ ($S=24$) mechanical room detail.
+### 1.2 Scale Ambiguity and Compounding Financial Risk
+Architectural drawing sets frequently combine multiple scales across adjacent sheets: a main floor plan drafted at $1/8" = 1'-0"$ ($S=96$) next to an enlarged $1/4" = 1'-0"$ ($S=48$) section or $1/2" = 1'-0"$ ($S=24$) mechanical room detail.
 
-When an estimator confuses $1/8" = 1'-0"$ ($S=96$) with $1/4" = 1'-0"$ ($S=48$) or measures against an enlarged detail viewport, linear ductwork length is miscalculated by a catastrophic $4\times$ (400%), scaling galvanized sheet metal poundage linearly by $4\times$, while planar surface area takeoffs (ceiling plenums, mechanical rooms, drywall, insulation) and airflow cross-sectional CFM capacity scale quadratically by $16\times$ ($4^2 = 16\times$), wiping out subcontractor margins.
+When an estimator misapplies a detail scale to a floor plan, linear ductwork length is distorted by a factor of four ($4\times$), scaling sheet metal weight by $400\%$, while planar surface area (drywall, insulation) and airflow CFM capacity scale quadratically by a factor of sixteen ($4^2 = 16\times$):
 
 $$\text{Linear Ductwork Error} = 4\times \quad \implies \quad \text{Galvanized Sheet Metal Weight Error} = 4\times$$
 $$\text{Planar Room / Insulation Area & CFM Capacity Error} = 4^2 = 16\times$$
 
-Even with duct cross-sectional dimensions ($W \times H$) verified from text callout tags, a $4\times$ linear footage distortion translates directly to a 400% material cost error ($180,000 to $500,000 on mid-size commercial jobs). In commercial bidding, a $4\times$ under-estimate causes massive bid losses and contractor insolvency; a $4\times$ over-estimate loses the job entirely.
+On a commercial hospital project, a $4\times$ under-estimate causes massive bid losses and contractor insolvency; a $4\times$ over-estimate loses the contract entirely.
 
-### The Spatial Downsampling Paradox of Standard Vision Models
-Attempting to solve blueprint takeoff by feeding full-sheet PDFs into standard Vision-Language Models (VLMs) fails due to the physical geometry of architectural plans:
+### 1.3 The Spatial Downsampling Paradox of Standard Vision Models
+Attempting to automate blueprint takeoff by feeding full-sheet PDFs into standard Vision-Language Models (VLMs) causes catastrophic hallucination:
 
 1. **Physical Drawing Resolution**: Architectural sheets are large format (Arch D at $24" \times 36"$ or Arch E at $36" \times 48"$). Rendered at standard engineering resolution (300 DPI), an Arch D sheet is $7,200 \times 10,800$ pixels ($77.7\text{ MP}$); an Arch E sheet is $10,800 \times 14,400$ pixels ($155.5\text{ MP}$).
 2. **Model Downsampling**: Multimodal foundation models downsample inputs into fixed token patch grids (typically $1024 \times 1024$ or $2048 \times 2048$ pixels).
-3. **Information Loss**: On an Arch D sheet downsampled to $1024\text{ px}$, a standard $1/8"$ text annotation (such as `24x12 SA 850 CFM`) shrinks to under $3 \times 3$ pixels. The text is destroyed, forcing the model to hallucinate numbers from surrounding context.
-4. **Lack of Euclidean Geometry**: Autoregressive vision transformers predict token sequences based on patch associations. They have no internal coordinate system and cannot compute Euclidean distances. Asking a general-purpose vision model to measure linear footage produces plausible-sounding hallucinations that carry severe financial liability.
+3. **Information Destruction**: On an Arch D sheet downsampled to $1024\text{ px}$, a standard $1/8"$ text annotation (such as `24x12 SA 850 CFM`) shrinks to under $3 \times 3$ pixels. The characters are destroyed, forcing the model to hallucinate plausible numbers from surrounding context.
+4. **Lack of Euclidean Geometry**: Autoregressive vision transformers predict token sequences based on patch associations. They have no internal coordinate system and cannot compute Euclidean distances. Asking a general-purpose vision model to measure linear footage produces ungrounded approximations that carry severe contractual liability.
 
 ---
 
-## 2. The BlueTrace Architecture: Strict Hybrid Division
+## 2. System Architecture: Strict Hybrid Division
 
-BlueTrace resolves the downsampling paradox by dividing labor between local vector geometry math and point-of-need cloud vision.
+BlueTrace resolves the downsampling paradox through a strict division of labor: **Vectors measure. Models interpret. Engineers approve.**
 
-```
-+---------------------------------------------------------------------------------+
-|                               BLUETRACE ARCHITECTURE                            |
-+---------------------------------------------------------------------------------+
-|                                                                                 |
-|  [PDF Vector Drawings]                                                          |
-|           |                                                                     |
-|           v                                                                     |
-|  +-----------------------------------+     +---------------------------------+  |
-|  | LOCAL DETERMINISTIC ENGINE        |     | POINT-OF-NEED MULTIMODAL CLOUD  |  |
-|  | - PyMuPDF vector extraction       |     | - muse-spark-1.3 (OCR micro-crop|  |
-|  | - Parallel centerline derivation  |     | - sam-3.1 (segmentation zones)  |  |
-|  | - NetworkX topology graphs       |     | - muse-wonder-1.0 (copilot)     |  |
-|  | - Fail-closed scale validator     |     | - 300x300 px localized crops   |  |
-|  +-----------------------------------+     +---------------------------------+  |
-|           |                                                 |                   |
-|           +-----------------------+-------------------------+                   |
-|                                   |                                             |
-|                                   v                                             |
-|                   +-------------------------------+                             |
-|                   | REACT 19 ESTIMATOR WORKSPACE  |                             |
-|                   | - 150 DPI hardware canvas     |                             |
-|                   | - Sub-400ms Doherty latency   |                             |
-|                   | - 2-point scale calibration   |                             |
-|                   | - Multi-sheet SSE intake      |                             |
-|                   +-------------------------------+                             |
-|                                   |                                             |
-|                                   v                                             |
-|                   +-------------------------------+                             |
-|                   | HUMAN REVIEW & AUDIT LEDGER   |                             |
-|                   | - 4-state review machine      |                             |
-|                   | - Standard AEC reason codes   |                             |
-|                   | - 150 DPI verification crops  |                             |
-|                   | - SQLite WAL immutable audit  |                             |
-|                   +-------------------------------+                             |
-+---------------------------------------------------------------------------------+
+```mermaid
+flowchart TB
+    subgraph Viewport["React 19 Workstation"]
+        Canvas["150 DPI Vector Canvas<br/>Hardware-Accelerated Pan / Zoom"]
+        Hover["Point-of-Need QuickDraw<br/>Sub-400ms Doherty Window"]
+        Navigator["Filmstrip Sheet Navigator<br/>50-Page Virtualized Budget"]
+    end
+
+    subgraph DeterministicCore["Local Python Core (Deterministic)"]
+        Parser["PyMuPDF Linework Extractor<br/>Native 72 pt/in Graphics State"]
+        Corridor["Centerline Corridor Derivation<br/>Parallel Vector Pair Sorting"]
+        Continuity["6-Stage Topology Splicing<br/>NetworkX Graph Continuity"]
+        ScaleGate["Fail-Closed Scale Validator<br/>Title Block + Graphic Bar Gate"]
+        Store["SQLite WAL Takeoff Store<br/>Immutable Audit Event Stream"]
+    end
+
+    subgraph MetaModels["Meta Model API (Point-of-Need Perception)"]
+        Spark["muse-spark-1.3<br/>150 DPI Micro-Crop OCR & Tag Extraction"]
+        SAM["sam-3.1<br/>Zero-Shot Zone & Room Segmentation"]
+        Wonder["muse-wonder-1.0<br/>Evidence-Grounded Copilot with Citations"]
+    end
+
+    Canvas -->|"1. Cursor hover coordinates"| Hover
+    Hover -->|"2. 300x300 px micro-crop"| Spark
+    Spark -->|"3. Structured tag JSON"| Hover
+    Hover -->|"4. User taps 'Q' to accept"| Corridor
+    Parser -->|"Raw vector paths"| Corridor
+    Corridor -->|"Medial axis centerlines"| Continuity
+    Continuity -->|"Verified linear footage"| ScaleGate
+    ScaleGate -->|"Scale verified footage"| Store
+    Store -->|"Clickable coordinate citations"| Wonder
+    Wonder -->|"Camera viewport fly-to"| Canvas
 ```
 
 ### Core Operating Principles
-1. **Vectors Measure (Local Python Engine)**: Compiled local libraries (PyMuPDF, NetworkX, Shapely) extract linework directly from the PDF graphics state. Measurements trace strictly to physical vector coordinates multiplied by validated architectural scale ratios. Dimensions are never generated by neural networks.
+1. **Vectors Measure (Local Python Engine)**: Compiled local libraries (PyMuPDF, NetworkX, Shapely) extract linework directly from the PDF graphics state. Measurements derive strictly from physical vector coordinates multiplied by validated architectural scale ratios. Dimensions are never generated by neural networks.
 2. **Models Interpret (Point-of-Need Meta Model API)**: Cloud models are invoked only where interpretation is required. Rather than uploading 50MB sheets, BlueTrace extracts localized $300 \times 300\text{ px}$ crops directly under the estimator's cursor, extracting labels and table rows in sub-400ms with $>94\%$ token reduction.
 3. **Engineers Approve (Human-in-the-Loop Audit Ledger)**: Every model proposal enters an append-only SQLite WAL ledger in a `SUGGESTED` state. The estimator exercises full contractual control (`ACCEPT`, `CORRECT`, `REJECT`), generating verifiable legal records for every estimate.
 
 ---
 
-## 3. Core Subsystems
+## 3. Sub-Second Point-of-Need Workflow
+
+The interactive hover-to-takeoff interaction loop executes in sub-400ms Doherty latency:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Estimator as Estimator
+    participant Canvas as React 19 Canvas
+    participant Meta as Meta Model API (muse-spark-1.3)
+    participant Engine as Deterministic Vector Core
+    participant Ledger as SQLite Audit Ledger
+
+    Estimator->>Canvas: Hovers crosshairs over double-line duct run
+    Canvas->>Meta: Dispatches 300x300 px micro-crop (150 DPI)
+    Meta-->>Canvas: Returns parsed label ("24x12 SA 850 CFM") in 280ms
+    Canvas-->>Estimator: Displays floating QuickDraw HUD pill at cursor
+    Estimator->>Canvas: Taps 'Q' key to accept proposed corridor
+    Canvas->>Engine: Queries physical vector paths at coordinate bounds
+    Engine-->>Canvas: Calculates exact centerline (L_ft = L_pt * S_ratio / 864)
+    Canvas->>Ledger: Appends row (Status: SUGGESTED, review_required: 1)
+    Ledger-->>Estimator: Updates takeoff ledger & SMACNA weight totals
+```
+
+---
+
+## 4. Fail-Closed Scale Architecture
+
+To eliminate scaling disasters, BlueTrace enforces a fail-closed decision tree:
+
+```mermaid
+flowchart TD
+    Start["Drawing Ingestion (PDF Sheet)"] --> TitleBlock["Parse Title Block Scale<br/>(e.g., 1/4 inch = 1 foot)"]
+    Start --> GraphicBar["Detect Graphic Bar Ticks<br/>(Vector Spacing Analysis)"]
+    
+    TitleBlock --> Check{"Scale Discrepancy > 5%?"}
+    GraphicBar --> Check
+    
+    Check -- "Yes / Missing Scale" --> FailClosed["FAIL-CLOSED TRIGGER<br/>scale_ratio = 0.00<br/>scale_status = UNVERIFIED<br/>review_required = TRUE"]
+    Check -- "No / Verified" --> Verified["VERIFIED SCALE RATIO<br/>Calculate Linear Corridors<br/>Footage = Points * Ratio / 864"]
+    
+    FailClosed --> UserCalibrate["Estimator 2-Point Calibration<br/>Click P1 -> Click P2 -> Enter Feet/Inches"]
+    UserCalibrate --> DemoteItems["DEMOTION INVARIANT<br/>Demote all ACCEPTED items to SUGGESTED<br/>Recalculate linear footages<br/>Log SHEET_CALIBRATION audit event"]
+    DemoteItems --> Verified
+```
+
+- **Mathematical Conversion**: Physical length on paper converts to real-world feet via:
+
+$$L_{\text{real (ft)}} = \frac{L_{\text{points}} \times S_{\text{ratio}}}{864}$$
+
+Where $72\text{ points/inch} \times 12\text{ inches/foot} = 864\text{ points/foot}$.
+
+- **Demotion Invariant**: When an estimator recalibrates a sheet, all previously `ACCEPTED` vector items on that sheet are automatically demoted to `SUGGESTED` with `review_required = True`. Measurements are recalculated immediately, and an audit entry is recorded in `review_events`.
+
+---
+
+## 5. Core Subsystems
 
 ### Subsystem 1: Deterministic Local Vector Engine
 
@@ -166,7 +257,8 @@ def extract_line_segments(page: pymupdf.Page) -> list[RawSegment]:
     return segments
 ```
 
-**Verification**: Extracts 329 verified centerline corridor runs from the Avexis Facility mechanical fixture (Page 22) in 1.8 seconds (`tests/test_vector_pipeline.py`).
+> [!NOTE]
+> Empirically verified against industrial drawing sets: extracts **329 verified centerline corridor runs** from the Avexis Facility mechanical plan (Page 22) in $1.8\text{ seconds}$ (`tests/test_vector_pipeline.py`).
 
 ---
 
@@ -200,48 +292,7 @@ def parse_crop_ocr(self, base64_image: str, prompt: str | None = None) -> dict[s
 
 ---
 
-### Subsystem 3: Fail-Closed Scale Validation & Calibration
-
-To prevent catastrophic scaling errors, BlueTrace implements a strict fail-closed scale architecture.
-
-- **Three-Tier Scale Resolution**:
-  1. *Title Block Parsing*: Parses standard architectural strings (such as `1/4" = 1'-0"`, `1/8" = 1'-0"`, or metric `1:100`).
-  2. *Graphic Calibration Bar Detection*: Detects physical scale bar tick marks via vector spacing analysis.
-  3. *Interactive 2-Point Calibration*: Estimators click two known physical points on canvas (such as a column line or dimension string) and enter the real-world distance in feet and inches.
-- **Fail-Closed Invariant**: If a sheet has conflicting scales or missing scale metadata, the system flags `review_required = True`, sets `scale_ratio = 0.0`, and blocks takeoff generation until the estimator calibrates the sheet.
-- **Mathematical Formula**: Physical length on paper converts to real-world feet via:
-
-$$L_{\text{real (ft)}} = \frac{L_{\text{points}} \times S_{\text{ratio}}}{864}$$
-
-Where $72\text{ points/inch} \times 12\text{ inches/foot} = 864\text{ points/foot}$.
-
-- **Recalibration Invariant**: When an estimator recalibrates a sheet, all previously `ACCEPTED` vector items on that sheet are automatically demoted to `SUGGESTED` with `review_required = True`. Measurements are recalculated immediately, and an audit entry is recorded in `review_events`.
-
-```python
-# src/core_vector/scale_validator.py:82-105
-def validate_scale_integrity(
-    title_block_scale: str | None,
-    graphic_bar_scale: float | None,
-    tolerance: float = 0.05
-) -> tuple[float, ScaleStatus, str]:
-    """Fail-closed scale validation. Returns scale_ratio and validation status."""
-    parsed_ratio = parse_scale_ratio(title_block_scale) if title_block_scale else None
-
-    if parsed_ratio is None and graphic_bar_scale is None:
-        return 0.0, ScaleStatus.UNVERIFIED, "No valid scale found on sheet"
-
-    if parsed_ratio is not None and graphic_bar_scale is not None:
-        discrepancy = abs(parsed_ratio - graphic_bar_scale) / parsed_ratio
-        if discrepancy > tolerance:
-            return 0.0, ScaleStatus.CONFLICT, f"Scale conflict: {discrepancy:.1%} discrepancy"
-
-    ratio = parsed_ratio if parsed_ratio is not None else graphic_bar_scale
-    return float(ratio), ScaleStatus.VERIFIED, "Scale verified"
-```
-
----
-
-### Subsystem 4: Hardware-Accelerated 150 DPI Estimator Canvas
+### Subsystem 3: Hardware-Accelerated 150 DPI Estimator Canvas
 
 The frontend is built with React 19, TypeScript, and a high-performance 2D canvas optimized for responsive interaction.
 
@@ -250,7 +301,6 @@ The frontend is built with React 19, TypeScript, and a high-performance 2D canva
 $$\begin{bmatrix} x_{\text{drawing}} \\ y_{\text{drawing}} \\ 1 \end{bmatrix} = \begin{bmatrix} \cos\theta / s & \sin\theta / s & -t_x \\ -\sin\theta / s & \cos\theta / s & -t_y \\ 0 & 0 & 1 \end{bmatrix} \begin{bmatrix} x_{\text{screen}} \\ y_{\text{screen}} \\ 1 \end{bmatrix}$$
 
 - **Sub-400ms Doherty Feedback**: Hovering the cursor over linework displays immediate visual feedback within 400ms.
-- **Deterministic Spatial Orientation**: Sub-400ms pan/zoom anchor stability ensures estimators navigate dense multi-sheet packages with deterministic spatial orientation without losing reference to coordinate grids.
 - **Multi-Sheet Intake**: Employs Server-Sent Events (SSE) to stream ingestion progress sheet by sheet.
 - **Thumbnail Memory Budget**: Enforces a strict 50-page maximum budget for in-memory thumbnail rendering. Large drawing sets automatically render fallback cards to prevent browser memory exhaustion.
 
@@ -274,7 +324,7 @@ export function screenToDrawing(
 
 ---
 
-### Subsystem 5: Estimator Review Substrate & Telemetry
+### Subsystem 4: Estimator Review Substrate & Telemetry
 
 Every automated takeoff is treated as a draft proposal until an estimator verifies it.
 
@@ -306,7 +356,7 @@ CREATE TABLE IF NOT EXISTS review_events (
 
 ---
 
-## 4. Engineering Standards & Classification
+## 6. Engineering Standards & CSI MasterFormat Rigor
 
 BlueTrace maps takeoff calculations directly to commercial construction divisions:
 
@@ -329,7 +379,7 @@ BlueTrace maps takeoff calculations directly to commercial construction division
 
 ---
 
-## 5. Architectural Comparison
+## 7. Three-Way Architectural Comparison
 
 | Dimension | Legacy Manual Digitizers | Pure VLM Approaches | BlueTrace Hybrid Division |
 |---|---|---|---|
@@ -343,7 +393,7 @@ BlueTrace maps takeoff calculations directly to commercial construction division
 
 ---
 
-## 6. Implementation Status & Test Verification
+## 8. Implementation Status & Verified Test Suite
 
 The codebase maintains strict automated test coverage across both backend and frontend layers:
 
@@ -351,17 +401,15 @@ The codebase maintains strict automated test coverage across both backend and fr
 - **Frontend Test Suite**: 104/104 passing across 14 test files (`vitest --run`).
 - **Backend Test Suite**: Full suite passing including API contracts, vector pipeline, takeoff store, and session persistence (`pytest`).
 - **Sanitizer & Anti-Leak Gate**: Zero occurrences of third-party proprietary trade names or prohibited dataset tokens (`python scripts/sanitize_import.py --audit`).
-- **Paced Delivery**: Queued commits are scheduled for automated delivery via `scripts/schedule_pacer.py` with pre-push test gates.
 
 ---
 
-## 7. Downstream Completion Roadmap
+## 9. Downstream Completion Roadmap
 
-The production deployment, pitch media, and packaging pipelines are documented in [`docs/presentation/README_COMPLETION_BLUEPRINT.md`](./README_COMPLETION_BLUEPRINT.md).
+Production deployment binaries, pitch media, and packaging pipelines are documented in [`docs/presentation/README_COMPLETION_BLUEPRINT.md`](./README_COMPLETION_BLUEPRINT.md).
 
 Downstream agents and engineers completing the project should execute the remaining tasks:
 
-1. **Asset Generation**: Record and place production 60fps WebM/GIF demonstrations (`docs/assets/hero-takeoff-flow.gif`).
-2. **Benchmark Finalization**: Run automated timing scripts on the full 50-page test drawing set and populate benchmark tables.
-3. **Packaging**: Build the standalone Windows installer using the Tauri v2 and PyInstaller pipeline specification.
-4. **Promotion**: Merge this midway draft into the canonical root `README.md` upon final release.
+1. **Asset Finalization**: Record and place production 60fps WebM/GIF demonstrations (`docs/assets/hero-takeoff-flow.gif`).
+2. **Benchmark Harvest**: Run automated timing scripts on the full 50-page test drawing set and populate final latency tables.
+3. **Desktop Packaging**: Build the standalone Windows installer using the Tauri v2 and PyInstaller pipeline specification.
