@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export type ThumbnailScaleStatus = 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED';
 
@@ -17,6 +17,8 @@ export interface ThumbnailCardProps {
   thumbnailUrl: string;
   active: boolean;
   onSelect: (sheetId: string) => void;
+  /** Optional second-chance source (e.g. the live page-image renderer) tried once before giving up. */
+  fallbackUrl?: string;
 }
 
 function disciplineBadge(discipline: string): string {
@@ -34,7 +36,31 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
   thumbnailUrl,
   active,
   onSelect,
+  fallbackUrl,
 }) => {
+  const [src, setSrc] = useState(thumbnailUrl);
+  const [triedFallback, setTriedFallback] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  // A new sheet (or a new primary URL) resets the error state so a stale
+  // failure never hides a fresh thumbnail.
+  useEffect(() => {
+    setSrc(thumbnailUrl);
+    setTriedFallback(false);
+    setFailed(false);
+    setLoaded(false);
+  }, [thumbnailUrl, fallbackUrl]);
+
+  const handleError = () => {
+    if (fallbackUrl && !triedFallback && src !== fallbackUrl) {
+      setTriedFallback(true);
+      setSrc(fallbackUrl);
+      return;
+    }
+    setFailed(true);
+  };
+
   const scaleOk = sheet.scale_status === 'VERIFIED' || sheet.scale_status === 'CALIBRATED';
   return (
     <button
@@ -49,12 +75,33 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
           : 'border-slate-800 hover:border-slate-700'
       } bg-slate-900/60`}
     >
-      <img
-        src={thumbnailUrl}
-        alt={`Thumbnail of ${sheet.sheet_number}`}
-        loading="lazy"
-        className="w-full aspect-[4/3] object-cover bg-slate-950"
-      />
+      <div className="relative w-full aspect-[4/3] bg-slate-950">
+        {!loaded && !failed && (
+          <div
+            data-testid="thumbnail-skeleton"
+            aria-hidden="true"
+            className="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800"
+          />
+        )}
+        {failed ? (
+          <div
+            data-testid="thumbnail-fallback"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-slate-900 text-slate-400"
+          >
+            <span className="font-mono font-bold text-slate-200 text-sm">{sheet.sheet_number}</span>
+            <span className="font-mono text-[10px]">Preview unavailable</span>
+          </div>
+        ) : (
+          <img
+            src={src}
+            alt={`Thumbnail of ${sheet.sheet_number}`}
+            loading="lazy"
+            onLoad={() => setLoaded(true)}
+            onError={handleError}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+      </div>
       <div className="p-1.5 space-y-1">
         <div className="flex items-center justify-between gap-1">
           <span className="font-mono font-bold text-slate-100 text-[11px] truncate">

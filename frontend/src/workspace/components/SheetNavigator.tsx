@@ -12,6 +12,8 @@ export interface SheetNavigatorProps {
   /** Max mounted cards; keeps DOM bounded for large drawing sets. Defaults to 8. */
   windowSize?: number;
   getThumbnailUrl?: (pdfPath: string, pageIndex: number) => string;
+  /** When set, cards load the cached intake thumbnail first and fall back to `getThumbnailUrl` on error. */
+  projectId?: string | null;
 }
 
 const DEFAULT_WINDOW = 8;
@@ -23,6 +25,7 @@ export const SheetNavigator: React.FC<SheetNavigatorProps> = ({
   onSelectSheet,
   windowSize = DEFAULT_WINDOW,
   getThumbnailUrl = (pdfPath, pageIndex) => apiClient.getPageImageUrl(pdfPath, pageIndex, 72),
+  projectId = null,
 }) => {
   const [windowStart, setWindowStart] = useState(0);
 
@@ -87,15 +90,27 @@ export const SheetNavigator: React.FC<SheetNavigatorProps> = ({
             No sheets indexed yet.
           </div>
         ) : (
-          visible.map((sheet) => (
-            <ThumbnailCard
-              key={sheet.meta.sheet_id}
-              sheet={sheet.meta}
-              thumbnailUrl={getThumbnailUrl(sheet.pdfPath, sheet.pageIndex)}
-              active={sheet.meta.sheet_id === activeSheetId}
-              onSelect={onSelectSheet}
-            />
-          ))
+          visible.map((sheet) => {
+            const pageImageUrl = getThumbnailUrl(sheet.pdfPath, sheet.pageIndex);
+            // The intake pipeline caches one WebP per page; prefer it and keep
+            // the live renderer as the onError fallback (see ThumbnailCard).
+            // Older test doubles may not stub getThumbnailUrl — fall back to
+            // the page-image URL exactly as before in that case.
+            const cachedUrl =
+              projectId && typeof apiClient.getThumbnailUrl === 'function'
+                ? apiClient.getThumbnailUrl(projectId, sheet.pageIndex)
+                : null;
+            return (
+              <ThumbnailCard
+                key={sheet.meta.sheet_id}
+                sheet={sheet.meta}
+                thumbnailUrl={cachedUrl ?? pageImageUrl}
+                fallbackUrl={cachedUrl ? pageImageUrl : undefined}
+                active={sheet.meta.sheet_id === activeSheetId}
+                onSelect={onSelectSheet}
+              />
+            );
+          })
         )}
       </div>
     </div>

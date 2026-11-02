@@ -491,3 +491,39 @@ def test_intake_sse_always_terminates(client: TestClient):
         assert events[-1]["event"] == "error"
     finally:
         routes._intake_jobs.pop(job_id, None)
+
+
+def test_thumbnail_endpoint_serves_cached_webp(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """GET /api/thumbnails/{project_id}/p{page}.webp serves the intake cache.
+
+    Same project_id validator as the writer (400, never a traversal read),
+    404 for unknown pages, PNG fallback when the build wrote ``.png``.
+    """
+    import asyncio as _asyncio
+
+    import pymupdf as _pymupdf
+
+    from src.meta_services.thumbnail_generator import generate_sheet_thumbnails_async
+
+    pdf_path = tmp_path / "thumb_serve.pdf"
+    doc = _pymupdf.open()
+    try:
+        doc.new_page(width=612, height=792)
+        doc.save(str(pdf_path))
+    finally:
+        doc.close()
+    # The cache root is relative ("data/cache/thumbnails"), so generate under
+    # an isolated cwd and serve from the same cwd.
+    monkeypatch.chdir(tmp_path)
+    _asyncio.run(generate_sheet_thumbnails_async(str(pdf_path), "thumb_serve", dpi=24, max_workers=1))
+
+    hit = client.get("/api/thumbnails/thumb_serve/p0.webp")
+    assert hit.status_code == 200
+    assert hit.headers["content-type"] == "image/webp"
+    assert len(hit.content) > 0
+
+    assert client.get("/api/thumbnails/thumb_serve/p9.webp").status_code == 404
+    assert client.get("/api/thumbnails/..evil/p0.webp").status_code == 400
+    assert client.get("/api/thumbnails/no_such_proj/p0.webp").status_code == 404

@@ -15,6 +15,10 @@ vi.mock('../api/client', () => ({
       (pdfPath: string, pageIndex = 0, dpi = 150) =>
         `/api/page-image?pdf=${encodeURIComponent(pdfPath)}&p=${pageIndex}&d=${dpi}`
     ),
+    getThumbnailUrl: vi.fn(
+      (projectId: string, pageIndex = 0) =>
+        `/api/thumbnails/${encodeURIComponent(projectId)}/p${pageIndex}.webp`
+    ),
     listTakeoffItems: vi.fn(),
     getTakeoffSummary: vi.fn(),
     updateTakeoffStatus: vi.fn(),
@@ -140,5 +144,52 @@ describe('SheetNavigator', () => {
       fireEvent.click(cards[1]);
     });
     expect(result.current.state.activeSheetId).toBe('sheet_1');
+  });
+
+  it('uses cached thumbnail URLs with page-image fallback when projectId is provided', () => {
+    const sheets = [makeSheet(0), makeSheet(1)];
+    render(
+      <SheetNavigator
+        sheets={sheets}
+        activeSheetId="sheet_0"
+        onSelectSheet={() => {}}
+        projectId="set"
+      />
+    );
+    const images = screen.getAllByAltText('Thumbnail of M-100');
+    expect(images).toHaveLength(1);
+    expect(images[0].getAttribute('src')).toBe('/api/thumbnails/set/p0.webp');
+
+    // A broken cached thumbnail falls back to the live page-image renderer…
+    fireEvent.error(images[0]);
+    expect(images[0].getAttribute('src')).toContain('/api/page-image?');
+
+    // …and a second failure hides the img behind the sheet-number placeholder.
+    fireEvent.error(images[0]);
+    expect(screen.getByTestId('thumbnail-fallback')).toHaveTextContent('M-100');
+    expect(screen.getByTestId('thumbnail-fallback')).toHaveTextContent('Preview unavailable');
+  });
+
+  it('keeps page-image URLs when no projectId is provided', () => {
+    const sheets = [makeSheet(0)];
+    render(
+      <SheetNavigator sheets={sheets} activeSheetId="sheet_0" onSelectSheet={() => {}} />
+    );
+    const img = screen.getByAltText('Thumbnail of M-100');
+    expect(img.getAttribute('src')).toContain('/api/page-image?');
+
+    // With no fallback configured, one error goes straight to the placeholder.
+    fireEvent.error(img);
+    expect(screen.getByTestId('thumbnail-fallback')).toHaveTextContent('M-100');
+  });
+
+  it('shows a loading skeleton until the thumbnail loads', () => {
+    const sheets = [makeSheet(0)];
+    render(
+      <SheetNavigator sheets={sheets} activeSheetId="sheet_0" onSelectSheet={() => {}} />
+    );
+    expect(screen.getByTestId('thumbnail-skeleton')).toBeInTheDocument();
+    fireEvent.load(screen.getByAltText('Thumbnail of M-100'));
+    expect(screen.queryByTestId('thumbnail-skeleton')).not.toBeInTheDocument();
   });
 });

@@ -191,6 +191,10 @@ export function createApiClient(config: ApiClientConfig = {}) {
       return `/api/page-image?${sp.toString()}`;
     },
 
+    getThumbnailUrl(projectId: string, pageIndex = 0): string {
+      return `/api/thumbnails/${encodeURIComponent(projectId)}/p${pageIndex}.webp`;
+    },
+
     async getPageText(pdfPath: string, pageIndex = 0, signal?: AbortSignal): Promise<PageTextResponse> {
       const sp = new URLSearchParams({ pdf_path: pdfPath, page_index: String(pageIndex) });
       return request<PageTextResponse>(`/api/page-text?${sp.toString()}`, { signal });

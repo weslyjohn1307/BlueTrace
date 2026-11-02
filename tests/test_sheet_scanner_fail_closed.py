@@ -310,3 +310,33 @@ async def test_thumbnail_generator_rejects_unsafe_project_id(tmp_path: Path, mon
     paths = await generate_sheet_thumbnails_async(pdf_path, "thumb_proj", dpi=24, max_workers=2)
     assert len(paths) == 3
     assert all(Path(p).parent == Path("data/cache/thumbnails/thumb_proj") for p in paths)
+
+
+async def test_thumbnail_50page_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """TASK-INTK-002/005 gate: 50 thumbnails, every file <= 15 KB (15360 bytes).
+
+    Synthetic 50-page set via PyMuPDF, generate at the production dpi (24),
+    then assert the per-file budget. No quality/size guard exists in the
+    generator: this test fails first if any file exceeds the budget, and the
+    guard is added only then (none needed while max stays under 15360).
+    """
+    from src.meta_services.thumbnail_generator import generate_sheet_thumbnails_async
+
+    pdf_path = _make_pdf_multi_page(tmp_path, pages=50)
+    monkeypatch.chdir(tmp_path)
+
+    paths = await generate_sheet_thumbnails_async(pdf_path, "budget_proj", dpi=24, max_workers=2)
+
+    assert len(paths) == 50
+    sizes: list[int] = []
+    for p in paths:
+        target = tmp_path / p
+        assert target.is_file(), f"missing thumbnail {p}"
+        sizes.append(target.stat().st_size)
+    peak = max(sizes)
+    mean = sum(sizes) / len(sizes)
+    over = [(p, s) for p, s in zip(paths, sizes) if s > 15360]
+    assert not over, (
+        f"{len(over)} thumbnails over the 15 KB budget "
+        f"(max={peak} avg={mean:.0f}): {over[:5]}"
+    )

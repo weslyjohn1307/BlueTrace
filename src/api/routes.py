@@ -797,6 +797,45 @@ async def stream_intake_events(job_id: str):
 
     return StreamingResponse(sse_event_generator(), media_type="text/event-stream")
 
+
+@router.get("/thumbnails/{project_id}/p{page_index}.webp")
+async def get_sheet_thumbnail(project_id: str, page_index: int):
+    """Serve one cached sheet thumbnail rendered by the intake pipeline.
+
+    ``project_id`` carries the same validator as the thumbnail writer
+    (400 on traversal/separators, never a write or read outside the cache
+    root); unknown pages are 404. When this build wrote a PNG fallback
+    instead of WebP, the ``.webp`` URL still resolves to the ``.png`` file.
+    """
+    try:
+        safe_project_id = validate_project_id(project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid project_id: {e}") from e
+    if page_index < 0:
+        raise HTTPException(status_code=400, detail="page_index cannot be negative.")
+    from src.meta_services.thumbnail_generator import THUMBNAIL_CACHE_ROOT
+
+    cache_root = THUMBNAIL_CACHE_ROOT.resolve()
+    out_dir = (THUMBNAIL_CACHE_ROOT / safe_project_id).resolve()
+    if out_dir == cache_root or cache_root not in out_dir.parents:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: thumbnail directory is outside the cache.",
+        )
+    for suffix, media_type in ((".webp", "image/webp"), (".png", "image/png")):
+        candidate = out_dir / f"p{page_index}{suffix}"
+        resolved = candidate.resolve()
+        if resolved.parent != out_dir:
+            raise HTTPException(status_code=403, detail="Access denied: invalid thumbnail path.")
+        if resolved.is_file():
+            data = await run_in_threadpool(resolved.read_bytes)
+            return Response(content=data, media_type=media_type)
+    raise HTTPException(
+        status_code=404,
+        detail=f"Thumbnail not found for project '{safe_project_id}' page {page_index}",
+    )
+
+
 @router.get("/page-image")
 async def render_page_image(pdf_path: str, page_index: int = 0, dpi: int = 150):
     """Renders one drawing sheet page to PNG for the canvas viewer."""

@@ -545,6 +545,7 @@ export const TakeoffWorkspace: React.FC = () => {
                     sheets={state.sheets}
                     activeSheetId={state.activeSheetId}
                     onSelectSheet={selectSheet}
+                    projectId={state.projectName || null}
                   />
                 )}
               </div>
