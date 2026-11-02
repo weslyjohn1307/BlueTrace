@@ -119,6 +119,35 @@ export interface SheetScanAllResponse {
   errors: string[];
 }
 
+/** Mirrors backend `IntakeJobEvent` (src/models/schemas.py). */
+export type IntakeEventKind =
+  | 'progress'
+  | 'sheet_indexed'
+  | 'thumbnail_ready'
+  | 'complete'
+  | 'error';
+
+export interface IntakeJobEvent {
+  job_id: string;
+  event: IntakeEventKind;
+  page_index?: number | null;
+  sheet_id?: string | null;
+  progress: number;
+  message?: string | null;
+}
+
+/** Mirrors backend `IntakeJobStatus` (src/models/schemas.py). */
+export interface IntakeJobStatus {
+  job_id: string;
+  status: 'queued' | 'running' | 'complete' | 'failed';
+  project_id: string;
+  pdf_path: string;
+  total_pages: number;
+  sheets_indexed: number;
+  thumbnails_ready: number;
+  error?: string | null;
+}
+
 export interface LedgerSummaryRow {
   category: string;
   system: string;

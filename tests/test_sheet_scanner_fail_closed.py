@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pymupdf
+import pytest
 
 from src.meta_services.client import MetaModelClient
 from src.meta_services.sheet_scanner import SheetScanner
@@ -175,3 +176,137 @@ def test_non_string_vlm_json_fields_are_treated_as_absent(tmp_path: Path):
     assert meta.scale_ratio is None
     assert meta.scale_status == "UNVERIFIED"
     assert meta.scale_raw is None
+
+
+def _make_pdf_multi_page(tmp_path: Path, pages: int = 50) -> Path:
+    """Synthetic multi-page set with strict ``[MAEP]-DDD`` title-block tokens."""
+    pdf_path = tmp_path / "package_set.pdf"
+    doc = pymupdf.open()
+    try:
+        prefixes = ("M", "E", "A", "P")
+        for i in range(pages):
+            page = doc.new_page(width=612, height=792)
+            # Bottom-right title-block quadrant (x>398, y>594 for this scanner).
+            page.insert_text((450, 650), f"{prefixes[i % 4]}-{100 + i % 100:03d} PLAN")
+        doc.save(str(pdf_path))
+    finally:
+        doc.close()
+    return pdf_path
+
+
+def test_fast_reconnaissance(tmp_path: Path, monkeypatch):
+    """TASK-INTK-001: one open, no raster, fail-closed scale, fast on 50 pages."""
+    import time
+
+    import pymupdf as _pymupdf
+
+    pdf_path = _make_pdf_multi_page(tmp_path, pages=50)
+    real_open = _pymupdf.open
+    calls = {"count": 0}
+
+    def _counting_open(*args, **kwargs):
+        calls["count"] += 1
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(_pymupdf, "open", _counting_open)
+
+    def _no_raster(self, *args, **kwargs):
+        raise AssertionError("scan_package_reconnaissance must not rasterize")
+
+    monkeypatch.setattr(_pymupdf.Page, "get_pixmap", _no_raster)
+
+    scanner = SheetScanner(client=MetaModelClient(api_key=""))
+    start = time.perf_counter()
+    sheets = scanner.scan_package_reconnaissance(pdf_path, "recon_proj")
+    elapsed = time.perf_counter() - start
+
+    assert calls["count"] == 1
+    assert elapsed < 2.5
+    assert len(sheets) == 50
+    # Strict token extraction on page 0 ("M-100"), stem fallback nowhere needed.
+    assert sheets[0].sheet_number == "M-100"
+    assert sheets[0].page_index == 0
+    for meta in sheets:
+        # Fail-closed scale representation (repo convention: None + UNVERIFIED;
+        # 0.0 is treated identically downstream by points_to_feet).
+        assert meta.scale_ratio is None
+        assert meta.scale_status == "UNVERIFIED"
+        assert meta.scale_raw is None
+        assert meta.discipline in ("MECHANICAL", "ELECTRICAL", "PLUMBING", "ARCHITECTURAL", "GENERAL")
+        assert meta.width_pt == 612
+        assert meta.height_pt == 792
+
+    # Stem fallback: page text without a strict token still yields an index entry.
+    single = tmp_path / "no_token.pdf"
+    doc = _pymupdf.open()
+    try:
+        doc.new_page(width=612, height=792)
+        doc.save(str(single))
+    finally:
+        doc.close()
+    fallback = scanner.scan_package_reconnaissance(single, "recon_proj")
+    assert len(fallback) == 1
+    assert fallback[0].sheet_number == "no_token_p0"
+    assert fallback[0].scale_status == "UNVERIFIED"
+
+
+def _make_pdf_three_pages(tmp_path: Path) -> Path:
+    pdf_path = tmp_path / "thumb_set.pdf"
+    doc = pymupdf.open()
+    try:
+        for i in range(3):
+            page = doc.new_page(width=612, height=792)
+            page.insert_text((72, 72), f"THUMB PAGE {i}")
+        doc.save(str(pdf_path))
+    finally:
+        doc.close()
+    return pdf_path
+
+
+async def test_thumbnail_generator(tmp_path: Path, monkeypatch):
+    """TASK-INTK-002: WebP thumbnails for every page, bounded workers, pix freed."""
+    from PIL import Image
+
+    from src.meta_services.thumbnail_generator import generate_sheet_thumbnails_async
+
+    pdf_path = _make_pdf_three_pages(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    paths = await generate_sheet_thumbnails_async(pdf_path, "thumb_proj", dpi=24, max_workers=2)
+
+    assert len(paths) == 3
+    assert paths == [str(Path(f"data/cache/thumbnails/thumb_proj/p{i}.webp")) for i in range(3)]
+    for p in paths:
+        target = tmp_path / p
+        assert target.is_file()
+        assert target.stat().st_size > 0
+        with Image.open(target) as img:
+            # WebP preferred; PNG only if this build cannot encode WebP.
+            assert img.format in ("WEBP", "PNG")
+    # WebP preferred on this build: every path must be .webp unless Pillow
+    # itself lacks a WebP encoder (documented PNG fallback in the module).
+    from PIL import features as _features
+
+    if _features.check("webp"):
+        assert all(p.endswith(".webp") for p in paths)
+
+
+async def test_thumbnail_generator_rejects_unsafe_project_id(tmp_path: Path, monkeypatch):
+    """project_id is a directory name: traversal must raise, never write."""
+    from src.meta_services.thumbnail_generator import generate_sheet_thumbnails_async
+
+    pdf_path = _make_pdf_three_pages(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    escape_root = tmp_path / "data" / "cache" / "evil"
+
+    for unsafe in ("../../evil", "..\\..\\evil", "a/b", "a\\b", "..", "", " ./x"):
+        with pytest.raises(ValueError):
+            await generate_sheet_thumbnails_async(pdf_path, unsafe, dpi=24, max_workers=2)
+    assert not escape_root.exists()
+    assert not (tmp_path.parent / "evil").exists()
+    assert not (tmp_path / "data" / "cache" / "evil").exists()
+
+    # A normal id still writes into its own bounded directory.
+    paths = await generate_sheet_thumbnails_async(pdf_path, "thumb_proj", dpi=24, max_workers=2)
+    assert len(paths) == 3
+    assert all(Path(p).parent == Path("data/cache/thumbnails/thumb_proj") for p in paths)

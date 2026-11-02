@@ -8,6 +8,7 @@ import { SheetCanvas, type CalibrationResult, type CanvasPin, type VectorRun } f
 import { CalibrationModal } from './components/CalibrationModal';
 import { HoverBadge } from './components/HoverBadge';
 import { SheetTree, type SheetItemData } from './components/SheetTree';
+import { SheetNavigator } from './components/SheetNavigator';
 import { LedgerPanel } from './components/LedgerPanel';
 import { SchedulePanel } from './components/SchedulePanel';
 import { CopilotDrawer } from './components/CopilotDrawer';
@@ -24,6 +25,7 @@ import type {
 import { mapReconcileGhostPins, pinFocusCoords } from './utils/reconcilePins';
 
 type RightTab = 'ledger' | 'schedule';
+type SheetPanelMode = 'tree' | 'filmstrip';
 
 export const TakeoffWorkspace: React.FC = () => {
   const { state, checkBackend, selectFile, openFixture, selectSheet, setItemStatus, reset, refreshLedger, applyCalibrationResult } =
@@ -44,6 +46,8 @@ export const TakeoffWorkspace: React.FC = () => {
   const [rightTab, setRightTab] = useState<RightTab>('ledger');
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  // Sheets panel view: hierarchical tree (default) or thumbnail filmstrip.
+  const [sheetPanelMode, setSheetPanelMode] = useState<SheetPanelMode>('tree');
   // Two-point calibration session state: points from the canvas, modal
   // confirm posts to the backend, then the session (sheet meta + ledger)
   // refreshes so footage recomputes under the calibrated scale.
@@ -496,10 +500,54 @@ export const TakeoffWorkspace: React.FC = () => {
             </div>
           )}
 
-          {/* Left Sheet Tree Sidebar (Progressive Disclosure) */}
+          {/* Left Sheet Panel (Progressive Disclosure): directory tree or thumbnail filmstrip */}
           {leftSidebarOpen && (
             <aside className="w-64 shrink-0 hidden md:flex flex-col border-r border-slate-800" aria-label="Sheet directory">
-              <SheetTree sheets={treeSheets} activeSheetId={state.activeSheetId} onSelectSheet={selectSheet} />
+              <div
+                role="group"
+                aria-label="Sheet panel view"
+                className="flex items-center gap-1 px-2 py-1.5 bg-slate-950 border-b border-slate-800"
+              >
+                <button
+                  type="button"
+                  aria-pressed={sheetPanelMode === 'tree'}
+                  onClick={() => setSheetPanelMode('tree')}
+                  className={`flex-1 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                    sheetPanelMode === 'tree'
+                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  Tree
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={sheetPanelMode === 'filmstrip'}
+                  onClick={() => setSheetPanelMode('filmstrip')}
+                  className={`flex-1 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                    sheetPanelMode === 'filmstrip'
+                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  Filmstrip
+                </button>
+              </div>
+              <div className="flex-1 flex flex-col min-h-0">
+                {sheetPanelMode === 'tree' ? (
+                  <SheetTree
+                    sheets={treeSheets}
+                    activeSheetId={state.activeSheetId}
+                    onSelectSheet={selectSheet}
+                  />
+                ) : (
+                  <SheetNavigator
+                    sheets={state.sheets}
+                    activeSheetId={state.activeSheetId}
+                    onSelectSheet={selectSheet}
+                  />
+                )}
+              </div>
             </aside>
           )}
 

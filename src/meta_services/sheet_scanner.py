@@ -26,6 +26,18 @@ from src.models.schemas import SheetMetadata
 
 logger = logging.getLogger(__name__)
 
+# Fast reconnaissance sheet-number pattern (TASK-INTK-001): strict
+# ``[MAEP]-<3 digits>`` token (e.g. ``M-101``, ``P-104``). Anything else falls
+# back to the PDF stem so the index is complete but never fabricated.
+_FAST_SHEET_NUMBER_RE = re.compile(r"\b([MAEP])-(\d{3})\b")
+
+_FAST_DISCIPLINE_BY_PREFIX = {
+    "M": "MECHANICAL",
+    "E": "ELECTRICAL",
+    "A": "ARCHITECTURAL",
+    "P": "PLUMBING",
+}
+
 
 class SheetScanner:
     def __init__(self, client: MetaModelClient | None = None):
@@ -62,6 +74,66 @@ class SheetScanner:
             except (ValueError, RuntimeError, OSError) as exc:
                 raise ValueError(f"Sheet scan failed on page {page_index}: {exc}") from exc
         return sheets
+
+    def scan_package_reconnaissance(
+        self, pdf_path: str | Path, project_id: str = "default_project"
+    ) -> list[SheetMetadata]:
+        """Fast native-text-only reconnaissance over every page of a set.
+
+        Opens the PDF exactly once and never rasterizes (no ``get_pixmap``,
+        no VLM call): each page contributes title-block-clipped native text
+        plus cached geometry. Sheet numbers come from a strict
+        ``[MAEP]-DDD`` regex on the title-block text with a deterministic
+        ``<stem>_p<index>`` fallback. Scale is always fail-closed
+        (``scale_ratio=None``, ``scale_status="UNVERIFIED"`` — the
+        codebase-wide fail-closed representation; ``0.0`` and ``None`` are
+        treated identically downstream by ``ScaleValidator.points_to_feet``),
+        so this path can never certify a scale it did not validate.
+        """
+        _ = project_id  # reserved for per-project index namespacing; unused.
+        doc = self._open_document(pdf_path)
+        try:
+            stem = Path(pdf_path).stem
+            sheets: list[SheetMetadata] = []
+            for page_index in range(len(doc)):
+                page = doc[page_index]
+                rect = page.rect
+                width_pt = rect.width
+                height_pt = rect.height
+                clip = pymupdf.Rect(width_pt * 0.65, height_pt * 0.75, width_pt, height_pt)
+                try:
+                    tb_text = page.get_text("text", clip=clip) or ""
+                except (RuntimeError, ValueError):
+                    tb_text = ""
+                match = _FAST_SHEET_NUMBER_RE.search(tb_text)
+                if match:
+                    sheet_number = f"{match.group(1).upper()}-{match.group(2)}"
+                else:
+                    sheet_number = f"{stem}_p{page_index}"
+                prefix = sheet_number[0].upper() if sheet_number else ""
+                disc_literal = cast(
+                    Literal["MECHANICAL", "ELECTRICAL", "PLUMBING", "ARCHITECTURAL", "GENERAL"],
+                    _FAST_DISCIPLINE_BY_PREFIX.get(prefix, "GENERAL"),
+                )
+                sheet_id = f"{sheet_number.lower().replace(' ', '_').replace('.', '_')}_p{page_index}"
+                sheets.append(
+                    SheetMetadata(
+                        sheet_id=sheet_id,
+                        page_index=page_index,
+                        sheet_number=sheet_number,
+                        sheet_title=stem.replace("_", " ").title(),
+                        discipline=disc_literal,
+                        scale_raw=None,
+                        scale_ratio=None,
+                        scale_status="UNVERIFIED",
+                        width_pt=round(width_pt, 2),
+                        height_pt=round(height_pt, 2),
+                        dpi=150,
+                    )
+                )
+            return sheets
+        finally:
+            doc.close()
 
     def scan_page(self, pdf_path: str | Path, page_index: int = 0) -> SheetMetadata:
         """Performs document reconnaissance on a single drawing sheet."""

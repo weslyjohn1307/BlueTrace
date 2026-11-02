@@ -21,6 +21,7 @@ vi.mock('../api/client', async (importOriginal) => {
 // hook state swaps the sheet/restore payload the canvas receives.
 const workspaceHook = vi.hoisted(() => ({
   state: null as unknown,
+  selectSheet: vi.fn(),
 }));
 
 vi.mock('../workspace/hooks/useTakeoffSession', () => ({
@@ -29,7 +30,7 @@ vi.mock('../workspace/hooks/useTakeoffSession', () => ({
     checkBackend: vi.fn(),
     selectFile: vi.fn(),
     openFixture: vi.fn(),
-    selectSheet: vi.fn(),
+    selectSheet: workspaceHook.selectSheet,
     setItemStatus: vi.fn(),
     reset: vi.fn(),
     refreshLedger: vi.fn(),
@@ -330,5 +331,32 @@ describe('TakeoffWorkspace session wiring (production composition)', () => {
       screen.getByText('Re-open the PDF to restore page images. Ledger, sheets, and viewport state are intact.')
     ).toBeTruthy();
     expect(container.querySelector('[data-testid="sheet-canvas"]')).toBeNull();
+  });
+
+  it('toggles the sheets panel between tree (default) and filmstrip navigator', () => {
+    workspaceHook.state = readyWorkspaceState('data/uploads/plan.pdf', null);
+    renderWorkspace();
+
+    // Tree is the default view: the directory filter input is present.
+    expect(screen.getByLabelText('Filter sheets')).toBeInTheDocument();
+    expect(screen.queryByTestId('sheet-navigator')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Tree' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filmstrip' }));
+    expect(screen.getByTestId('sheet-navigator')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Filter sheets')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Filmstrip' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+
+    // Selecting a thumbnail routes through the session's selectSheet.
+    fireEvent.click(screen.getAllByTestId('thumbnail-card')[0]);
+    expect(workspaceHook.selectSheet).toHaveBeenCalledWith('sheet_m101');
+
+    // Tree mode is still reachable and restores the directory.
+    fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
+    expect(screen.getByLabelText('Filter sheets')).toBeInTheDocument();
+    expect(screen.queryByTestId('sheet-navigator')).toBeNull();
   });
 });

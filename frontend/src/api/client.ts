@@ -2,6 +2,8 @@ import type {
   CopilotQueryResponse,
   CursorCropResponse,
   HealthResponse,
+  IntakeJobEvent,
+  IntakeJobStatus,
   LedgerSummaryRow,
   LegendScanResult,
   PageTextResponse,
@@ -476,6 +478,59 @@ export function createApiClient(config: ApiClientConfig = {}) {
         method: 'DELETE',
         signal,
       });
+    },
+
+    async startIntakeBatch(
+      pdfPath: string,
+      options?: { projectId?: string; signal?: AbortSignal }
+    ): Promise<IntakeJobStatus> {
+      const body: Record<string, unknown> = { pdf_path: pdfPath };
+      if (options?.projectId) body.project_id = options.projectId;
+      return request<IntakeJobStatus>('/api/intake/batch', {
+        method: 'POST',
+        body,
+        signal: options?.signal,
+      });
+    },
+
+    async streamIntakeEvents(
+      jobId: string,
+      onEvent: (event: IntakeJobEvent) => void,
+      signal?: AbortSignal
+    ): Promise<IntakeJobEvent | null> {
+      const res = await fetch(`/api/intake/jobs/${encodeURIComponent(jobId)}/events`, {
+        method: 'GET',
+        headers: { Accept: 'text/event-stream', 'X-Session-ID': sessionId },
+        signal,
+      });
+      if (!res.ok || !res.body) {
+        throw new ApiError(res.status, `Intake stream failed: ${res.statusText}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let terminal: IntakeJobEvent | null = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() ?? '';
+        for (const frame of frames) {
+          for (const line of frame.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            try {
+              const payload = JSON.parse(trimmed.slice(5).trim()) as IntakeJobEvent;
+              onEvent(payload);
+              if (payload.event === 'complete') terminal = payload;
+            } catch {
+              // ignore malformed SSE frames
+            }
+          }
+        }
+      }
+      return terminal;
     },
   };
 }

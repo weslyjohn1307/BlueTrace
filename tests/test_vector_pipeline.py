@@ -271,3 +271,80 @@ class TestScaleValidatorSnapping:
     def test_scale_validator_snapping_custom_string_format(self):
         # X = ratio // 12 ft, Y = round(ratio % 12, 1) in
         assert ScaleValidator.derive_architectural_scale_string(57.6) == 'Custom (1" = 4\'-9.6")'
+def _make_lazy_test_pdf(path: Path) -> None:
+    """Five-page synthetic set: scaled mechanical plan lines on every page."""
+    doc = pymupdf.open()
+    try:
+        for i in range(5):
+            page = doc.new_page(width=612, height=792)
+            page.insert_text((50, 50), f'M-10{i} MECHANICAL FLOOR PLAN\nSCALE: 1/8" = 1\'-0"', fontsize=10)
+            shape = page.new_shape()
+            shape.draw_line((100.0, 100.0 + i), (200.0, 100.0 + i))
+            shape.finish(color=(0, 0, 0), width=1.5)
+            shape.commit()
+        doc.save(str(path))
+    finally:
+        doc.close()
+
+
+async def test_lazy_vector_extraction(isolated_takeoff_store, monkeypatch):
+    """TASK-INTK-004: first view runs + persists, repeat views are cached; 4-slot LRU."""
+    from starlette.testclient import TestClient
+
+    from src.api import routes as routes_mod
+    from src.api.main import app
+
+    store = isolated_takeoff_store
+    pdf_path = Path("data/test_lazy_linework.pdf")
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        _make_lazy_test_pdf(pdf_path)
+        rel = "data/test_lazy_linework.pdf"
+
+        calls = {"count": 0}
+        real_run = routes_mod.run_l2_pipeline
+
+        def _counting_run(*args, **kwargs):
+            calls["count"] += 1
+            return real_run(*args, **kwargs)
+
+        monkeypatch.setattr(routes_mod, "run_l2_pipeline", _counting_run)
+        routes_mod._linework_pixmap_cache.clear()
+
+        await store.insert_sheet(
+            sheet_id="m-100_p0",
+            project_id="lazy_proj",
+            page_index=0,
+            sheet_number="M-100",
+            sheet_title="Mechanical Plan",
+            discipline="MECHANICAL",
+            scale_raw='1/8" = 1\'-0"',
+            scale_ratio=96.0,
+            scale_status="VERIFIED",
+            width_pt=612.0,
+            height_pt=792.0,
+        )
+
+        client = TestClient(app)
+        first = client.get("/api/sheets/m-100_p0/linework", params={"pdf_path": rel})
+        assert first.status_code == 200
+        body = first.json()
+        assert body["cached"] is False
+        assert body["items_created"] >= 1
+        assert len(body["items"]) == body["items_created"]
+        assert calls["count"] == 1
+
+        second = client.get("/api/sheets/m-100_p0/linework", params={"pdf_path": rel})
+        assert second.status_code == 200
+        assert second.json()["cached"] is True
+        assert calls["count"] == 1  # repeat view must not re-run the engine
+
+        # 4-slot LRU: warming 5 distinct pages keeps only the 4 most recent.
+        routes_mod._linework_pixmap_cache.clear()
+        for i in range(5):
+            routes_mod._warm_linework_pixmap(str(pdf_path), i)
+        assert len(routes_mod._linework_pixmap_cache) == 4
+        assert (str(pdf_path), 0) not in routes_mod._linework_pixmap_cache
+        assert (str(pdf_path), 4) in routes_mod._linework_pixmap_cache
+    finally:
+        pdf_path.unlink(missing_ok=True)

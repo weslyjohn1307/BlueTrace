@@ -7,6 +7,7 @@ import os
 import re
 import time
 import uuid
+from collections import OrderedDict
 from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -23,12 +24,15 @@ from src.meta_services.copilot import TakeoffCopilot
 from src.meta_services.legend_scanner import LegendScanner, LegendScanResult
 from src.meta_services.schedule_parser import ScheduleParser
 from src.meta_services.sheet_scanner import SheetScanner
+from src.meta_services.thumbnail_generator import generate_sheet_thumbnails_async
 from src.models.schemas import (
     CopilotQueryRequest,
     CopilotQueryResponse,
     CursorCropRequest,
     CursorCropResponse,
     DimensionExtraction,
+    IntakeJobEvent,
+    IntakeJobStatus,
     MetaFileUploadRequest,
     MetaFileUploadResponse,
     ProjectSummaryResponse,
@@ -38,6 +42,7 @@ from src.models.schemas import (
     SheetMetadata,
     UploadResponse,
 )
+from src.models.validation import validate_project_id
 from src.store.reconciler import (
     PlanSymbolInstance,
     ReconciliationReport,
@@ -295,6 +300,70 @@ class LegendScanRequest(BaseModel):
     page_index: int | None = Field(default=None, ge=0)
 
 
+class IntakeBatchRequest(BaseModel):
+    pdf_path: str
+    project_id: str | None = None
+
+
+# In-memory intake job registry: job_id -> {"status": IntakeJobStatus, "events": [dict]}.
+# Jobs are short-lived batch records for SSE progress replay, not ledger data.
+# Bounded so a long-running session cannot grow memory without limit: the most
+# recent _MAX_INTAKE_JOBS are retained and the oldest entries are evicted.
+_MAX_INTAKE_JOBS = 25
+_intake_jobs: dict[str, dict[str, Any]] = {}
+
+
+def _register_intake_job(job_id: str, job: dict[str, Any]) -> None:
+    """Register a job, evicting the oldest entries beyond ``_MAX_INTAKE_JOBS``."""
+    _intake_jobs[job_id] = job
+    while len(_intake_jobs) > _MAX_INTAKE_JOBS:
+        oldest_job_id = next(iter(_intake_jobs))
+        if oldest_job_id == job_id:  # defensive: never evict the job just added
+            break
+        _intake_jobs.pop(oldest_job_id, None)
+
+
+def _reset_intake_jobs() -> None:
+    """Clear the job registry (used by test isolation)."""
+    _intake_jobs.clear()
+
+
+class LineworkResponse(BaseModel):
+    sheet_id: str
+    cached: bool
+    run_count: int
+    items_created: int
+    items: list[TakeoffRecord]
+
+
+# 150 DPI pixmap cache for the lazy linework viewer path: 4 slots, LRU.
+# Bounds raster memory for multi-sheet navigation (one entry per sheet view).
+_LINEWORK_PIXMAP_SLOTS = 4
+_linework_pixmap_cache: OrderedDict[tuple[str, int], bytes] = OrderedDict()
+
+
+def _warm_linework_pixmap(pdf_path: str, page_index: int, dpi: int = 150) -> bytes:
+    """Render (or reuse) the 150 DPI pixmap for a sheet under a 4-slot LRU."""
+    key = (pdf_path, page_index)
+    hit = _linework_pixmap_cache.get(key)
+    if hit is not None:
+        _linework_pixmap_cache.move_to_end(key)
+        return hit
+    import pymupdf
+
+    doc = pymupdf.open(pdf_path)
+    try:
+        if page_index < 0 or page_index >= len(doc):
+            raise ValueError(f"Page index {page_index} out of range ({len(doc)} pages)")
+        png_bytes = doc[page_index].get_pixmap(dpi=dpi).tobytes("png")
+    finally:
+        doc.close()
+    _linework_pixmap_cache[key] = png_bytes
+    while len(_linework_pixmap_cache) > _LINEWORK_PIXMAP_SLOTS:
+        _linework_pixmap_cache.popitem(last=False)
+    return png_bytes
+
+
 @router.get("/health")
 async def health_check(client: MetaClientDep):
     return {
@@ -398,6 +467,96 @@ async def scan_sheet_legend(
     return result.to_dict()
 
 
+@router.get("/sheets/{sheet_id}/linework", response_model=LineworkResponse)
+async def get_sheet_linework(
+    sheet_id: str,
+    store: TakeoffStoreDep,
+    pdf_path: str,
+    page_index: int | None = None,
+    discipline: str | None = None,
+):
+    """Lazy vector extraction for one sheet, cached in the takeoff ledger.
+
+    Warms the 150 DPI pixmap LRU, then returns existing ``VECTOR_ENGINE``
+    rows when the sheet was already measured. Only when no vector rows
+    exist does it run ``run_l2_pipeline`` in a worker thread and persist
+    the records — repeat views never re-run the engine. Non-MEP
+    disciplines return an empty result (the engine only measures MEP
+    linework; never relabel other disciplines as ductwork).
+    """
+    clean_path = resolve_contained_pdf(pdf_path)
+    try:
+        stored = await store.get_sheet(sheet_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Sheet lookup failed: {e}") from e
+    if page_index is None:
+        if stored is not None:
+            try:
+                page_index = int(stored["page_index"])
+            except (TypeError, ValueError) as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Stored page_index for sheet '{sheet_id}' is invalid: {stored['page_index']!r}",
+                ) from e
+        else:
+            page_index = 0
+    if page_index < 0:
+        raise HTTPException(status_code=400, detail="page_index cannot be negative.")
+
+    await run_in_threadpool(_warm_linework_pixmap, str(clean_path), page_index)
+
+    existing = [i for i in await store.list_items(sheet_id=sheet_id) if i.source == "VECTOR_ENGINE"]
+    if existing:
+        return LineworkResponse(
+            sheet_id=sheet_id,
+            cached=True,
+            run_count=len(existing),
+            items_created=len(existing),
+            items=existing,
+        )
+
+    disc = (discipline or (stored or {}).get("discipline") or "mechanical").lower()
+    if disc not in {"mechanical", "plumbing"}:
+        return LineworkResponse(
+            sheet_id=sheet_id, cached=False, run_count=0, items_created=0, items=[]
+        )
+    stored_project_id = stored.get("project_id") if stored else None
+    project_id = (
+        stored_project_id
+        if isinstance(stored_project_id, str) and stored_project_id
+        else _default_project_id(pdf_path)
+    )
+    sheet_scale_status = stored.get("scale_status", "UNVERIFIED") if stored else "UNVERIFIED"
+    try:
+        pipeline_result = await run_in_threadpool(
+            run_l2_pipeline,
+            str(clean_path),
+            page_index,
+            disc,
+            use_centerline=True,
+        )
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except (RuntimeError, OSError) as e:
+        raise HTTPException(status_code=502, detail=f"Vector extraction failed: {e}") from e
+    records = pipeline_results_to_records(
+        pipeline_result,
+        project_id=project_id,
+        sheet_id=sheet_id,
+        sheet_scale_status=sheet_scale_status,
+    )
+    raw_run_count = pipeline_result.get("run_count") or pipeline_result.get("result_count") or 0
+    run_count = int(raw_run_count) if isinstance(raw_run_count, (int, float)) else 0
+    created = await store.replace_vector_items_for_sheet(project_id, sheet_id, records)
+    return LineworkResponse(
+        sheet_id=sheet_id,
+        cached=False,
+        run_count=run_count,
+        items_created=created,
+        items=records,
+    )
+
+
 @router.post("/sheets/scan-all", response_model=SheetScanAllResponse)
 async def scan_all_sheets(
     request: SheetScanAllRequest,
@@ -494,7 +653,149 @@ async def calibrate_sheet_scale(
         updated_items=updated,
         skipped_items=skipped,
     )
+@router.post("/intake/batch", response_model=IntakeJobStatus)
+async def start_intake_batch(
+    request: IntakeBatchRequest,
+    store: TakeoffStoreDep,
+):
+    """Fast batch intake: reconnaissance index + thumbnails, replayed over SSE.
 
+    Runs the native-text reconnaissance scan (no VLM, no raster beyond
+    low-DPI thumbnails), persists every sheet, renders thumbnails, and
+    records a per-page event log (``progress`` / ``sheet_indexed`` /
+    ``thumbnail_ready`` / ``complete`` / ``error``) under a job id that
+    ``GET /api/intake/jobs/{job_id}/events`` replays as SSE.
+
+    ``project_id`` is user input that becomes a cache directory name, so it is
+    validated before any filesystem work (400, never a traversal).
+    """
+    clean_path = resolve_contained_pdf(request.pdf_path)
+    # None means "derive from the filename"; an explicitly supplied id is
+    # validated verbatim, so "" / "../x" is a 400 instead of a silent default.
+    candidate_project_id = (
+        _default_project_id(request.pdf_path) if request.project_id is None else request.project_id
+    )
+    try:
+        project_id = validate_project_id(candidate_project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid project_id: {e}") from e
+    job_id = uuid.uuid4().hex[:12]
+    job: dict[str, Any] = {
+        "status": IntakeJobStatus(
+            job_id=job_id,
+            status="running",
+            project_id=project_id,
+            pdf_path=request.pdf_path,
+        ),
+        "events": [],
+    }
+    _register_intake_job(job_id, job)
+
+    def _emit(
+        event: Literal["progress", "sheet_indexed", "thumbnail_ready", "complete", "error"],
+        progress: float,
+        page_index: int | None = None,
+        sheet_id: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        job["events"].append(
+            IntakeJobEvent(
+                job_id=job_id,
+                event=event,
+                page_index=page_index,
+                sheet_id=sheet_id,
+                progress=progress,
+                message=message,
+            ).model_dump()
+        )
+
+    try:
+        scanner = SheetScanner()
+        sheets = await run_in_threadpool(
+            scanner.scan_package_reconnaissance, str(clean_path), project_id
+        )
+        job["status"].total_pages = len(sheets)
+        if not sheets:
+            raise ValueError("PDF drawing contains no pages to index.")
+        _emit("progress", 0.0, message=f"Indexed {len(sheets)} sheets")
+        for meta in sheets:
+            try:
+                await _persist_sheet(store, meta, project_id)
+            except (OSError, RuntimeError, ValueError) as exc:
+                _emit(
+                    "progress",
+                    meta.page_index / max(1, len(sheets)),
+                    page_index=meta.page_index,
+                    sheet_id=meta.sheet_id,
+                    message=f"Sheet persist failed for {meta.sheet_id}: {exc}",
+                )
+                continue
+            job["status"].sheets_indexed += 1
+            _emit(
+                "sheet_indexed",
+                (meta.page_index + 1) / (2 * len(sheets)),
+                page_index=meta.page_index,
+                sheet_id=meta.sheet_id,
+            )
+        thumbnails = await generate_sheet_thumbnails_async(
+            str(clean_path), project_id, dpi=24, max_workers=2
+        )
+        for i, thumb_path in enumerate(thumbnails):
+            job["status"].thumbnails_ready += 1
+            _emit(
+                "thumbnail_ready",
+                0.5 + (i + 1) / (2 * max(1, len(thumbnails))),
+                page_index=i,
+                message=thumb_path,
+            )
+        job["status"].status = "complete"
+        _emit("complete", 1.0, message=f"Intake complete: {len(sheets)} sheets")
+    except Exception as e:
+        # Broadened from (ValueError, RuntimeError, OSError): a job that dies
+        # on an unexpected exception must still flip to failed and emit a
+        # terminal frame, otherwise SSE replay ends without a terminal event
+        # and the UI spins forever.
+        message = str(e) or e.__class__.__name__
+        job["status"].status = "failed"
+        job["status"].error = message
+        _emit("error", 1.0, message=message)
+        if isinstance(e, ValueError):
+            raise HTTPException(status_code=400, detail=message) from e
+        raise HTTPException(status_code=502, detail=f"Intake batch failed: {message}") from e
+    return job["status"]
+
+
+@router.get("/intake/jobs/{job_id}/events")
+async def stream_intake_events(job_id: str):
+    """Replay a batch intake job's event log as Server-Sent Events.
+
+    The replayed stream always ends with a terminal ``complete`` or ``error``
+    frame: when the stored log has no terminal event yet (e.g. the job is
+    still running), a closing frame is synthesised so clients never wait on a
+    stream that will never finish.
+    """
+    job = _intake_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Intake job '{job_id}' not found")
+
+    async def sse_event_generator():
+        for raw in job["events"]:
+            yield f"data: {json.dumps(raw)}\n\n"
+        if not any(e["event"] in ("complete", "error") for e in job["events"]):
+            status = job["status"].status
+            if status == "complete":
+                terminal = IntakeJobEvent(job_id=job_id, event="complete", progress=1.0)
+            else:
+                terminal = IntakeJobEvent(
+                    job_id=job_id,
+                    event="error",
+                    progress=1.0,
+                    message=job["status"].error
+                    or f"Intake job is '{status}' and has no terminal event; stream closed.",
+                )
+            yield f"data: {json.dumps(terminal.model_dump())}\n\n"
+
+    return StreamingResponse(sse_event_generator(), media_type="text/event-stream")
 
 @router.get("/page-image")
 async def render_page_image(pdf_path: str, page_index: int = 0, dpi: int = 150):

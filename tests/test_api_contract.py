@@ -13,7 +13,9 @@ Two layers:
 from __future__ import annotations
 
 import base64
+import json
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -326,3 +328,166 @@ def test_project_session_viewport_scale_rejected(client: TestClient):
     reread = client.get("/api/projects/sess_scale_proj/session")
     assert reread.status_code == 200
     assert reread.json()["session"]["viewport_scale"] == 1.0
+def test_intake_sse_stream(client: TestClient):
+    """TASK-INTK-003: batch intake persists sheets and replays progress over SSE."""
+    res = client.post(
+        "/api/intake/batch",
+        json={"pdf_path": "fixtures/mechanical/avexis_page_22.pdf"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    job_id = body["job_id"]
+    assert body["status"] == "complete"
+    assert body["sheets_indexed"] >= 1
+    assert body["thumbnails_ready"] >= 1
+
+    stream = client.get(f"/api/intake/jobs/{job_id}/events")
+    assert stream.status_code == 200
+    assert "text/event-stream" in stream.headers["content-type"]
+    events = [
+        json.loads(line[len("data:"):].strip())
+        for line in stream.text.splitlines()
+        if line.startswith("data:")
+    ]
+    assert events, "SSE stream must replay at least one event"
+    kinds = [e["event"] for e in events]
+    assert "progress" in kinds
+    assert "sheet_indexed" in kinds
+    assert "thumbnail_ready" in kinds
+    assert kinds[-1] == "complete"
+    assert all(e["job_id"] == job_id for e in events)
+    assert all(e["event"] in ("progress", "sheet_indexed", "thumbnail_ready", "complete") for e in events)
+
+    missing = client.get("/api/intake/jobs/does-not-exist/events")
+    assert missing.status_code == 404
+
+
+def test_intake_batch_rejects_unsafe_project_id(client: TestClient):
+    """project_id becomes a cache directory name: traversal must be a 400."""
+    for unsafe in ("../../evil", "..\\..\\evil", "a/b", "a\\b", "..", "", "C:\\abs"):
+        res = client.post(
+            "/api/intake/batch",
+            json={
+                "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+                "project_id": unsafe,
+            },
+        )
+        assert res.status_code == 400, f"{unsafe!r} was accepted"
+        assert "project_id" in res.json()["detail"].lower()
+    # Nothing escaped the cache root and no job was registered for the rejects.
+    assert not (Path.cwd().parent / "evil").exists()
+
+    # A normal id still runs and writes thumbnails under its own directory.
+    thumb_dir = Path("data/cache/thumbnails/safe_project-1")
+    try:
+        ok = client.post(
+            "/api/intake/batch",
+            json={
+                "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+                "project_id": "safe_project-1",
+            },
+        )
+        assert ok.status_code == 200
+        body = ok.json()
+        assert body["status"] == "complete"
+        assert body["project_id"] == "safe_project-1"
+        assert body["thumbnails_ready"] >= 1
+        assert thumb_dir.is_dir()
+    finally:
+        shutil.rmtree(thumb_dir, ignore_errors=True)
+
+
+def test_intake_job_registry_is_bounded():
+    """The in-memory registry keeps only the most recent 25 jobs."""
+    from src.api.routes import (
+        _MAX_INTAKE_JOBS,
+        _intake_jobs,
+        _register_intake_job,
+        _reset_intake_jobs,
+    )
+
+    _reset_intake_jobs()
+    try:
+        for i in range(_MAX_INTAKE_JOBS + 10):
+            _register_intake_job(f"job_{i:03d}", {"status": None, "events": []})
+        assert len(_intake_jobs) == _MAX_INTAKE_JOBS
+        assert "job_000" not in _intake_jobs
+        assert f"job_{_MAX_INTAKE_JOBS + 9:03d}" in _intake_jobs
+        # Most recent survive; insertion order evicts from the front.
+        assert list(_intake_jobs)[-1] == f"job_{_MAX_INTAKE_JOBS + 9:03d}"
+    finally:
+        _reset_intake_jobs()
+
+
+def test_intake_failing_job_emits_error_terminal(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+):
+    """An unexpected job-runner exception fails the job and ends SSE with ``error``."""
+    from src.api import routes
+    from src.meta_services.sheet_scanner import SheetScanner
+
+    def _boom(self, *args, **kwargs):
+        raise RuntimeError("reconnaissance exploded")
+
+    monkeypatch.setattr(SheetScanner, "scan_package_reconnaissance", _boom, raising=True)
+    res = client.post(
+        "/api/intake/batch",
+        json={"pdf_path": "fixtures/mechanical/avexis_page_22.pdf", "project_id": "boom_proj"},
+    )
+    assert res.status_code == 502
+    assert "reconnaissance exploded" in res.json()["detail"]
+
+    # The failed job is still addressable and replays a terminal error frame.
+    failing = [
+        job_id
+        for job_id, job in routes._intake_jobs.items()
+        if job["status"].project_id == "boom_proj"
+    ]
+    assert len(failing) == 1
+    job = routes._intake_jobs[failing[0]]
+    assert job["status"].status == "failed"
+    assert job["status"].error == "reconnaissance exploded"
+
+    stream = client.get(f"/api/intake/jobs/{failing[0]}/events")
+    assert stream.status_code == 200
+    events = [
+        json.loads(line[len("data:"):].strip())
+        for line in stream.text.splitlines()
+        if line.startswith("data:")
+    ]
+    assert events, "a failed job must still replay a terminal frame"
+    assert events[-1]["event"] == "error"
+    assert "reconnaissance exploded" in (events[-1]["message"] or "")
+
+
+def test_intake_sse_always_terminates(client: TestClient):
+    """A job with no terminal event yet still closes its stream with ``error``."""
+    from src.api import routes
+    from src.models.schemas import IntakeJobStatus
+
+    _register = routes._register_intake_job
+    job_id = "stuckjob0001"
+    _register(
+        job_id,
+        {
+            "status": IntakeJobStatus(
+                job_id=job_id,
+                status="running",
+                project_id="stuck_proj",
+                pdf_path="fixtures/mechanical/avexis_page_22.pdf",
+            ),
+            "events": [],
+        },
+    )
+    try:
+        stream = client.get(f"/api/intake/jobs/{job_id}/events")
+        assert stream.status_code == 200
+        events = [
+            json.loads(line[len("data:"):].strip())
+            for line in stream.text.splitlines()
+            if line.startswith("data:")
+        ]
+        assert len(events) == 1
+        assert events[-1]["event"] == "error"
+    finally:
+        routes._intake_jobs.pop(job_id, None)

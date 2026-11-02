@@ -182,7 +182,28 @@ class SheetCalibrationResponse(BaseModel):
     scale_status: Literal["CALIBRATED"] = "CALIBRATED"
     updated_items: int
     skipped_items: int = 0
+class IntakeJobEvent(BaseModel):
+    """One SSE frame of an intake batch job (mirrored in frontend contracts)."""
 
+    job_id: str
+    event: Literal["progress", "sheet_indexed", "thumbnail_ready", "complete", "error"]
+    page_index: int | None = None
+    sheet_id: str | None = None
+    progress: float = 0.0
+    message: str | None = None
+
+
+class IntakeJobStatus(BaseModel):
+    """Snapshot of an intake batch job (mirrored in frontend contracts)."""
+
+    job_id: str
+    status: Literal["queued", "running", "complete", "failed"]
+    project_id: str
+    pdf_path: str
+    total_pages: int = 0
+    sheets_indexed: int = 0
+    thumbnails_ready: int = 0
+    error: str | None = None
 
 class MetaFileUploadRequest(BaseModel):
     file_path: str
