@@ -527,3 +527,99 @@ def test_thumbnail_endpoint_serves_cached_webp(
     assert client.get("/api/thumbnails/thumb_serve/p9.webp").status_code == 404
     assert client.get("/api/thumbnails/..evil/p0.webp").status_code == 400
     assert client.get("/api/thumbnails/no_such_proj/p0.webp").status_code == 404
+
+
+def test_feedback_events_crop_project_guard_and_nulls(
+    client: TestClient,
+    isolated_takeoff_store,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """POST /api/feedback/events: crop wiring, orphan guards, NULL semantics.
+
+    HIGH#2: bbox + known sheet captures a 150 DPI crop (non-null relpath,
+    file on disk); unknown sheet skips the crop but still persists (200).
+    HIGH#3: unknown project is a 404 and persists nothing.
+    MED#7: omitted original_output stays NULL; degenerate bbox is a 422.
+    """
+    import asyncio as _asyncio
+
+    import src.meta_services.feedback_service as _feedback_service
+
+    scan = client.post(
+        "/api/sheet-scan",
+        json={
+            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "page_index": 0,
+            "project_id": "fdbk_route_proj",
+        },
+    )
+    assert scan.status_code == 200
+    sheet_id = scan.json()["sheet_id"]
+
+    # Keep the 150 DPI crop out of the repo checkout.
+    monkeypatch.setattr(
+        _feedback_service, "FEEDBACK_CROP_ROOT", tmp_path / "crops"
+    )
+
+    def _post(payload: dict) -> object:
+        return client.post("/api/feedback/events", json=payload)
+
+    def _stored(feedback_id: str) -> dict:
+        row = _asyncio.run(isolated_takeoff_store.get_feedback_event(feedback_id))
+        assert row is not None
+        return row
+
+    base = {
+        "project_id": "fdbk_route_proj",
+        "sheet_id": sheet_id,
+        "task_type": "SYMBOL_DETECTION",
+        "previous_status": "SUGGESTED",
+        "new_status": "ACCEPTED",
+    }
+
+    # bbox + known sheet -> crop captured, relpath persisted, file on disk.
+    ok = _post(
+        {
+            **base,
+            "action": "ACCEPT",
+            "bounding_box_pt": [10.0, 10.0, 200.0, 200.0],
+            "page_index": 0,
+            "original_output": {"symbol_label": "VAV-1"},
+        }
+    )
+    assert ok.status_code == 200
+    stored = _stored(ok.json()["feedback_id"])
+    assert stored["training_eligible"] == 0
+    assert stored["crop_storage_relpath"] is not None
+    assert (tmp_path / stored["crop_storage_relpath"]).is_file()
+    assert stored["original_output_json"] is not None
+
+    # Omitted original_output stays NULL (never the fabricated "{}").
+    minimal = _post({**base, "action": "ACCEPT"})
+    assert minimal.status_code == 200
+    assert _stored(minimal.json()["feedback_id"])["original_output_json"] is None
+
+    # Unknown sheet on a known project: event persists, crop skipped (NULL).
+    ghost = _post({**base, "sheet_id": "no_such_sheet", "action": "REJECT"})
+    assert ghost.status_code == 200
+    assert _stored(ghost.json()["feedback_id"])["crop_storage_relpath"] is None
+
+    # Unknown project: 404, nothing persisted.
+    orphan = _post({**base, "project_id": "no_such_proj", "action": "ACCEPT"})
+    assert orphan.status_code == 404
+
+    # Degenerate bbox (zero area) is a 422 and persists nothing.
+    bad = _post({**base, "action": "ACCEPT", "bounding_box_pt": [10.0, 10.0, 10.0, 200.0]})
+    assert bad.status_code == 422
+
+    # Negative page_index is a 422.
+    bad_page = _post(
+        {
+            **base,
+            "action": "ACCEPT",
+            "bounding_box_pt": [10.0, 10.0, 200.0, 200.0],
+            "page_index": -1,
+        }
+    )
+    assert bad_page.status_code == 422

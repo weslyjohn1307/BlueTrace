@@ -25,7 +25,7 @@ import type {
   TakeoffRecord,
 } from '../api/contracts';
 import { mapReconcileGhostPins, pinFocusCoords } from './utils/reconcilePins';
-import { logAcceptTelemetry, logMoveTelemetry, logRejectTelemetry } from './utils/reviewTelemetry';
+import { debugSkipUnknownItem, logAcceptTelemetry, logRejectTelemetry, logReviewTelemetry } from './utils/reviewTelemetry';
 
 type RightTab = 'ledger' | 'schedule';
 type SheetPanelMode = 'tree' | 'filmstrip';
@@ -146,13 +146,24 @@ export const TakeoffWorkspace: React.FC = () => {
 
   const handlePlaceGhostPin = (ghostId: string, pagePoint: [number, number]) => {
     if (state.projectName && state.activeSheetId) {
-      logMoveTelemetry({
-        projectId: state.projectName,
-        sheetId: state.activeSheetId,
-        itemId: ghostId,
-        previousStatus: 'SUGGESTED',
-        pagePoint,
-      });
+      // Placing a ghost pin IS an accept: the scheduled equipment is confirmed
+      // at this plan location, so the event is ACCEPT/ACCEPTED (never CORRECT).
+      const prevPin = ghostPins.find((p) => p.id === ghostId || p.tag === ghostId);
+      if (!prevPin || !prevPin.status) {
+        debugSkipUnknownItem(ghostId, 'ACCEPT');
+      } else {
+        logAcceptTelemetry({
+          projectId: state.projectName,
+          sheetId: state.activeSheetId,
+          itemId: ghostId,
+          previousStatus: prevPin.status,
+          pageIndex: activeSheet?.pageIndex ?? null,
+          originalOutput: prevPin
+            ? { tag: prevPin.tag, system: prevPin.system ?? null }
+            : null,
+          correctedOutput: { page_point: pagePoint },
+        });
+      }
     }
     setGhostPins((prev) =>
       prev.map((pin) =>
@@ -417,7 +428,14 @@ export const TakeoffWorkspace: React.FC = () => {
   }, []);
 
   const handleCorrectionSubmit = useCallback(
-    async (payload: CorrectionSubmitPayload) => {
+    async (
+      payload: CorrectionSubmitPayload,
+      context: {
+        projectId: string | null;
+        sheetId: string | null;
+        item: TakeoffRecord | null;
+      },
+    ) => {
       setCorrectionSubmitting(true);
       setCorrectionError(null);
       try {
@@ -427,6 +445,36 @@ export const TakeoffWorkspace: React.FC = () => {
           originalProposal: payload.originalProposal,
           correctedValues: payload.correctedValues,
         });
+        // CORRECT is reserved for explicit CorrectionModal submits: the
+        // reviewer overrode the proposal, so the event carries both sides.
+        // Ghost-pin placement is an ACCEPT and never logs here.
+        if (context.projectId && context.sheetId) {
+          if (!context.item) {
+            debugSkipUnknownItem(payload.itemId, 'CORRECT');
+          } else {
+            logReviewTelemetry({
+              projectId: context.projectId,
+              sheetId: context.sheetId,
+              itemId: payload.itemId,
+              action: 'CORRECT',
+              previousStatus: context.item.status,
+              newStatus: 'CORRECTED',
+              originalOutput: {
+                dimension_label: payload.originalProposal.dimensionLabel,
+                cfm: payload.originalProposal.cfm,
+                system: payload.originalProposal.system,
+                category: payload.originalProposal.category,
+              },
+              correctedOutput: {
+                dimension_label: payload.correctedValues.dimensionLabel,
+                cfm: payload.correctedValues.cfm,
+                system: payload.correctedValues.system,
+                category: payload.correctedValues.category,
+              },
+              correctionReason: payload.reason,
+            });
+          }
+        }
         setCorrectingItem(null);
         await refreshLedger();
       } catch (err) {
@@ -456,9 +504,10 @@ export const TakeoffWorkspace: React.FC = () => {
     [state.projectName]
   );
 
-  // Rehydrated sessions carry no pdf bytes (the sheets table stores metadata
-  // only), so a restored sheet has pdfPath ''. Never fabricate a path: show
-  // an explicit re-open prompt instead of a broken image request.
+  // Rehydrated sessions carry no pdf bytes until the sheet row's stored
+  // pdf_path resolves (persisted at scan time for feedback crops); a restored
+  // sheet with an empty pdfPath shows an explicit re-open prompt instead of a
+  // broken image request. Never fabricate a path.
   const sheetImageAvailable = activeSheet !== null && activeSheet.pdfPath !== '';
 
   // Global Keyboard Shortcuts ([, ], Cmd+K, Esc, Enter)
@@ -787,15 +836,19 @@ export const TakeoffWorkspace: React.FC = () => {
                       const item = state.items.find((i) => i.item_id === id);
                       void setItemStatus(id, 'ACCEPTED');
                       if (state.projectName && state.activeSheetId) {
-                        logAcceptTelemetry({
-                          projectId: state.projectName,
-                          sheetId: state.activeSheetId,
-                          itemId: id,
-                          previousStatus: item?.status ?? 'SUGGESTED',
-                          originalOutput: item
-                            ? { dimension_label: item.dimension_label, system: item.system }
-                            : null,
-                        });
+                        if (!item) {
+                          debugSkipUnknownItem(id, 'ACCEPT');
+                        } else {
+                          logAcceptTelemetry({
+                            projectId: state.projectName,
+                            sheetId: state.activeSheetId,
+                            itemId: id,
+                            previousStatus: item.status,
+                            originalOutput: item
+                              ? { dimension_label: item.dimension_label, system: item.system }
+                              : null,
+                          });
+                        }
                       }
                     }}
                     onReject={(id) => {
@@ -806,16 +859,20 @@ export const TakeoffWorkspace: React.FC = () => {
                           : null;
                       void setItemStatus(id, 'REJECTED');
                       if (state.projectName && state.activeSheetId) {
-                        logRejectTelemetry({
-                          projectId: state.projectName,
-                          sheetId: state.activeSheetId,
-                          itemId: id,
-                          previousStatus: item?.status ?? 'SUGGESTED',
-                          originalOutput: item
-                            ? { dimension_label: item.dimension_label, system: item.system }
-                            : null,
-                          reason: reason?.trim() ? reason.trim() : null,
-                        });
+                        if (!item) {
+                          debugSkipUnknownItem(id, 'REJECT');
+                        } else {
+                          logRejectTelemetry({
+                            projectId: state.projectName,
+                            sheetId: state.activeSheetId,
+                            itemId: id,
+                            previousStatus: item.status,
+                            originalOutput: item
+                              ? { dimension_label: item.dimension_label, system: item.system }
+                              : null,
+                            reason: reason?.trim() ? reason.trim() : null,
+                          });
+                        }
                       }
                     }}
                     onCorrect={(id) => {
@@ -881,7 +938,13 @@ export const TakeoffWorkspace: React.FC = () => {
           }}
           isSubmitting={correctionSubmitting}
           submitError={correctionError}
-          onSubmit={(payload) => void handleCorrectionSubmit(payload)}
+          onSubmit={(payload) =>
+            void handleCorrectionSubmit(payload, {
+              projectId: state.projectName,
+              sheetId: state.activeSheetId,
+              item: correctingItem,
+            })
+          }
           onCancel={handleCorrectionCancel}
         />
       )}

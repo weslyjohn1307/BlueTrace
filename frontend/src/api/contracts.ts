@@ -351,6 +351,8 @@ export interface FeedbackEventPayload {
   correction_reason?: string | null;
   /** [x0, y0, x1, y1] in PDF points. */
   bounding_box_pt?: [number, number, number, number] | null;
+  /** Page inside the sheet PDF the bbox refers to. */
+  page_index?: number | null;
   model_version?: string | null;
   prompt_version?: string | null;
   reviewer_session_id?: string | null;

@@ -461,6 +461,106 @@ async def test_project_session_viewport_scale_must_be_positive(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_feedback_null_original_project_guard_and_pdf_path(tmp_path: Path):
+    """MED#7/HIGH#3: None original stays NULL; project_exists; pdf_path round-trips."""
+    store = TakeoffStore(db_path=tmp_path / "test_feedback_nulls.sqlite3")
+    await store.initialize()
+
+    assert await store.project_exists("ghost_proj") is False
+    await store.insert_project("p_null", "Null Project")
+    assert await store.project_exists("p_null") is True
+
+    await store.insert_sheet(
+        sheet_id="sheet_null",
+        project_id="p_null",
+        page_index=3,
+        sheet_number="M-1",
+        sheet_title="Plan",
+        discipline="MECHANICAL",
+        scale_raw=None,
+        scale_ratio=None,
+        scale_status="UNVERIFIED",
+        width_pt=612.0,
+        height_pt=792.0,
+        pdf_path="fixtures/mechanical/avexis_page_22.pdf",
+    )
+    sheet = await store.get_sheet("sheet_null")
+    assert sheet is not None
+    assert sheet["pdf_path"] == "fixtures/mechanical/avexis_page_22.pdf"
+
+    feedback_id = await store.record_feedback_event(
+        project_id="p_null",
+        sheet_id="sheet_null",
+        task_type="SYMBOL_DETECTION",
+        action="ACCEPT",
+        previous_status="SUGGESTED",
+        new_status="ACCEPTED",
+    )
+    fetched = await store.get_feedback_event(feedback_id)
+    assert fetched is not None
+    assert fetched["original_output_json"] is None
+    assert fetched["crop_storage_relpath"] is None
+
+
+@pytest.mark.asyncio
+async def test_legacy_feedback_db_migrates_to_nullable_original(tmp_path: Path):
+    """MED#7 migration: pre-slice DBs (NOT NULL original, no pdf_path) upgrade."""
+    import aiosqlite
+
+    db_file = tmp_path / "legacy.sqlite3"
+    async with aiosqlite.connect(db_file) as db:
+        await db.execute(
+            "CREATE TABLE projects (project_id TEXT PRIMARY KEY, name TEXT NOT NULL, "
+            "package_hash_sha256 TEXT NOT NULL DEFAULT '', file_size_bytes INTEGER, "
+            "created_at TEXT NOT NULL)"
+        )
+        await db.execute(
+            "CREATE TABLE sheets (sheet_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, "
+            "page_index INTEGER NOT NULL, sheet_number TEXT NOT NULL, "
+            "sheet_title TEXT NOT NULL, discipline TEXT NOT NULL, scale_raw TEXT, "
+            "scale_ratio REAL, scale_status TEXT NOT NULL, width_pt REAL NOT NULL, "
+            "height_pt REAL NOT NULL, created_at TEXT NOT NULL)"
+        )
+        await db.execute(
+            "CREATE TABLE engineer_feedback_events (feedback_id TEXT PRIMARY KEY, "
+            "project_id TEXT NOT NULL, sheet_id TEXT NOT NULL, item_id TEXT, "
+            "task_type TEXT NOT NULL, action TEXT NOT NULL, previous_status TEXT NOT NULL, "
+            "new_status TEXT NOT NULL, original_output_json TEXT NOT NULL, "
+            "corrected_output_json TEXT, correction_reason TEXT, "
+            "bounding_box_pt_json TEXT, crop_storage_relpath TEXT, model_version TEXT, "
+            "prompt_version TEXT, reviewer_session_id TEXT, "
+            "training_eligible INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)"
+        )
+        await db.execute(
+            "INSERT INTO engineer_feedback_events (feedback_id, project_id, sheet_id, "
+            "task_type, action, previous_status, new_status, original_output_json, "
+            "training_eligible, created_at) VALUES "
+            "('fb-legacy', 'p', 's', 'SYMBOL_DETECTION', 'ACCEPT', 'SUGGESTED', "
+            "'ACCEPTED', '{}', 0, '2026-01-01T00:00:00Z')"
+        )
+        await db.commit()
+
+    store = TakeoffStore(db_path=db_file)
+    await store.initialize()
+    # Re-initialize is idempotent after migration.
+    await store.initialize()
+
+    row = await store.get_feedback_event("fb-legacy")
+    assert row is not None
+    assert row["original_output_json"] is None
+    # New writes accept NULL originals on the migrated schema.
+    fid = await store.record_feedback_event(
+        project_id="p",
+        sheet_id="s",
+        task_type="SYMBOL_DETECTION",
+        action="REJECT",
+        previous_status="SUGGESTED",
+        new_status="REJECTED",
+    )
+    assert (await store.get_feedback_event(fid))["original_output_json"] is None
+
+
+@pytest.mark.asyncio
 async def test_feedback_events_schema(tmp_path: Path):
     """FDBK-001: feedback tuples persist with training_eligible == 0."""
     import json
