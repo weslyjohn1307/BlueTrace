@@ -30,6 +30,8 @@ from src.models.schemas import (
     DimensionExtraction,
     MetaFileUploadRequest,
     MetaFileUploadResponse,
+    ProjectSummaryResponse,
+    SessionStatePayload,
     SheetMetadata,
     UploadResponse,
 )
@@ -708,6 +710,65 @@ async def stream_copilot(
         yield f"data: {json.dumps(terminal_payload)}\n\n"
 
     return StreamingResponse(sse_event_generator(), media_type="text/event-stream")
+
+
+# ---------------------------------------------------------
+# Project Sessions & Rehydration Endpoints (Gap 4)
+# ---------------------------------------------------------
+
+
+@router.get("/projects", response_model=list[ProjectSummaryResponse])
+async def list_projects(store: TakeoffStoreDep):
+    """List all projects with sheet/item counts and last session timestamp."""
+    projects = await store.list_projects()
+    return [ProjectSummaryResponse(**entry) for entry in projects]
+
+
+@router.get("/projects/{project_id}/session")
+async def get_project_session(project_id: str, store: TakeoffStoreDep):
+    """Return consolidated rehydration payload (session, sheets, summary).
+
+    Fail-closed: unknown projects yield HTTP 404 and never auto-create rows
+    through this read path beyond the session default row for known projects.
+    """
+    try:
+        session = await store.get_or_create_session(project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    sheets = await store.list_sheets(project_id)
+    summary = await store.get_ledger_summary(project_id=project_id)
+    return {
+        "session": session,
+        "sheets": sheets,
+        "summary": [row.model_dump() for row in summary],
+    }
+
+
+@router.put("/projects/{project_id}/session")
+async def save_project_session(
+    project_id: str, body: SessionStatePayload, store: TakeoffStoreDep
+):
+    """Persist viewport coordinates and tool state for a project session.
+
+    Fail-closed: unknown projects yield HTTP 404; invalid payloads are
+    rejected by schema validation (422) before anything is persisted.
+    """
+    if body.project_id and body.project_id != project_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Path project_id '{project_id}' does not match body '{body.project_id}'.",
+        )
+    state = body.model_dump()
+    state["project_id"] = project_id
+    try:
+        await store.save_session_state(project_id, state)
+    except ValueError as e:
+        message = str(e)
+        if message.startswith("Unknown project_id"):
+            raise HTTPException(status_code=404, detail=message) from e
+        raise HTTPException(status_code=400, detail=message) from e
+    session = await store.get_or_create_session(project_id)
+    return {"session": session}
 
 
 # ---------------------------------------------------------

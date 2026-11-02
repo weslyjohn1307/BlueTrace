@@ -5,6 +5,9 @@ import type {
   LedgerSummaryRow,
   LegendScanResult,
   PageTextResponse,
+  ProjectSessionResponse,
+  ProjectSessionState,
+  ProjectSummary,
   ReconcileRequest,
   ReconciliationReport,
   ScheduleParseResponse,
@@ -416,6 +419,32 @@ export function createApiClient(config: ApiClientConfig = {}) {
       if (params?.sheet_id) sp.set('sheet_id', params.sheet_id);
       const qs = sp.toString() ? `?${sp.toString()}` : '';
       return requestBlob(`/api/takeoff/export/json${qs}`, 'application/json');
+    },
+
+    async listProjects(signal?: AbortSignal): Promise<ProjectSummary[]> {
+      return request<ProjectSummary[]>('/api/projects', { signal });
+    },
+
+    async getProjectSession(projectId: string, signal?: AbortSignal): Promise<ProjectSessionResponse> {
+      return request<ProjectSessionResponse>(
+        `/api/projects/${encodeURIComponent(projectId)}/session`,
+        { signal }
+      );
+    },
+
+    async saveProjectSession(
+      projectId: string,
+      state: Partial<ProjectSessionState>,
+      signal?: AbortSignal
+    ): Promise<{ session: ProjectSessionState }> {
+      return request<{ session: ProjectSessionState }>(
+        `/api/projects/${encodeURIComponent(projectId)}/session`,
+        {
+          method: 'PUT',
+          body: { project_id: projectId, ...state },
+          signal,
+        }
+      );
     },
 
     async configureByok(

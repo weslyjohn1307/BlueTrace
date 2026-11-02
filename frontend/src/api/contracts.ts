@@ -153,6 +153,37 @@ export interface ByokResponse {
   session_id?: string | null;
 }
 
+export type SessionToolMode = 'select' | 'pan' | 'quickdraw' | 'segment' | 'calibrate';
+
+export interface ProjectSessionState {
+  session_id: string;
+  project_id: string;
+  active_sheet_id?: string | null;
+  viewport_scale: number;
+  viewport_tx: number;
+  viewport_ty: number;
+  selected_pin_id?: string | null;
+  active_tool_mode: SessionToolMode;
+  discipline_filter: string;
+  search_query: string;
+  updated_at: string;
+}
+
+export interface ProjectSummary {
+  project_id: string;
+  name: string;
+  created_at: string;
+  sheet_count: number;
+  item_count: number;
+  updated_at?: string | null;
+}
+
+export interface ProjectSessionResponse {
+  session: ProjectSessionState;
+  sheets: SheetMetadata[];
+  summary: LedgerSummaryRow[];
+}
+
 export type DiscrepancyStatus =
   | 'MATCHED'
   | 'UNDERCOUNT'

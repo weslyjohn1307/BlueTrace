@@ -228,3 +228,101 @@ def test_upload_rejects_fake_pdf(client: TestClient):
         headers={"Content-Type": "application/pdf"},
     )
     assert res.status_code == 400
+
+
+def test_project_session_endpoints(client: TestClient):
+    # Unknown project fails closed with 404 on both read and write paths.
+    missing = client.get("/api/projects/missing_proj/session")
+    assert missing.status_code == 404
+    missing_put = client.put(
+        "/api/projects/missing_proj/session",
+        json={
+            "project_id": "missing_proj",
+            "viewport_scale": 1.0,
+            "viewport_tx": 0.0,
+            "viewport_ty": 0.0,
+            "active_tool_mode": "select",
+        },
+    )
+    assert missing_put.status_code == 404
+
+    # Seed a project with one sheet through the store-backed scan path.
+    scan = client.post(
+        "/api/sheet-scan",
+        json={
+            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "page_index": 0,
+            "project_id": "sess_proj",
+        },
+    )
+    assert scan.status_code == 200
+    sheet_id = scan.json()["sheet_id"]
+
+    projects = client.get("/api/projects")
+    assert projects.status_code == 200
+    entry = next(p for p in projects.json() if p["project_id"] == "sess_proj")
+    assert entry["sheet_count"] >= 1
+
+    # Defaults on first read.
+    first = client.get("/api/projects/sess_proj/session")
+    assert first.status_code == 200
+    body = first.json()
+    assert body["session"]["viewport_scale"] == 1.0
+    assert body["session"]["project_id"] == "sess_proj"
+    assert any(s["sheet_id"] == sheet_id for s in body["sheets"])
+    assert "summary" in body
+
+    # Save viewport coordinates and tool mode.
+    saved = client.put(
+        "/api/projects/sess_proj/session",
+        json={
+            "project_id": "sess_proj",
+            "active_sheet_id": sheet_id,
+            "viewport_scale": 1.45,
+            "viewport_tx": 240.0,
+            "viewport_ty": -120.0,
+            "active_tool_mode": "pan",
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.json()["session"]["viewport_scale"] == 1.45
+
+    # Re-read returns the persisted viewport and active sheet.
+    reread = client.get("/api/projects/sess_proj/session")
+    assert reread.status_code == 200
+    session = reread.json()["session"]
+    assert session["viewport_scale"] == 1.45
+    assert session["viewport_tx"] == 240.0
+    assert session["viewport_ty"] == -120.0
+    assert session["active_sheet_id"] == sheet_id
+
+
+def test_project_session_viewport_scale_rejected(client: TestClient):
+    """Fail-closed: viewport_scale <= 0 is a 422 and persists nothing (WS4 MEDIUM1)."""
+    scan = client.post(
+        "/api/sheet-scan",
+        json={
+            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "page_index": 0,
+            "project_id": "sess_scale_proj",
+        },
+    )
+    assert scan.status_code == 200
+
+    for bad_scale in (0.0, -1.45):
+        rejected = client.put(
+            "/api/projects/sess_scale_proj/session",
+            json={
+                "project_id": "sess_scale_proj",
+                "viewport_scale": bad_scale,
+                "viewport_tx": 240.0,
+                "viewport_ty": -120.0,
+                "active_tool_mode": "pan",
+            },
+        )
+        assert rejected.status_code == 422
+
+    # The rejected writes persisted nothing: defaults are untouched.
+    reread = client.get("/api/projects/sess_scale_proj/session")
+    assert reread.status_code == 200
+    assert reread.json()["session"]["viewport_scale"] == 1.0

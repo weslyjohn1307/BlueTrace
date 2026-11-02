@@ -85,6 +85,22 @@ export interface SheetCanvasProps {
   onSelectPin?: (pin: CanvasPin) => void;
   onPlaceGhostPin?: (ghostId: string, pagePoint: [number, number]) => void;
   focusTarget?: { x: number; y: number; zoom?: number; timestamp?: number } | null;
+  /** When set, manual pan/zoom transforms are debounced-persisted to the project session. */
+  projectId?: string | null;
+  /** Test seam / custom sink for the debounced viewport payload. Defaults to the session PUT. */
+  onViewportSave?: (viewport: {
+    viewport_scale: number;
+    viewport_tx: number;
+    viewport_ty: number;
+  }) => void | Promise<unknown>;
+  /** Restored viewport from the project session. Applied on mount and when
+   *  the sheet image changes; invalid values fall back to fit (null-safe). */
+  initialTransform?: {
+    scale: number;
+    translationX: number;
+    translationY: number;
+    mode?: TransformState['mode'];
+  } | null;
 }
 
 const SYSTEM_RUN_COLORS: Record<string, string> = {
@@ -119,8 +135,35 @@ function getPinFill(pin: CanvasPin): string {
 }
 
 const HOVER_DEBOUNCE_MS = 400;
+
+function isValidInitialTransform(
+  value: SheetCanvasProps['initialTransform']
+): value is { scale: number; translationX: number; translationY: number; mode?: TransformState['mode'] } {
+  if (!value || typeof value !== 'object') return false;
+  return (
+    Number.isFinite(value.scale) &&
+    (value.scale as number) > 0 &&
+    Number.isFinite(value.translationX) &&
+    Number.isFinite(value.translationY)
+  );
+}
+
+function initialTransformOrFit(
+  value: SheetCanvasProps['initialTransform']
+): TransformState {
+  if (isValidInitialTransform(value)) {
+    return {
+      scale: value.scale,
+      translationX: value.translationX,
+      translationY: value.translationY,
+      mode: 'manual',
+    };
+  }
+  return { scale: 1, translationX: 0, translationY: 0, mode: 'fit' };
+}
 const CROP_WINDOW_PT = 150;
 const CROP_OUTPUT_PX = 312;
+const VIEWPORT_AUTOSAVE_DEBOUNCE_MS = 300;
 
 export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   imageUrl,
@@ -137,10 +180,13 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   onSelectPin,
   onPlaceGhostPin,
   focusTarget,
+  projectId,
+  onViewportSave,
+  initialTransform,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const [transform, setTransform] = useState<TransformState>({ scale: 1, translationX: 0, translationY: 0, mode: 'fit' });
+  const [transform, setTransform] = useState<TransformState>(() => initialTransformOrFit(initialTransform));
   const [cursor, setCursor] = useState<{ screen: Point; page: Point } | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -160,6 +206,118 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   const transformRef = useRef(transform);
   transformRef.current = transform;
   cursorRef.current = cursor;
+
+  // Debounced viewport autosave (Gap 4): persist manual pan/zoom to the
+  // project session 300ms after interaction settles. Fit transforms are
+  // computed (not user intent) and the mount run is skipped, so opening a
+  // sheet never writes. Only the final settled coordinates reach the PUT.
+  // A restored session transform is applied with the same skip so the
+  // restore itself never echoes a PUT. A pending save is flushed
+  // synchronously on unmount / sheet change before the timer is cancelled.
+  const viewportSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const viewportAutosavePrimedRef = useRef(false);
+  const viewportRestoreSuppressRef = useRef(false);
+  const viewportPendingRef = useRef<{
+    viewport_scale: number;
+    viewport_tx: number;
+    viewport_ty: number;
+  } | null>(null);
+
+  const fireViewportSave = useCallback(
+    (snapshot: { viewport_scale: number; viewport_tx: number; viewport_ty: number }) => {
+      try {
+        if (onViewportSave) {
+          void onViewportSave(snapshot);
+        } else if (projectId) {
+          void apiClient.saveProjectSession(projectId, snapshot);
+        }
+      } catch {
+        // Autosave is best-effort; a failed PUT must never break canvas input.
+      }
+    },
+    [onViewportSave, projectId]
+  );
+
+  // Restore the saved session viewport when the sheet image changes (mount
+  // counts as the first sheet). The restore sets the suppress flag so the
+  // autosave effect below skips the restored coordinates instead of PUT-ing
+  // them back. Invalid / absent restores fall back to fit.
+  const initialTransformSignature = isValidInitialTransform(initialTransform)
+    ? `${initialTransform.scale}|${initialTransform.translationX}|${initialTransform.translationY}`
+    : 'fit';
+  const restoreActiveRef = useRef(false);
+
+  useEffect(() => {
+    if (!viewportAutosavePrimedRef.current) {
+      viewportAutosavePrimedRef.current = true;
+      // A mount-time restore sets the suppress flag before the prime run;
+      // consume it here so the user's first real pan is not swallowed.
+      viewportRestoreSuppressRef.current = false;
+      return;
+    }
+    if (viewportRestoreSuppressRef.current) {
+      viewportRestoreSuppressRef.current = false;
+      return;
+    }
+    if (!projectId && !onViewportSave) {
+      viewportPendingRef.current = null;
+      return;
+    }
+    if (transform.mode !== 'manual') {
+      // Settled on a computed fit: nothing worth persisting, drop pendings.
+      viewportPendingRef.current = null;
+      return;
+    }
+    if (viewportSaveTimerRef.current) clearTimeout(viewportSaveTimerRef.current);
+    const snapshot = {
+      viewport_scale: transform.scale,
+      viewport_tx: transform.translationX,
+      viewport_ty: transform.translationY,
+    };
+    viewportPendingRef.current = snapshot;
+    viewportSaveTimerRef.current = setTimeout(() => {
+      viewportSaveTimerRef.current = null;
+      viewportPendingRef.current = null;
+      fireViewportSave(snapshot);
+    }, VIEWPORT_AUTOSAVE_DEBOUNCE_MS);
+    // NOTE: no flush here — this cleanup also runs between rapid pans, where
+    // flushing would defeat the debounce. Sheet-change/unmount flushing lives
+    // in the dedicated effect below.
+    return () => {
+      if (viewportSaveTimerRef.current) clearTimeout(viewportSaveTimerRef.current);
+    };
+  }, [
+    transform.scale,
+    transform.translationX,
+    transform.translationY,
+    transform.mode,
+    projectId,
+    onViewportSave,
+    fireViewportSave,
+  ]);
+
+  // Flush-on-teardown: an unmount or sheet change fires the final pending
+  // coordinates immediately instead of dropping them with the timer. Deps are
+  // image-only (via a ref to the saver) so rapid pan re-renders never flush.
+  const fireViewportSaveRef = useRef(fireViewportSave);
+  fireViewportSaveRef.current = fireViewportSave;
+  useEffect(() => {
+    return () => {
+      if (viewportSaveTimerRef.current) {
+        clearTimeout(viewportSaveTimerRef.current);
+        viewportSaveTimerRef.current = null;
+      }
+      const pending = viewportPendingRef.current;
+      viewportPendingRef.current = null;
+      if (pending) {
+        try {
+          void fireViewportSaveRef.current(pending);
+        } catch {
+          // Best-effort flush; never break teardown.
+        }
+      }
+    };
+  }, [imageUrl]);
 
   const fitToContainer = useCallback(() => {
     const el = containerRef.current;
@@ -186,14 +344,41 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
     );
   }, [focusTarget, widthPt, heightPt]);
 
-  // Refit when the sheet image changes; track container resizes.
+  // Refit when the sheet image changes; track container resizes. A valid
+  // session restore takes precedence over fit and arms the onLoad guard so
+  // the image load event does not stomp the restored viewport with a fit.
+  // The autosave suppress flag is set only when the restore actually moves
+  // the transform: on mount the initializer already applied it, and setting
+  // the flag then would swallow the user's first real pan (same values mean
+  // the autosave effect never re-runs, so no echo is possible anyway).
   useEffect(() => {
     setImgLoaded(false);
     setImgError(false);
     setCursor(null);
     setSegmentedPolygons([]);
-    fitToContainer();
-  }, [imageUrl, fitToContainer]);
+    if (isValidInitialTransform(initialTransform)) {
+      restoreActiveRef.current = true;
+      const current = transformRef.current;
+      if (
+        current.scale !== initialTransform.scale ||
+        current.translationX !== initialTransform.translationX ||
+        current.translationY !== initialTransform.translationY ||
+        current.mode !== 'manual'
+      ) {
+        viewportRestoreSuppressRef.current = true;
+        setTransform({
+          scale: initialTransform.scale,
+          translationX: initialTransform.translationX,
+          translationY: initialTransform.translationY,
+          mode: 'manual',
+        });
+      }
+    } else {
+      restoreActiveRef.current = false;
+      fitToContainer();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUrl, initialTransformSignature, fitToContainer]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -659,7 +844,13 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
         draggable={false}
         onLoad={() => {
           setImgLoaded(true);
-          fitToContainer();
+          // A restored session viewport already positions the sheet; the
+          // load-time fit only applies to fresh (non-restored) sheets.
+          if (restoreActiveRef.current) {
+            restoreActiveRef.current = false;
+          } else {
+            fitToContainer();
+          }
         }}
         onError={() => setImgError(true)}
         className="absolute left-0 top-0 max-w-none"

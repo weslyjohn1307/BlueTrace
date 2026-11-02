@@ -294,8 +294,7 @@ export const TakeoffWorkspace: React.FC = () => {
     }
   };
 
-  const acceptBadge = useCallback(async () => {
-    if (!badge || !badgeCursor || !activeSheet || badge.review_required) return;
+  const acceptBadge = useCallback(async () => {    if (!badge || !badgeCursor || !activeSheet || badge.review_required) return;
     const parsed = badge.parsed_dimension;
     const label = parsed
       ? `${parsed.width_in}${parsed.height_in ? `x${parsed.height_in}` : ''} ${parsed.shape === 'ROUND' ? 'Round' : 'Rectangular'} Duct`
@@ -320,6 +319,22 @@ export const TakeoffWorkspace: React.FC = () => {
       setBadge(null);
     }
   }, [badge, badgeCursor, activeSheet, state.projectName, refreshLedger]);
+
+  // Viewport autosave sink: SheetCanvas debounces manual pan/zoom and calls
+  // this with the settled coordinates; the PUT restores on next launch.
+  const handleViewportSave = useCallback(
+    (viewport: { viewport_scale: number; viewport_tx: number; viewport_ty: number }) => {
+      const pid = state.projectName;
+      if (!pid) return Promise.resolve();
+      return apiClient.saveProjectSession(pid, viewport).then(() => undefined);
+    },
+    [state.projectName]
+  );
+
+  // Rehydrated sessions carry no pdf bytes (the sheets table stores metadata
+  // only), so a restored sheet has pdfPath ''. Never fabricate a path: show
+  // an explicit re-open prompt instead of a broken image request.
+  const sheetImageAvailable = activeSheet !== null && activeSheet.pdfPath !== '';
 
   // Global Keyboard Shortcuts ([, ], Cmd+K, Esc, Enter)
   useEffect(() => {
@@ -505,6 +520,19 @@ export const TakeoffWorkspace: React.FC = () => {
 
             {/* Canvas Viewport */}
             <div className="flex-1 relative" style={{ minHeight: 0 }}>
+              {!sheetImageAvailable ? (
+                <div
+                  role="alert"
+                  className="absolute inset-0 flex flex-col items-center justify-center space-y-2 text-center px-6"
+                >
+                  <p className="text-slate-200 text-sm font-mono font-semibold">
+                    Session restored — page images need the source PDF.
+                  </p>
+                  <p className="text-slate-400 text-xs font-mono">
+                    Re-open the PDF to restore page images. Ledger, sheets, and viewport state are intact.
+                  </p>
+                </div>
+              ) : (
               <SheetCanvas
                 imageUrl={apiClient.getPageImageUrl(activeSheet.pdfPath, activeSheet.pageIndex, 150)}
                 widthPt={activeSheet.meta.width_pt}
@@ -515,6 +543,9 @@ export const TakeoffWorkspace: React.FC = () => {
                 scaleRatio={activeSheet.meta.scale_ratio ?? undefined}
                 discipline={activeSheet.meta.discipline}
                 selectedPinId={selectedPinId}
+                projectId={state.projectName || null}
+                onViewportSave={handleViewportSave}
+                initialTransform={state.initialTransform}
                 onSelectPin={(pin) => {
                   setSelectedPinId(pin.id);
                   const focus = pinFocusCoords(pin);
@@ -540,6 +571,7 @@ export const TakeoffWorkspace: React.FC = () => {
                   ) : null
                 }
               />
+              )}
             </div>
           </section>
 

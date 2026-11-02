@@ -1,14 +1,56 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient, ApiError } from '../../api/client';
 import type { LedgerSummaryRow, SheetMetadata, TakeoffRecord } from '../../api/contracts';
 
 export type SessionStage = 'idle' | 'uploading' | 'scanning' | 'ready' | 'failed';
+
+export interface ViewportTransform {
+  scale: number;
+  translationX: number;
+  translationY: number;
+  mode: 'manual';
+}
+
+export const ACTIVE_PROJECT_SLOT = 'bluetrace_active_project';
+
+function readSavedProjectId(): string | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_PROJECT_SLOT);
+    const cleaned = (raw ?? '').trim();
+    return cleaned ? cleaned : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberProjectId(projectId: string): void {
+  try {
+    localStorage.setItem(ACTIVE_PROJECT_SLOT, projectId);
+  } catch {
+    // Storage is best-effort; rehydration simply won't trigger next launch.
+  }
+}
 
 export interface ScannedSheet {
   pdfPath: string;
   fileName: string;
   pageIndex: number;
   meta: SheetMetadata;
+}
+
+/** Fail-closed viewport restore: only finite scale>0 with finite tx/ty
+ *  becomes a manual transform; anything else falls back to fit (null). */
+export function toRestoredTransform(session: {
+  viewport_scale: unknown;
+  viewport_tx: unknown;
+  viewport_ty: unknown;
+}): ViewportTransform | null {
+  const scale = Number(session.viewport_scale);
+  const tx = Number(session.viewport_tx);
+  const ty = Number(session.viewport_ty);
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+  if (!Number.isFinite(tx) || !Number.isFinite(ty)) return null;
+  return { scale, translationX: tx, translationY: ty, mode: 'manual' };
 }
 
 export interface TakeoffSessionState {
@@ -22,6 +64,7 @@ export interface TakeoffSessionState {
   backendOnline: boolean;
   aiConfigured: boolean;
   error: string | null;
+  initialTransform: ViewportTransform | null;
 }
 
 const EMPTY_STATE: TakeoffSessionState = {
@@ -35,6 +78,7 @@ const EMPTY_STATE: TakeoffSessionState = {
   backendOnline: false,
   aiConfigured: false,
   error: null,
+  initialTransform: null,
 };
 
 function projectNameFromFile(name: string): string {
@@ -76,6 +120,60 @@ export function useTakeoffSession() {
     },
     []
   );
+
+  const rehydrateProject = useCallback(async (projectId: string) => {
+    const cleaned = projectId.trim();
+    if (!cleaned) return null;
+    setState((prev) => ({ ...prev, stage: 'scanning', error: null }));
+    try {
+      const payload = await apiClient.getProjectSession(cleaned);
+      const sheets: ScannedSheet[] = payload.sheets.map((meta) => ({
+        pdfPath: '',
+        fileName: '',
+        pageIndex: meta.page_index,
+        meta,
+      }));
+      const session = payload.session;
+      const activeSheetId =
+        session.active_sheet_id && sheets.some((s) => s.meta.sheet_id === session.active_sheet_id)
+          ? session.active_sheet_id
+          : (sheets[0]?.meta.sheet_id ?? null);
+      setState((prev) => ({
+        ...prev,
+        stage: 'ready',
+        projectName: cleaned,
+        sheets,
+        activeSheetId,
+        summary: payload.summary,
+        items: [],
+        initialTransform: toRestoredTransform(session),
+        error: null,
+      }));
+      rememberProjectId(cleaned);
+      return payload;
+    } catch (err: unknown) {
+      setState((prev) => ({
+        ...prev,
+        stage: 'failed',
+        error: err instanceof Error ? err.message : 'Saved session could not be restored',
+      }));
+      return null;
+    }
+  }, []);
+
+  const rehydrateAttemptedRef = useRef(false);
+
+  // Atomic rehydration on mount: restore the last project, its sheets, the
+  // active sheet, the ledger summary, and the saved canvas transform in one
+  // state transition so the canvas never flickers through a blank session.
+  useEffect(() => {
+    if (rehydrateAttemptedRef.current) return;
+    rehydrateAttemptedRef.current = true;
+    const saved = readSavedProjectId();
+    if (saved) {
+      void rehydrateProject(saved);
+    }
+  }, [rehydrateProject]);
 
   const scanPage = useCallback(
     async (pdfPath: string, fileName: string, pageIndex: number, projectName: string) => {
@@ -130,6 +228,7 @@ export function useTakeoffSession() {
         if (activeSheetId) {
           await refreshLedger(projectName, activeSheetId);
         }
+        rememberProjectId(projectName);
         return result;
       } catch (err: unknown) {
         setState((prev) => ({
@@ -210,6 +309,7 @@ export function useTakeoffSession() {
     openFixture,
     scanPage,
     scanAll,
+    rehydrateProject,
     selectSheet,
     refreshLedger: () => refreshLedger(state.projectName, state.activeSheetId),
     setItemStatus,

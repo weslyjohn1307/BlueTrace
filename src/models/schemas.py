@@ -126,3 +126,44 @@ class MetaFileUploadResponse(BaseModel):
     file_id: str
     filename: str
     status: str = "uploaded"
+
+
+class SessionStatePayload(BaseModel):
+    project_id: str
+    active_sheet_id: str | None = None
+    viewport_scale: float = 1.0
+    viewport_tx: float = 0.0
+    viewport_ty: float = 0.0
+    selected_pin_id: str | None = None
+    active_tool_mode: Literal["select", "pan", "quickdraw", "segment", "calibrate"] = "select"
+    discipline_filter: str = "ALL"
+    search_query: str = ""
+
+    @field_validator("viewport_scale", "viewport_tx", "viewport_ty", mode="before")
+    @classmethod
+    def validate_finite_viewport(cls, v: Any) -> float:
+        try:
+            number = float(v)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Viewport coordinates must be finite numbers.") from exc
+        import math as _math
+
+        if not _math.isfinite(number):
+            raise ValueError("Viewport coordinates must be finite numbers.")
+        return number
+
+    @field_validator("viewport_scale", mode="after")
+    @classmethod
+    def validate_viewport_scale_positive(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("viewport_scale must be greater than 0.")
+        return v
+
+
+class ProjectSummaryResponse(BaseModel):
+    project_id: str
+    name: str
+    created_at: str
+    sheet_count: int = 0
+    item_count: int = 0
+    updated_at: str | None = None

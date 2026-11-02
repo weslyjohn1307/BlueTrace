@@ -373,3 +373,88 @@ async def test_provenance_metadata(tmp_path: Path):
     assert items[0].pipeline_version == expected
     assert items[0].model_version is not None
     assert items[0].prompt_version is not None
+
+
+async def test_project_session_persistence(tmp_path: Path):
+    db_file = tmp_path / "test_session.sqlite3"
+    store = TakeoffStore(db_path=db_file)
+    await store.initialize()
+
+    await store.insert_project("proj_sess_01", "Session Facility")
+
+    # Defaults on first create.
+    session = await store.get_or_create_session("proj_sess_01")
+    assert session["project_id"] == "proj_sess_01"
+    assert session["active_sheet_id"] is None
+    assert session["viewport_scale"] == 1.0
+    assert session["viewport_tx"] == 0.0
+    assert session["viewport_ty"] == 0.0
+    assert session["active_tool_mode"] == "select"
+
+    # Save viewport coordinates.
+    await store.save_session_state(
+        "proj_sess_01",
+        {
+            "active_sheet_id": "sheet_m102",
+            "viewport_scale": 1.45,
+            "viewport_tx": 240.0,
+            "viewport_ty": -120.0,
+            "active_tool_mode": "pan",
+        },
+    )
+    reloaded = await store.get_or_create_session("proj_sess_01")
+    assert reloaded["active_sheet_id"] == "sheet_m102"
+    assert reloaded["viewport_scale"] == 1.45
+    assert reloaded["viewport_tx"] == 240.0
+    assert reloaded["viewport_ty"] == -120.0
+    assert reloaded["active_tool_mode"] == "pan"
+
+    # Fail-closed: unknown project never auto-creates.
+    with pytest.raises(ValueError):
+        await store.get_or_create_session("missing_proj")
+    with pytest.raises(ValueError):
+        await store.save_session_state("missing_proj", {"viewport_scale": 2.0})
+
+    # Fail-closed: non-finite viewport floats and unknown tool modes rejected.
+    with pytest.raises(ValueError):
+        await store.save_session_state("proj_sess_01", {"viewport_scale": float("inf")})
+    with pytest.raises(ValueError):
+        await store.save_session_state("proj_sess_01", {"active_tool_mode": "laser"})
+
+    # Cascade delete removes the session row with its project.
+    import aiosqlite
+
+    async with aiosqlite.connect(db_file) as db:
+        await db.execute("PRAGMA foreign_keys=ON;")
+        await db.execute("DELETE FROM projects WHERE project_id = ?", ("proj_sess_01",))
+        await db.commit()
+        async with db.execute(
+            "SELECT COUNT(*) FROM project_sessions WHERE project_id = ?", ("proj_sess_01",)
+        ) as cur:
+            row = await cur.fetchone()
+            assert row is not None and row[0] == 0
+
+
+async def test_project_session_viewport_scale_must_be_positive(tmp_path: Path):
+    """Fail-closed: non-positive viewport_scale never persists (WS4 MEDIUM1)."""
+    db_file = tmp_path / "test_session_scale.sqlite3"
+    store = TakeoffStore(db_path=db_file)
+    await store.initialize()
+
+    await store.insert_project("proj_sess_scale", "Scale Facility")
+
+    for bad_scale in (0.0, -1.45, float("-inf")):
+        with pytest.raises(ValueError):
+            await store.save_session_state(
+                "proj_sess_scale", {"viewport_scale": bad_scale}
+            )
+
+    # NaN is rejected by the finite-number gate.
+    with pytest.raises(ValueError):
+        await store.save_session_state(
+            "proj_sess_scale", {"viewport_scale": float("nan")}
+        )
+
+    # The failed writes persisted nothing: defaults are untouched.
+    session = await store.get_or_create_session("proj_sess_scale")
+    assert session["viewport_scale"] == 1.0

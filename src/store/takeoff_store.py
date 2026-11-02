@@ -114,6 +114,19 @@ class LedgerSummaryRow(BaseModel):
 
 _METERS_PER_FOOT = 0.3048
 
+_SESSION_DEFAULTS: dict[str, Any] = {
+    "active_sheet_id": None,
+    "viewport_scale": 1.0,
+    "viewport_tx": 0.0,
+    "viewport_ty": 0.0,
+    "selected_pin_id": None,
+    "active_tool_mode": "select",
+    "discipline_filter": "ALL",
+    "search_query": "",
+}
+
+_SESSION_TOOL_MODES = frozenset({"select", "pan", "quickdraw", "segment", "calibrate"})
+
 
 def _polyline_points(result: dict[str, Any]) -> list[list[float]]:
     """Extract finite polyline vertices from either pipeline result shape.
@@ -393,7 +406,26 @@ class TakeoffStore:
             # Create indexes
             await db.execute("CREATE INDEX IF NOT EXISTS idx_takeoff_project ON takeoff_items(project_id);")
             await db.execute("CREATE INDEX IF NOT EXISTS idx_takeoff_sheet ON takeoff_items(sheet_id);")
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_takeoff_status ON takeoff_items(status);")
+            await db.execute("""CREATE INDEX IF NOT EXISTS idx_takeoff_status ON takeoff_items(status);""")
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS project_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    active_sheet_id TEXT,
+                    viewport_scale REAL NOT NULL DEFAULT 1.0,
+                    viewport_tx REAL NOT NULL DEFAULT 0.0,
+                    viewport_ty REAL NOT NULL DEFAULT 0.0,
+                    selected_pin_id TEXT,
+                    active_tool_mode TEXT NOT NULL DEFAULT 'select',
+                    discipline_filter TEXT NOT NULL DEFAULT 'ALL',
+                    search_query TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE
+                );
+            """)
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_project_sessions_project ON project_sessions(project_id);"
+            )
             await db.commit()
 
     async def insert_project(
@@ -484,6 +516,198 @@ class TakeoffStore:
                 if row:
                     return dict(row)
         return None
+
+    def _validate_session_state(self, state: dict[str, Any]) -> None:
+        for key in ("viewport_scale", "viewport_tx", "viewport_ty"):
+            if key in state and state[key] is not None:
+                try:
+                    value = float(state[key])
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"Session field '{key}' must be a finite number.") from exc
+                if not math.isfinite(value):
+                    raise ValueError(f"Session field '{key}' must be a finite number.")
+        if "viewport_scale" in state and state["viewport_scale"] is not None:
+            try:
+                scale_value = float(state["viewport_scale"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Session field 'viewport_scale' must be a finite number.") from exc
+            if not math.isfinite(scale_value) or scale_value <= 0:
+                raise ValueError("Session field 'viewport_scale' must be greater than 0.")
+        tool_mode = state.get("active_tool_mode")
+        if tool_mode is not None and tool_mode not in _SESSION_TOOL_MODES:
+            raise ValueError(
+                "active_tool_mode must be one of select/pan/quickdraw/segment/calibrate."
+            )
+
+    async def _require_project(self, db: Any, project_id: str) -> None:
+        async with db.execute(
+            "SELECT 1 FROM projects WHERE project_id = ?", (project_id,)
+        ) as cur:
+            if await cur.fetchone() is None:
+                raise ValueError(f"Unknown project_id '{project_id}'.")
+
+    async def get_or_create_session(self, project_id: str) -> dict[str, Any]:
+        """Return the persistent session for a project, creating defaults first.
+
+        Fail-closed: unknown projects raise ValueError and never auto-create.
+        """
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            await self._require_project(db, project_id)
+            async with db.execute(
+                "SELECT * FROM project_sessions WHERE project_id = ?", (project_id,)
+            ) as cur:
+                row = await cur.fetchone()
+                if row:
+                    return dict(row)
+            session_id = f"session-{project_id}"
+            now = _utc_now_iso()
+            await db.execute(
+                """
+                INSERT INTO project_sessions (
+                    session_id, project_id, active_sheet_id, viewport_scale,
+                    viewport_tx, viewport_ty, selected_pin_id, active_tool_mode,
+                    discipline_filter, search_query, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(session_id) DO NOTHING
+                """,
+                (
+                    session_id,
+                    project_id,
+                    _SESSION_DEFAULTS["active_sheet_id"],
+                    _SESSION_DEFAULTS["viewport_scale"],
+                    _SESSION_DEFAULTS["viewport_tx"],
+                    _SESSION_DEFAULTS["viewport_ty"],
+                    _SESSION_DEFAULTS["selected_pin_id"],
+                    _SESSION_DEFAULTS["active_tool_mode"],
+                    _SESSION_DEFAULTS["discipline_filter"],
+                    _SESSION_DEFAULTS["search_query"],
+                    now,
+                ),
+            )
+            await db.commit()
+            async with db.execute(
+                "SELECT * FROM project_sessions WHERE project_id = ?", (project_id,)
+            ) as cur:
+                row = await cur.fetchone()
+                assert row is not None
+                return dict(row)
+
+    async def save_session_state(self, project_id: str, state: dict[str, Any]) -> None:
+        """Persist viewport/tool/filter state for a project session.
+
+        Fail-closed: unknown projects raise ValueError; non-finite viewport
+        floats and unknown tool modes raise ValueError and persist nothing.
+        """
+        self._validate_session_state(state)
+        allowed = (
+            "active_sheet_id",
+            "viewport_scale",
+            "viewport_tx",
+            "viewport_ty",
+            "selected_pin_id",
+            "active_tool_mode",
+            "discipline_filter",
+            "search_query",
+        )
+        updates: dict[str, Any] = {}
+        for key in allowed:
+            if key in state:
+                value = state[key]
+                if key in ("viewport_scale", "viewport_tx", "viewport_ty") and value is not None:
+                    value = float(value)
+                updates[key] = value
+        async with self._session() as db:
+            await self._require_project(db, project_id)
+            # Ensure a row exists before updating.
+            db.row_factory = sqlite3.Row
+            async with db.execute(
+                "SELECT session_id FROM project_sessions WHERE project_id = ?", (project_id,)
+            ) as cur:
+                row = await cur.fetchone()
+            if row is None:
+                session_id = f"session-{project_id}"
+                await db.execute(
+                    """
+                    INSERT INTO project_sessions (
+                        session_id, project_id, active_sheet_id, viewport_scale,
+                        viewport_tx, viewport_ty, selected_pin_id, active_tool_mode,
+                        discipline_filter, search_query, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        session_id,
+                        project_id,
+                        updates.get("active_sheet_id", _SESSION_DEFAULTS["active_sheet_id"]),
+                        float(updates.get("viewport_scale", 1.0)),
+                        float(updates.get("viewport_tx", 0.0)),
+                        float(updates.get("viewport_ty", 0.0)),
+                        updates.get("selected_pin_id", _SESSION_DEFAULTS["selected_pin_id"]),
+                        updates.get(
+                            "active_tool_mode", _SESSION_DEFAULTS["active_tool_mode"]
+                        ),
+                        updates.get(
+                            "discipline_filter", _SESSION_DEFAULTS["discipline_filter"]
+                        ),
+                        updates.get("search_query", _SESSION_DEFAULTS["search_query"]),
+                        _utc_now_iso(),
+                    ),
+                )
+                await db.commit()
+                return
+            if updates:
+                set_clause = ", ".join(f"{key} = ?" for key in updates) + ", updated_at = ?"
+                params: list[Any] = [updates[key] for key in updates] + [_utc_now_iso(), project_id]
+                await db.execute(
+                    f"UPDATE project_sessions SET {set_clause} WHERE project_id = ?",
+                    params,
+                )
+                await db.commit()
+
+    async def list_projects(self) -> list[dict[str, Any]]:
+        """List projects with sheet/item counts and last session timestamp."""
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute(
+                "SELECT project_id, name, created_at FROM projects ORDER BY created_at"
+            ) as cur:
+                projects = [dict(row) for row in await cur.fetchall()]
+            result: list[dict[str, Any]] = []
+            for project in projects:
+                pid = project["project_id"]
+                async with db.execute(
+                    "SELECT COUNT(*) FROM sheets WHERE project_id = ?", (pid,)
+                ) as cur:
+                    sheet_count_row = await cur.fetchone()
+                async with db.execute(
+                    "SELECT COUNT(*) FROM takeoff_items WHERE project_id = ?", (pid,)
+                ) as cur:
+                    item_count_row = await cur.fetchone()
+                async with db.execute(
+                    "SELECT updated_at FROM project_sessions WHERE project_id = ?", (pid,)
+                ) as cur:
+                    session_row = await cur.fetchone()
+                result.append(
+                    {
+                        "project_id": pid,
+                        "name": project["name"],
+                        "created_at": project["created_at"],
+                        "sheet_count": int(sheet_count_row[0]) if sheet_count_row else 0,
+                        "item_count": int(item_count_row[0]) if item_count_row else 0,
+                        "updated_at": session_row["updated_at"] if session_row else None,
+                    }
+                )
+            return result
+
+    async def list_sheets(self, project_id: str) -> list[dict[str, Any]]:
+        """List sheet rows for one project ordered by page index."""
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute(
+                "SELECT * FROM sheets WHERE project_id = ? ORDER BY page_index",
+                (project_id,),
+            ) as cur:
+                return [dict(row) for row in await cur.fetchall()]
 
     async def add_takeoff_item(self, record: TakeoffRecord) -> str:
         """Insert a single takeoff record."""
