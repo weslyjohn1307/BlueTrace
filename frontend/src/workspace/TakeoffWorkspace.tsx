@@ -25,6 +25,7 @@ import type {
   TakeoffRecord,
 } from '../api/contracts';
 import { mapReconcileGhostPins, pinFocusCoords } from './utils/reconcilePins';
+import { logAcceptTelemetry, logMoveTelemetry, logRejectTelemetry } from './utils/reviewTelemetry';
 
 type RightTab = 'ledger' | 'schedule';
 type SheetPanelMode = 'tree' | 'filmstrip';
@@ -144,6 +145,15 @@ export const TakeoffWorkspace: React.FC = () => {
     });
 
   const handlePlaceGhostPin = (ghostId: string, pagePoint: [number, number]) => {
+    if (state.projectName && state.activeSheetId) {
+      logMoveTelemetry({
+        projectId: state.projectName,
+        sheetId: state.activeSheetId,
+        itemId: ghostId,
+        previousStatus: 'SUGGESTED',
+        pagePoint,
+      });
+    }
     setGhostPins((prev) =>
       prev.map((pin) =>
         pin.id === ghostId || pin.tag === ghostId
@@ -773,8 +783,41 @@ export const TakeoffWorkspace: React.FC = () => {
                     items={state.items}
                     summary={state.summary}
                     loading={state.itemsLoading}
-                    onAccept={(id) => void setItemStatus(id, 'ACCEPTED')}
-                    onReject={(id) => void setItemStatus(id, 'REJECTED')}
+                    onAccept={(id) => {
+                      const item = state.items.find((i) => i.item_id === id);
+                      void setItemStatus(id, 'ACCEPTED');
+                      if (state.projectName && state.activeSheetId) {
+                        logAcceptTelemetry({
+                          projectId: state.projectName,
+                          sheetId: state.activeSheetId,
+                          itemId: id,
+                          previousStatus: item?.status ?? 'SUGGESTED',
+                          originalOutput: item
+                            ? { dimension_label: item.dimension_label, system: item.system }
+                            : null,
+                        });
+                      }
+                    }}
+                    onReject={(id) => {
+                      const item = state.items.find((i) => i.item_id === id);
+                      const reason =
+                        typeof window !== 'undefined'
+                          ? window.prompt('Reason for rejection (optional):')
+                          : null;
+                      void setItemStatus(id, 'REJECTED');
+                      if (state.projectName && state.activeSheetId) {
+                        logRejectTelemetry({
+                          projectId: state.projectName,
+                          sheetId: state.activeSheetId,
+                          itemId: id,
+                          previousStatus: item?.status ?? 'SUGGESTED',
+                          originalOutput: item
+                            ? { dimension_label: item.dimension_label, system: item.system }
+                            : null,
+                          reason: reason?.trim() ? reason.trim() : null,
+                        });
+                      }
+                    }}
                     onCorrect={(id) => {
                       const item = state.items.find((i) => i.item_id === id) ?? null;
                       setCorrectionError(null);

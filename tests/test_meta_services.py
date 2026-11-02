@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from pathlib import Path
 
 import pytest
@@ -145,6 +146,36 @@ async def test_segment_concept_unconfigured_abstains_no_fabricated_polygon():
     assert result["confidence"] == 0.0
     assert result["mock"] is True
     assert result["review_required"] is True
+
+
+def test_crop_confidence_fails_closed_when_uncalibrated():
+    """TASK-STAB-002: Assert uncalibrated crop OCR yields confidence 0.0 and review_required True."""
+    # 1. Direct JSON extraction with missing confidence
+    payload_without_conf = json.dumps({"width": 24, "height": 12, "shape": "RECTANGULAR"})
+    res = MetaModelClient._extract_crop_json(payload_without_conf)
+    assert res["width"] == 24.0
+    assert res["height"] == 12.0
+    assert res["confidence"] == 0.0
+    assert res["review_required"] is True
+
+    # 2. Direct JSON extraction with low confidence (< 0.85)
+    payload_low_conf = json.dumps({"width": 24, "height": 12, "confidence": 0.65})
+    res_low = MetaModelClient._extract_crop_json(payload_low_conf)
+    assert res_low["confidence"] == 0.65
+    assert res_low["review_required"] is True
+
+    # 3. Direct JSON extraction with calibrated high confidence (>= 0.85)
+    payload_high_conf = json.dumps({"width": 24, "height": 12, "confidence": 0.94})
+    res_high = MetaModelClient._extract_crop_json(payload_high_conf)
+    assert res_high["confidence"] == 0.94
+    assert res_high["review_required"] is False
+
+    # 4. Offline client parse_crop_ocr must have confidence == 0.0 and review_required is True
+    client = MetaModelClient(api_key="mock_key_unconfigured")
+    crop_res = client.parse_crop_ocr("dummy_b64")
+    assert crop_res["confidence"] == 0.0
+    assert crop_res["review_required"] is True
+    assert crop_res["mock"] is True
 
 
 def test_api_meta_services_endpoints(isolated_takeoff_store):

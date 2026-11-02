@@ -124,14 +124,23 @@ class MetaModelClient:
                 shape = str(data.get("shape", "RECTANGULAR")).upper()
                 if width and width > 0:
                     badge = f"{int(width)}x{int(height)} Rectangular Duct" if height else f'{int(width)}" Round Duct'
+                    try:
+                        raw_conf = float(data.get("confidence", 0.0))
+                    except (ValueError, TypeError):
+                        raw_conf = 0.0
+                    conf = max(0.0, min(1.0, raw_conf))
+                    review_required = data.get("review_required")
+                    if review_required is None:
+                        # Fail-closed invariant: uncalibrated or low-confidence (<0.85) triggers human review
+                        review_required = conf < 0.85
                     return {
                         "detected_text": str(dim_text or f"{int(width)}x{int(height or 0)}"),
                         "width": width,
                         "height": height,
                         "shape": shape,
-                        "confidence": 0.92,
+                        "confidence": conf,
                         "badge_text": badge,
-                        "review_required": False,
+                        "review_required": bool(review_required),
                     }
         except (json.JSONDecodeError, ValueError, KeyError, TypeError):
             pass

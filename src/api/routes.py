@@ -31,6 +31,8 @@ from src.models.schemas import (
     CursorCropRequest,
     CursorCropResponse,
     DimensionExtraction,
+    FeedbackEventRequest,
+    FeedbackEventResponse,
     IntakeJobEvent,
     IntakeJobStatus,
     MetaFileUploadRequest,
@@ -146,7 +148,12 @@ def _default_project_id(pdf_path: str) -> str:
     return cleaned or "default_project"
 
 
-async def _persist_sheet(store: TakeoffStore, meta: SheetMetadata, project_id: str) -> None:
+async def _persist_sheet(
+    store: TakeoffStore,
+    meta: SheetMetadata,
+    project_id: str,
+    pdf_path: str | None = None,
+) -> None:
     await store.insert_project(project_id, project_id)
     await store.insert_sheet(
         sheet_id=meta.sheet_id,
@@ -160,6 +167,7 @@ async def _persist_sheet(store: TakeoffStore, meta: SheetMetadata, project_id: s
         scale_status=meta.scale_status,
         width_pt=meta.width_pt,
         height_pt=meta.height_pt,
+        pdf_path=pdf_path,
     )
 
 
@@ -402,7 +410,7 @@ async def scan_drawing_sheet(
     except (RuntimeError, OSError) as e:
         raise HTTPException(status_code=502, detail=f"Sheet scan failed: {e}") from e
     project_id = request.project_id or _default_project_id(request.pdf_path)
-    await _persist_sheet(store, meta, project_id)
+    await _persist_sheet(store, meta, project_id, pdf_path=request.pdf_path)
     if request.auto_takeoff:
         # Takeoff failure never fabricates data (stale vector rows are cleared
         # inside); scan-all is the surface that reports per-sheet errors.
@@ -585,7 +593,7 @@ async def scan_all_sheets(
     errors: list[str] = []
     for meta in sheets:
         try:
-            await _persist_sheet(store, meta, project_id)
+            await _persist_sheet(store, meta, project_id, pdf_path=request.pdf_path)
             if request.auto_takeoff:
                 outcome, error = await _auto_populate_takeoff(store, clean_path, meta, project_id)
                 outcomes.append(outcome)
@@ -720,7 +728,7 @@ async def start_intake_batch(
         _emit("progress", 0.0, message=f"Indexed {len(sheets)} sheets")
         for meta in sheets:
             try:
-                await _persist_sheet(store, meta, project_id)
+                await _persist_sheet(store, meta, project_id, pdf_path=request.pdf_path)
             except (OSError, RuntimeError, ValueError) as exc:
                 _emit(
                     "progress",
@@ -1163,6 +1171,85 @@ async def save_project_session(
         raise HTTPException(status_code=400, detail=message) from e
     session = await store.get_or_create_session(project_id)
     return {"session": session}
+
+
+# ---------------------------------------------------------
+# Engineer Feedback Events (Gap 5 Telemetry Slice)
+# ---------------------------------------------------------
+
+
+@router.post("/feedback/events", response_model=FeedbackEventResponse)
+async def record_feedback_event_route(
+    body: FeedbackEventRequest,
+    store: TakeoffStoreDep,
+):
+    """Persist one engineer review interaction for the learning backlog.
+
+    Fail-closed training gate: the store always writes
+    ``training_eligible = 0``; this endpoint never accepts an eligibility
+    flag, so no client can self-certify a record as training data. Unknown
+    projects yield HTTP 404 and persist nothing; the context crop is
+    best-effort and never fails the event (unknown sheet, unresolvable PDF,
+    or crop error all persist the event with a NULL relpath).
+    """
+    if not await store.project_exists(body.project_id):
+        raise HTTPException(
+            status_code=404, detail=f"Unknown project_id '{body.project_id}'."
+        )
+    feedback_id = str(uuid.uuid4())
+    crop_relpath: str | None = None
+    if body.bounding_box_pt is not None:
+        try:
+            sheet = await store.get_sheet(body.sheet_id)
+            if sheet is not None and sheet.get("pdf_path"):
+                if body.page_index is not None:
+                    page_index = body.page_index
+                else:
+                    try:
+                        page_index = int(sheet.get("page_index", 0))
+                    except (TypeError, ValueError):
+                        page_index = 0
+                if page_index >= 0:
+                    from src.meta_services.feedback_service import capture_feedback_crop
+
+                    resolved_pdf = resolve_contained_pdf(str(sheet["pdf_path"]))
+                    x0, y0, x1, y1 = (float(c) for c in body.bounding_box_pt)
+                    crop_relpath = await run_in_threadpool(
+                        capture_feedback_crop,
+                        str(resolved_pdf),
+                        page_index,
+                        (x0, y0, x1, y1),
+                        feedback_id,
+                        body.project_id,
+                    )
+        except Exception:  # noqa: BLE001 - best-effort crop must never fail the event
+            # Best-effort context only: a crop failure must never fail the event.
+            crop_relpath = None
+    feedback_id = await store.record_feedback_event(
+        feedback_id=feedback_id,
+        project_id=body.project_id,
+        sheet_id=body.sheet_id,
+        item_id=body.item_id,
+        task_type=body.task_type,
+        action=body.action,
+        previous_status=body.previous_status,
+        new_status=body.new_status,
+        original_output_json=(
+            json.dumps(body.original_output) if body.original_output is not None else None
+        ),
+        corrected_output_json=(
+            json.dumps(body.corrected_output) if body.corrected_output is not None else None
+        ),
+        correction_reason=body.correction_reason,
+        bounding_box_pt_json=(
+            json.dumps(body.bounding_box_pt) if body.bounding_box_pt is not None else None
+        ),
+        crop_storage_relpath=crop_relpath,
+        model_version=body.model_version,
+        prompt_version=body.prompt_version,
+        reviewer_session_id=body.reviewer_session_id,
+    )
+    return FeedbackEventResponse(feedback_id=feedback_id, training_eligible=False)
 
 
 # ---------------------------------------------------------

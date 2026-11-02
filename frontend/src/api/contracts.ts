@@ -337,6 +337,31 @@ export interface SheetCalibrationResponse {
   skipped_items: number;
 }
 
+/** POST /api/feedback/events — mirrors backend `FeedbackEventRequest`. */
+export interface FeedbackEventPayload {
+  project_id: string;
+  sheet_id: string;
+  item_id?: string | null;
+  task_type: string;
+  action: 'ACCEPT' | 'CORRECT' | 'REJECT' | 'CANNOT_DETERMINE';
+  previous_status: string;
+  new_status: string;
+  original_output?: Record<string, unknown> | null;
+  corrected_output?: Record<string, unknown> | null;
+  correction_reason?: string | null;
+  /** [x0, y0, x1, y1] in PDF points. */
+  bounding_box_pt?: [number, number, number, number] | null;
+  model_version?: string | null;
+  prompt_version?: string | null;
+  reviewer_session_id?: string | null;
+}
+
+/** Mirrors backend `FeedbackEventResponse`. */
+export interface FeedbackEventResponse {
+  feedback_id: string;
+  training_eligible: boolean;
+}
+
 /** Mirrors backend `LegendSymbolEntry` (src/meta_services/legend_scanner.py). */
 export interface LegendSymbolEntry {
   symbol_id: string;

@@ -339,9 +339,16 @@ class TakeoffStore:
                     scale_status TEXT NOT NULL,
                     width_pt REAL NOT NULL,
                     height_pt REAL NOT NULL,
+                    pdf_path TEXT,
                     created_at TEXT NOT NULL
                 );
             """)
+            # Migration for databases created before sheets carried pdf_path
+            # (needed to resolve the source PDF for feedback crops).
+            async with db.execute("PRAGMA table_info(sheets)") as cur:
+                sheet_columns = [row[1] for row in await cur.fetchall()]
+            if "pdf_path" not in sheet_columns:
+                await db.execute("ALTER TABLE sheets ADD COLUMN pdf_path TEXT")
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS takeoff_items (
                     item_id TEXT PRIMARY KEY,
@@ -426,6 +433,93 @@ class TakeoffStore:
             await db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_project_sessions_project ON project_sessions(project_id);"
             )
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS engineer_feedback_events (
+                    feedback_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    sheet_id TEXT NOT NULL,
+                    item_id TEXT,
+                    task_type TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    previous_status TEXT NOT NULL,
+                    new_status TEXT NOT NULL,
+                    original_output_json TEXT,
+                    corrected_output_json TEXT,
+                    correction_reason TEXT,
+                    bounding_box_pt_json TEXT,
+                    crop_storage_relpath TEXT,
+                    model_version TEXT,
+                    prompt_version TEXT,
+                    reviewer_session_id TEXT,
+                    training_eligible INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            # Migration for databases created before original_output_json was
+            # nullable: absent original output must persist as NULL, never "{}".
+            # SQLite cannot drop a NOT NULL constraint in place, so rebuild.
+            async with db.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' "
+                "AND name = 'engineer_feedback_events'"
+            ) as cur:
+                feedback_table = await cur.fetchone()
+            if feedback_table is not None:
+                async with db.execute(
+                    "PRAGMA table_info(engineer_feedback_events)"
+                ) as cur:
+                    feedback_cols = list(await cur.fetchall())
+                original_col = next(
+                    (row for row in feedback_cols if row[1] == "original_output_json"),
+                    None,
+                )
+                if original_col is not None and original_col[3]:
+                    await db.execute("""
+                        CREATE TABLE engineer_feedback_events_migrated (
+                            feedback_id TEXT PRIMARY KEY,
+                            project_id TEXT NOT NULL,
+                            sheet_id TEXT NOT NULL,
+                            item_id TEXT,
+                            task_type TEXT NOT NULL,
+                            action TEXT NOT NULL,
+                            previous_status TEXT NOT NULL,
+                            new_status TEXT NOT NULL,
+                            original_output_json TEXT,
+                            corrected_output_json TEXT,
+                            correction_reason TEXT,
+                            bounding_box_pt_json TEXT,
+                            crop_storage_relpath TEXT,
+                            model_version TEXT,
+                            prompt_version TEXT,
+                            reviewer_session_id TEXT,
+                            training_eligible INTEGER NOT NULL DEFAULT 0,
+                            created_at TEXT NOT NULL
+                        );
+                    """)
+                    await db.execute("""
+                        INSERT INTO engineer_feedback_events_migrated (
+                            feedback_id, project_id, sheet_id, item_id, task_type,
+                            action, previous_status, new_status, original_output_json,
+                            corrected_output_json, correction_reason, bounding_box_pt_json,
+                            crop_storage_relpath, model_version, prompt_version,
+                            reviewer_session_id, training_eligible, created_at
+                        ) SELECT
+                            feedback_id, project_id, sheet_id, item_id, task_type,
+                            action, previous_status, new_status,
+                            NULLIF(original_output_json, '{}'),
+                            corrected_output_json, correction_reason, bounding_box_pt_json,
+                            crop_storage_relpath, model_version, prompt_version,
+                            reviewer_session_id, training_eligible, created_at
+                        FROM engineer_feedback_events;
+                    """)
+                    await db.execute("DROP TABLE engineer_feedback_events;")
+                    await db.execute(
+                        "ALTER TABLE engineer_feedback_events_migrated "
+                        "RENAME TO engineer_feedback_events;"
+                    )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_feedback_task_eligible "
+                "ON engineer_feedback_events(task_type, training_eligible);"
+            )
             await db.commit()
 
     async def insert_project(
@@ -475,20 +569,23 @@ class TakeoffStore:
         scale_status: str,
         width_pt: float,
         height_pt: float,
+        pdf_path: str | None = None,
     ) -> None:
         async with self._session() as db:
             await db.execute(
                 """
                 INSERT INTO sheets (
                     sheet_id, project_id, page_index, sheet_number, sheet_title,
-                    discipline, scale_raw, scale_ratio, scale_status, width_pt, height_pt, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    discipline, scale_raw, scale_ratio, scale_status, width_pt, height_pt,
+                    pdf_path, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(sheet_id) DO UPDATE SET
                     project_id = excluded.project_id, page_index = excluded.page_index,
                     sheet_number = excluded.sheet_number, sheet_title = excluded.sheet_title,
                     discipline = excluded.discipline, scale_raw = excluded.scale_raw,
                     scale_ratio = excluded.scale_ratio, scale_status = excluded.scale_status,
-                    width_pt = excluded.width_pt, height_pt = excluded.height_pt
+                    width_pt = excluded.width_pt, height_pt = excluded.height_pt,
+                    pdf_path = excluded.pdf_path
                 """,
                 (
                     sheet_id,
@@ -502,10 +599,18 @@ class TakeoffStore:
                     scale_status,
                     width_pt,
                     height_pt,
+                    pdf_path,
                     _utc_now_iso(),
                 ),
             )
             await db.commit()
+
+    async def project_exists(self, project_id: str) -> bool:
+        """Fail-closed existence check: ``SELECT 1 FROM projects`` with no side effects."""
+        async with self._session() as db, db.execute(
+            "SELECT 1 FROM projects WHERE project_id = ?", (project_id,)
+        ) as cur:
+            return await cur.fetchone() is not None
 
     async def get_sheet(self, sheet_id: str) -> dict[str, Any] | None:
         """Retrieve sheet metadata by sheet_id."""
@@ -1018,6 +1123,82 @@ class TakeoffStore:
             )
             await db.commit()
             return True
+
+    async def record_feedback_event(
+        self,
+        *,
+        project_id: str,
+        sheet_id: str,
+        task_type: str,
+        action: str,
+        previous_status: str,
+        new_status: str,
+        item_id: str | None = None,
+        feedback_id: str | None = None,
+        original_output_json: str | None = None,
+        corrected_output_json: str | None = None,
+        correction_reason: str | None = None,
+        bounding_box_pt_json: str | None = None,
+        crop_storage_relpath: str | None = None,
+        model_version: str | None = None,
+        prompt_version: str | None = None,
+        reviewer_session_id: str | None = None,
+    ) -> str:
+        """Persist one supervised-learning tuple to ``engineer_feedback_events``.
+
+        Fail-closed training gate: ``training_eligible`` is always written as
+        ``0`` in this slice. No caller can mark a record eligible — permission
+        and quality adjudication (a later slice) is the only path to ``1``.
+        Returns the ``feedback_id`` used.
+        """
+        resolved_id = feedback_id or str(uuid.uuid4())
+        now = _utc_now_iso()
+        async with self._session() as db:
+            await db.execute(
+                """
+                INSERT INTO engineer_feedback_events (
+                    feedback_id, project_id, sheet_id, item_id, task_type,
+                    action, previous_status, new_status, original_output_json,
+                    corrected_output_json, correction_reason, bounding_box_pt_json,
+                    crop_storage_relpath, model_version, prompt_version,
+                    reviewer_session_id, training_eligible, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                """,
+                (
+                    resolved_id,
+                    project_id,
+                    sheet_id,
+                    item_id,
+                    task_type,
+                    action,
+                    previous_status,
+                    new_status,
+                    original_output_json,
+                    corrected_output_json,
+                    correction_reason,
+                    bounding_box_pt_json,
+                    crop_storage_relpath,
+                    model_version,
+                    prompt_version,
+                    reviewer_session_id,
+                    now,
+                ),
+            )
+            await db.commit()
+        return resolved_id
+
+    async def get_feedback_event(self, feedback_id: str) -> dict[str, Any] | None:
+        """Retrieve one feedback record by id (read-only; used by tests/routes)."""
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute(
+                "SELECT * FROM engineer_feedback_events WHERE feedback_id = ?",
+                (feedback_id,),
+            ) as cur:
+                row = await cur.fetchone()
+                if row:
+                    return dict(row)
+        return None
 
     async def list_items(
         self,

@@ -458,3 +458,117 @@ async def test_project_session_viewport_scale_must_be_positive(tmp_path: Path):
     # The failed writes persisted nothing: defaults are untouched.
     session = await store.get_or_create_session("proj_sess_scale")
     assert session["viewport_scale"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_feedback_events_schema(tmp_path: Path):
+    """FDBK-001: feedback tuples persist with training_eligible == 0."""
+    import json
+
+    db_file = tmp_path / "test_feedback.sqlite3"
+    store = TakeoffStore(db_path=db_file)
+    await store.initialize()
+    # Idempotent migration: re-initializing an existing database is a no-op.
+    await store.initialize()
+
+    feedback_id = await store.record_feedback_event(
+        project_id="proj_fdbk",
+        sheet_id="sheet_fdbk",
+        item_id=None,
+        task_type="SYMBOL_DETECTION",
+        action="ACCEPT",
+        previous_status="SUGGESTED",
+        new_status="ACCEPTED",
+        original_output_json=json.dumps({"symbol_label": "VAV-1-01", "confidence": 0.91}),
+        corrected_output_json=None,
+        correction_reason=None,
+        bounding_box_pt_json=json.dumps([120.0, 240.0, 270.0, 390.0]),
+        crop_storage_relpath="data/feedback/crops/proj_fdbk/fb-1.png",
+        model_version="muse-spark-1.3",
+        prompt_version="symbol-detect-v1",
+        reviewer_session_id="sess-1",
+    )
+    assert feedback_id
+
+    import aiosqlite
+
+    async with aiosqlite.connect(db_file) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM engineer_feedback_events WHERE feedback_id = ?",
+            (feedback_id,),
+        ) as cur:
+            row = await cur.fetchone()
+    assert row is not None
+    assert row["training_eligible"] == 0
+    assert row["task_type"] == "SYMBOL_DETECTION"
+    assert row["action"] == "ACCEPT"
+    # Before/after JSON payloads parse cleanly.
+    assert json.loads(row["original_output_json"]) == {
+        "symbol_label": "VAV-1-01",
+        "confidence": 0.91,
+    }
+    assert json.loads(row["bounding_box_pt_json"]) == [120.0, 240.0, 270.0, 390.0]
+
+    # Getter round-trip agrees with the raw row.
+    fetched = await store.get_feedback_event(feedback_id)
+    assert fetched is not None
+    assert fetched["training_eligible"] == 0
+    assert fetched["feedback_id"] == feedback_id
+
+
+@pytest.mark.asyncio
+async def test_feedback_crop_extraction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """FDBK-002: 150 DPI crop extraction with page-limit clamping."""
+    import pymupdf
+    from PIL import Image
+
+    from src.meta_services.feedback_service import capture_feedback_crop
+
+    # Synthetic single-page sheet (612 x 792 pt), isolated crop root.
+    pdf_path = tmp_path / "sheet.pdf"
+    doc = pymupdf.open()
+    try:
+        page = doc.new_page(width=612, height=792)
+        page.draw_rect(pymupdf.Rect(100, 200, 300, 400), color=(0, 0, 0), width=2)
+        doc.save(str(pdf_path))
+    finally:
+        doc.close()
+    monkeypatch.chdir(tmp_path)
+
+    # Interior bbox: padded rect stays fully on-page.
+    relpath = capture_feedback_crop(
+        str(pdf_path), 0, (100.0, 200.0, 300.0, 400.0), "fb-interior", "proj_crop"
+    )
+    assert relpath == "data/feedback/crops/proj_crop/fb-interior.png"
+    crop_file = tmp_path / relpath
+    assert crop_file.is_file()
+    with Image.open(crop_file) as img:
+        width_px, height_px = img.size
+    # Padded rect is 236 x 236 pt at 150 DPI (150/72 = 2.0833 px/pt).
+    assert width_px == pytest.approx((300.0 - 100.0 + 36.0) * 150.0 / 72.0, abs=2.0)
+    assert height_px == pytest.approx((400.0 - 200.0 + 36.0) * 150.0 / 72.0, abs=2.0)
+
+    # Edge bbox with large padding: rect clamps to the page, never beyond it.
+    relpath_edge = capture_feedback_crop(
+        str(pdf_path),
+        0,
+        (560.0, 740.0, 610.0, 790.0),
+        "fb-edge",
+        "proj_crop",
+        padding_pt=100.0,
+    )
+    edge_file = tmp_path / relpath_edge
+    assert edge_file.is_file()
+    with Image.open(edge_file) as img:
+        edge_w, edge_h = img.size
+    # Clamped to page bounds: width <= 612 pt, height <= 792 pt at 150 DPI.
+    assert edge_w <= 612.0 * 150.0 / 72.0 + 2.0
+    assert edge_h <= 792.0 * 150.0 / 72.0 + 2.0
+    assert edge_w > 0 and edge_h > 0
+
+    # Fail-closed: traversal project_id writes nothing.
+    with pytest.raises(ValueError):
+        capture_feedback_crop(
+            str(pdf_path), 0, (100.0, 200.0, 300.0, 400.0), "fb-evil", "../evil"
+        )

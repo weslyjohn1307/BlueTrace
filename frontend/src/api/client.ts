@@ -1,6 +1,8 @@
 import type {
   CopilotQueryResponse,
   CursorCropResponse,
+  FeedbackEventPayload,
+  FeedbackEventResponse,
   HealthResponse,
   IntakeJobEvent,
   IntakeJobStatus,
@@ -522,6 +524,17 @@ export function createApiClient(config: ApiClientConfig = {}) {
         method: 'POST',
         body,
         signal: options?.signal,
+      });
+    },
+
+    async logFeedbackEvent(
+      payload: FeedbackEventPayload,
+      signal?: AbortSignal
+    ): Promise<FeedbackEventResponse> {
+      return request<FeedbackEventResponse>('/api/feedback/events', {
+        method: 'POST',
+        body: payload,
+        signal,
       });
     },
 

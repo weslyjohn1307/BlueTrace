@@ -254,3 +254,49 @@ class ProjectSummaryResponse(BaseModel):
     sheet_count: int = 0
     item_count: int = 0
     updated_at: str | None = None
+
+
+class FeedbackEventRequest(BaseModel):
+    """One engineer review interaction for the supervised-learning backlog.
+
+    Mirrors ``TakeoffStore.record_feedback_event``. ``original_output`` and
+    ``corrected_output`` are opaque model/engineer payloads serialized to
+    JSON server-side; ``bounding_box_pt`` is [x0, y0, x1, y1] in PDF points.
+    """
+
+    project_id: str = Field(..., min_length=1)
+    sheet_id: str = Field(..., min_length=1)
+    item_id: str | None = None
+    task_type: str = Field(..., min_length=1)
+    action: Literal["ACCEPT", "CORRECT", "REJECT", "CANNOT_DETERMINE"] = Field(...)
+    previous_status: str = Field(..., min_length=1)
+    new_status: str = Field(..., min_length=1)
+    original_output: dict[str, Any] | None = None
+    corrected_output: dict[str, Any] | None = None
+    correction_reason: str | None = None
+    bounding_box_pt: list[float] | None = None
+    # Page inside the sheet PDF the bbox refers to. When omitted the route
+    # falls back to the sheet row's stored page_index.
+    page_index: int | None = Field(default=None, ge=0)
+    model_version: str | None = None
+    prompt_version: str | None = None
+    reviewer_session_id: str | None = None
+
+    @field_validator("bounding_box_pt")
+    @classmethod
+    def validate_bbox(cls, v: list[float] | None) -> list[float] | None:
+        if v is None:
+            return v
+        import math as _math
+
+        coords = [float(c) for c in v]
+        if len(coords) != 4 or not all(_math.isfinite(c) for c in coords):
+            raise ValueError("bounding_box_pt must be four finite numbers.")
+        if coords[2] <= coords[0] or coords[3] <= coords[1]:
+            raise ValueError("bounding_box_pt must have positive area.")
+        return coords
+
+
+class FeedbackEventResponse(BaseModel):
+    feedback_id: str
+    training_eligible: bool = False
