@@ -1,159 +1,172 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 200" width="900" height="200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 210" width="920" height="210">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0d1117"/>
-      <stop offset="100%" style="stop-color:#161b22"/>
+      <stop offset="0%" style="stop-color:#0b0f17"/>
+      <stop offset="50%" style="stop-color:#111726"/>
+      <stop offset="100%" style="stop-color:#161f33"/>
     </linearGradient>
     <linearGradient id="scanline" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#1e3a5f;stop-opacity:0"/>
-      <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:0.12"/>
-      <stop offset="100%" style="stop-color:#1e3a5f;stop-opacity:0"/>
+      <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:0"/>
+      <stop offset="50%" style="stop-color:#38bdf8;stop-opacity:0.18"/>
+      <stop offset="100%" style="stop-color:#38bdf8;stop-opacity:0"/>
     </linearGradient>
     <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#e2e8f0"/>
-      <stop offset="45%" style="stop-color:#ffffff"/>
-      <stop offset="100%" style="stop-color:#94a3b8"/>
+      <stop offset="0%" style="stop-color:#f8fafc"/>
+      <stop offset="40%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#cbd5e1"/>
     </linearGradient>
     <linearGradient id="accentLine" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0"/>
-      <stop offset="40%" style="stop-color:#3b82f6"/>
-      <stop offset="60%" style="stop-color:#60a5fa"/>
-      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0"/>
+      <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:0"/>
+      <stop offset="30%" style="stop-color:#38bdf8;stop-opacity:0.8"/>
+      <stop offset="50%" style="stop-color:#818cf8;stop-opacity:1"/>
+      <stop offset="70%" style="stop-color:#38bdf8;stop-opacity:0.8"/>
+      <stop offset="100%" style="stop-color:#38bdf8;stop-opacity:0"/>
     </linearGradient>
     <filter id="glow">
-      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
     <filter id="textGlow">
-      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feGaussianBlur stdDeviation="5" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
     <clipPath id="svgClip">
-      <rect width="900" height="200" rx="12"/>
+      <rect width="920" height="210" rx="14"/>
     </clipPath>
   </defs>
 
   <!-- Background -->
   <g clip-path="url(#svgClip)">
-    <rect width="900" height="200" fill="url(#bg)"/>
+    <rect width="920" height="210" fill="url(#bg)"/>
 
-    <!-- Grid pattern -->
-    <g opacity="0.04">
-      <line x1="0" y1="25" x2="900" y2="25" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="0" y1="50" x2="900" y2="50" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="0" y1="75" x2="900" y2="75" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="0" y1="100" x2="900" y2="100" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="0" y1="125" x2="900" y2="125" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="0" y1="150" x2="900" y2="150" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="0" y1="175" x2="900" y2="175" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="90" y1="0" x2="90" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="180" y1="0" x2="180" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="270" y1="0" x2="270" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="360" y1="0" x2="360" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="450" y1="0" x2="450" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="540" y1="0" x2="540" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="630" y1="0" x2="630" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="720" y1="0" x2="720" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="810" y1="0" x2="810" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
+    <!-- Blueprint Grid -->
+    <g opacity="0.06">
+      <line x1="0" y1="30" x2="920" y2="30" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="0" y1="60" x2="920" y2="60" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="0" y1="90" x2="920" y2="90" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="0" y1="120" x2="920" y2="120" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="0" y1="150" x2="920" y2="150" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="0" y1="180" x2="920" y2="180" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="75" y1="0" x2="75" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="150" y1="0" x2="150" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="225" y1="0" x2="225" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="300" y1="0" x2="300" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="375" y1="0" x2="375" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="450" y1="0" x2="450" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="525" y1="0" x2="525" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="600" y1="0" x2="600" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="675" y1="0" x2="675" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="750" y1="0" x2="750" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="825" y1="0" x2="825" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="900" y1="0" x2="900" y2="210" stroke="#38bdf8" stroke-width="0.75"/>
     </g>
 
-    <!-- Scanline sweep animation -->
-    <rect width="900" height="200" fill="url(#scanline)">
-      <animateTransform attributeName="transform" type="translate" from="-900 0" to="900 0" dur="3.5s" repeatCount="indefinite"/>
+    <!-- Laser Scanline Sweep Animation -->
+    <rect width="920" height="210" fill="url(#scanline)">
+      <animateTransform attributeName="transform" type="translate" from="-920 0" to="920 0" dur="4s" repeatCount="indefinite"/>
     </rect>
 
-    <!-- Blueprint duct trace lines - left panel -->
+    <!-- Blueprint CAD Vector Linework - Left Panel -->
     <g opacity="0" filter="url(#glow)">
-      <animateTransform attributeName="transform" type="translate" values="0 0" dur="0.1s" begin="0.3s" fill="freeze"/>
-      <animate attributeName="opacity" from="0" to="1" dur="0.8s" begin="0.3s" fill="freeze"/>
-      <!-- Duct trace - horizontal main run -->
-      <line x1="30" y1="100" x2="180" y2="100" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="120" stroke-dashoffset="120">
-        <animate attributeName="stroke-dashoffset" from="120" to="0" dur="0.9s" begin="0.5s" fill="freeze"/>
+      <animate attributeName="opacity" from="0" to="1" dur="0.8s" begin="0.2s" fill="freeze"/>
+      <!-- Supply Air Main Duct (Blue) -->
+      <line x1="35" y1="102" x2="175" y2="102" stroke="#38bdf8" stroke-width="2" stroke-dasharray="140" stroke-dashoffset="140">
+        <animate attributeName="stroke-dashoffset" from="140" to="0" dur="0.9s" begin="0.4s" fill="freeze"/>
       </line>
-      <!-- Return duct -->
-      <line x1="30" y1="115" x2="180" y2="115" stroke="#22c55e" stroke-width="1" stroke-dasharray="120" stroke-dashoffset="120" opacity="0.7">
-        <animate attributeName="stroke-dashoffset" from="120" to="0" dur="0.9s" begin="0.7s" fill="freeze"/>
+      <!-- Return Air Main Duct (Green) -->
+      <line x1="35" y1="118" x2="175" y2="118" stroke="#34d399" stroke-width="1.5" stroke-dasharray="140" stroke-dashoffset="140" opacity="0.8">
+        <animate attributeName="stroke-dashoffset" from="140" to="0" dur="0.9s" begin="0.6s" fill="freeze"/>
       </line>
-      <!-- Branch line up -->
-      <line x1="120" y1="100" x2="120" y2="55" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="50" stroke-dashoffset="50">
-        <animate attributeName="stroke-dashoffset" from="50" to="0" dur="0.5s" begin="1.3s" fill="freeze"/>
+      <!-- Branch Takeoff Up (Supply) -->
+      <line x1="125" y1="102" x2="125" y2="52" stroke="#38bdf8" stroke-width="1.75" stroke-dasharray="50" stroke-dashoffset="50">
+        <animate attributeName="stroke-dashoffset" from="50" to="0" dur="0.5s" begin="1.2s" fill="freeze"/>
       </line>
-      <!-- Branch line down -->
-      <line x1="120" y1="115" x2="120" y2="155" stroke="#22c55e" stroke-width="1" stroke-dasharray="50" stroke-dashoffset="50" opacity="0.7">
-        <animate attributeName="stroke-dashoffset" from="50" to="0" dur="0.5s" begin="1.5s" fill="freeze"/>
+      <!-- Branch Takeoff Down (Return) -->
+      <line x1="125" y1="118" x2="125" y2="160" stroke="#34d399" stroke-width="1.5" stroke-dasharray="42" stroke-dashoffset="42" opacity="0.8">
+        <animate attributeName="stroke-dashoffset" from="42" to="0" dur="0.5s" begin="1.4s" fill="freeze"/>
       </line>
-      <!-- Dimension tick marks -->
-      <line x1="30" y1="92" x2="30" y2="124" stroke="#64748b" stroke-width="0.8"/>
-      <line x1="180" y1="92" x2="180" y2="124" stroke="#64748b" stroke-width="0.8"/>
-      <!-- Scale label -->
-      <text x="105" y="135" fill="#64748b" font-size="7" font-family="monospace" text-anchor="middle" opacity="0">
-        1/8" = 1'-0"
-        <animate attributeName="opacity" from="0" to="1" dur="0.4s" begin="1.9s" fill="freeze"/>
+      <!-- Dimension Extension Lines & Ticks -->
+      <line x1="35" y1="94" x2="35" y2="126" stroke="#64748b" stroke-width="0.8"/>
+      <line x1="175" y1="94" x2="175" y2="126" stroke="#64748b" stroke-width="0.8"/>
+      <line x1="125" y1="46" x2="125" y2="56" stroke="#64748b" stroke-width="0.8"/>
+      <!-- Scale Notation -->
+      <text x="105" y="138" fill="#94a3b8" font-size="8.5" font-family="'SF Mono', Menlo, Consolas, monospace" text-anchor="middle" opacity="0">
+        1/8" = 1'-0" (S=96)
+        <animate attributeName="opacity" from="0" to="1" dur="0.4s" begin="1.8s" fill="freeze"/>
       </text>
-      <!-- Node dots -->
-      <circle cx="120" cy="100" r="2.5" fill="#3b82f6" opacity="0">
-        <animate attributeName="opacity" from="0" to="1" dur="0.3s" begin="1.3s" fill="freeze"/>
+      <!-- Topological Junction Nodes -->
+      <circle cx="125" cy="102" r="3" fill="#38bdf8" opacity="0">
+        <animate attributeName="opacity" from="0" to="1" dur="0.3s" begin="1.2s" fill="freeze"/>
       </circle>
-      <circle cx="120" cy="115" r="2" fill="#22c55e" opacity="0">
-        <animate attributeName="opacity" from="0" to="1" dur="0.3s" begin="1.5s" fill="freeze"/>
+      <circle cx="125" cy="118" r="2.5" fill="#34d399" opacity="0">
+        <animate attributeName="opacity" from="0" to="1" dur="0.3s" begin="1.4s" fill="freeze"/>
       </circle>
-      <circle cx="30" cy="100" r="2" fill="#3b82f6" opacity="0">
-        <animate attributeName="opacity" from="0" to="1" dur="0.3s" begin="0.5s" fill="freeze"/>
+      <circle cx="35" cy="102" r="2.5" fill="#38bdf8" opacity="0">
+        <animate attributeName="opacity" from="0" to="1" dur="0.3s" begin="0.4s" fill="freeze"/>
       </circle>
-      <circle cx="180" cy="100" r="2" fill="#3b82f6" opacity="0">
-        <animate attributeName="opacity" from="0" to="1" dur="0.3s" begin="1.1s" fill="freeze"/>
+      <circle cx="175" cy="102" r="2.5" fill="#38bdf8" opacity="0">
+        <animate attributeName="opacity" from="0" to="1" dur="0.3s" begin="1.0s" fill="freeze"/>
       </circle>
     </g>
 
-    <!-- Right corner accent lines -->
-    <g opacity="0.15">
-      <line x1="850" y1="0" x2="900" y2="50" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="870" y1="0" x2="900" y2="30" stroke="#3b82f6" stroke-width="0.5"/>
-      <line x1="900" y1="160" x2="860" y2="200" stroke="#3b82f6" stroke-width="0.5"/>
+    <!-- Engineering Crosshairs - Right Panel Accent -->
+    <g opacity="0.25">
+      <circle cx="850" cy="105" r="36" fill="none" stroke="#38bdf8" stroke-width="0.75" stroke-dasharray="4 4"/>
+      <circle cx="850" cy="105" r="18" fill="none" stroke="#818cf8" stroke-width="0.75"/>
+      <line x1="800" y1="105" x2="900" y2="105" stroke="#38bdf8" stroke-width="0.75"/>
+      <line x1="850" y1="55" x2="850" y2="155" stroke="#38bdf8" stroke-width="0.75"/>
+      <text x="850" y="172" fill="#64748b" font-size="7.5" font-family="'SF Mono', Menlo, Consolas, monospace" text-anchor="middle">150 DPI</text>
     </g>
 
-    <!-- Main title: BlueTrace -->
-    <text x="450" y="90" fill="url(#titleGrad)" font-size="58" font-weight="700"
-          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    <!-- Brand Header: BlueTrace -->
+    <text x="460" y="94" fill="url(#titleGrad)" font-size="56" font-weight="700"
+          font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif"
           text-anchor="middle" letter-spacing="-1" filter="url(#textGlow)" opacity="0">
       BlueTrace
-      <animate attributeName="opacity" from="0" to="1" dur="0.7s" begin="0.8s" fill="freeze"/>
+      <animate attributeName="opacity" from="0" to="1" dur="0.7s" begin="0.6s" fill="freeze"/>
     </text>
 
-    <!-- Accent line under title -->
-    <line x1="220" y1="103" x2="680" y2="103" stroke="url(#accentLine)" stroke-width="1" opacity="0">
-      <animate attributeName="opacity" from="0" to="0.6" dur="0.5s" begin="1.3s" fill="freeze"/>
+    <!-- High-Precision Accent Bar -->
+    <line x1="230" y1="108" x2="690" y2="108" stroke="url(#accentLine)" stroke-width="1.25" opacity="0">
+      <animate attributeName="opacity" from="0" to="0.8" dur="0.5s" begin="1.1s" fill="freeze"/>
     </line>
 
-    <!-- Subtitle -->
-    <text x="450" y="135" fill="#64748b" font-size="14" font-weight="400"
-          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-          text-anchor="middle" letter-spacing="0.5" opacity="0">
-      Vectors measure.  Models interpret.  Engineers approve.
-      <animate attributeName="opacity" from="0" to="1" dur="0.6s" begin="1.5s" fill="freeze"/>
+    <!-- Tagline: Vectors measure. Models interpret. Engineers approve. -->
+    <text x="460" y="138" fill="#94a3b8" font-size="14.5" font-weight="400"
+          font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif"
+          text-anchor="middle" letter-spacing="0.3" opacity="0">
+      Vectors measure. Models interpret. Engineers approve.
+      <animate attributeName="opacity" from="0" to="1" dur="0.6s" begin="1.3s" fill="freeze"/>
     </text>
 
-    <!-- Stat pills -->
+    <!-- 4 Architectural Feature Pills (Distinct, High-Contrast, Zero Redundancy) -->
     <g opacity="0">
-      <animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="1.9s" fill="freeze"/>
-      <!-- Pill 1: 320 tests -->
-      <rect x="260" y="152" width="100" height="24" rx="4" fill="#1e3a2f" stroke="#22c55e" stroke-width="0.8" stroke-opacity="0.6"/>
-      <text x="310" y="168" fill="#4ade80" font-size="10.5" font-family="monospace" text-anchor="middle">320 tests passing</text>
-      <!-- Pill 2: sub-400ms -->
-      <rect x="400" y="152" width="100" height="24" rx="4" fill="#1e2d4a" stroke="#3b82f6" stroke-width="0.8" stroke-opacity="0.6"/>
-      <text x="450" y="168" fill="#60a5fa" font-size="10.5" font-family="monospace" text-anchor="middle">sub-400ms hover</text>
-      <!-- Pill 3: fail-closed -->
-      <rect x="540" y="152" width="110" height="24" rx="4" fill="#2a1f1a" stroke="#f59e0b" stroke-width="0.8" stroke-opacity="0.6"/>
-      <text x="595" y="168" fill="#fbbf24" font-size="10.5" font-family="monospace" text-anchor="middle">fail-closed scale</text>
+      <animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="1.7s" fill="freeze"/>
+
+      <!-- Pill 1: 7-Agent Pipeline (Purple) -->
+      <rect x="180" y="156" width="132" height="25" rx="5" fill="#1e1b4b" stroke="#818cf8" stroke-width="0.9"/>
+      <text x="246" y="173" fill="#c7d2fe" font-size="10.5" font-weight="500" font-family="'SF Mono', Menlo, Consolas, monospace" text-anchor="middle">7-agent pipeline</text>
+
+      <!-- Pill 2: 150 DPI Canvas (Emerald) -->
+      <rect x="324" y="156" width="130" height="25" rx="5" fill="#064e3b" stroke="#34d399" stroke-width="0.9"/>
+      <text x="389" y="173" fill="#a7f3d0" font-size="10.5" font-weight="500" font-family="'SF Mono', Menlo, Consolas, monospace" text-anchor="middle">150 DPI canvas</text>
+
+      <!-- Pill 3: sub-400ms Hover (Sky Blue) -->
+      <rect x="466" y="156" width="124" height="25" rx="5" fill="#0c4a6e" stroke="#38bdf8" stroke-width="0.9"/>
+      <text x="528" y="173" fill="#bae6fd" font-size="10.5" font-weight="500" font-family="'SF Mono', Menlo, Consolas, monospace" text-anchor="middle">sub-400ms hover</text>
+
+      <!-- Pill 4: Fail-Closed Scale (Amber) -->
+      <rect x="602" y="156" width="134" height="25" rx="5" fill="#451a03" stroke="#fbbf24" stroke-width="0.9"/>
+      <text x="669" y="173" fill="#fde68a" font-size="10.5" font-weight="500" font-family="'SF Mono', Menlo, Consolas, monospace" text-anchor="middle">fail-closed scale</text>
     </g>
 
-    <!-- Border -->
-    <rect width="900" height="200" rx="12" fill="none" stroke="#21262d" stroke-width="1.5"/>
+    <!-- Container Border -->
+    <rect width="920" height="210" rx="14" fill="none" stroke="#1e293b" stroke-width="1.5"/>
   </g>
 </svg>
