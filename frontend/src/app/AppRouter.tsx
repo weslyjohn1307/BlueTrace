@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AlertOctagon } from 'lucide-react';
 import { DemoApp } from '../modes/demo/DemoApp';
 import { TakeoffWorkspace } from '../workspace/TakeoffWorkspace';
 import { StoryPage } from '../modes/story/StoryPage';
+
+const ShowcasePage = lazy(() => import('../modes/showcase/ShowcasePage').then((module) => ({ default: module.ShowcasePage })));
 
 const NotFoundScreen: React.FC = () => {
   return (
@@ -31,6 +33,11 @@ export const AppRouter: React.FC = () => {
 
         {/* Explorable Explanation Web Portal */}
         <Route path="/story" element={<StoryPage />} />
+        <Route path="/showcase" element={
+          <Suspense fallback={<div className="min-h-screen bg-[#F0ECDF] p-8 font-mono text-sm text-slate-700" role="status">Preparing the interactive drawing…</div>}>
+            <ShowcasePage />
+          </Suspense>
+        } />
         <Route path="/explorable" element={<Navigate to="/story" replace />} />
         <Route path="/how-it-works" element={<Navigate to="/story" replace />} />
 
