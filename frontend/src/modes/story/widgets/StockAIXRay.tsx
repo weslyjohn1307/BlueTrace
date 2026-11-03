@@ -152,7 +152,7 @@ export const StockAIXRay: React.FC = () => {
         </div>
         {activeMode === 'raw' && (
           <div className="text-slate-400">
-            $ python -m src.baseline.inspect --sheet "BSWH-THH TFO_page_10.pdf"<br />
+            $ python -m src.baseline.inspect --sheet "hvac_plan_level2.pdf"<br />
             → Ingested 28.35M pixel engineering scan. Zero inference applied.
           </div>
         )}
@@ -170,7 +170,7 @@ export const StockAIXRay: React.FC = () => {
             <span className="text-emerald-400 font-bold">[GATE G1 PASS]</span> Legend-grounded VLM (`muse-spark-1.3`):<br />
             • Sheet legend read first; symbols detected per-tile with legend context.<br />
             • No per-class training weights; vector layer corroborates every hit.<br />
-            • 168 verified damper symbols on Sheet PfMCC Page 118 as benchmark.<br />
+            • 168 verified damper symbols on Sheet Sheet M-118 as benchmark.<br />
             <span className="text-emerald-400 font-bold">Level 1 Gate G1 Verified: 100% Symbol Recovery</span>
           </div>
         )}

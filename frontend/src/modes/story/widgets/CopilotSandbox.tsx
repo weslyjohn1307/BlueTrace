@@ -14,10 +14,10 @@ interface SampleQuery {
 const SAMPLE_QUERIES: SampleQuery[] = [
   {
     id: 'q1',
-    question: 'How many fire dampers are on sheet PfMCC Page 118?',
+    question: 'How many fire dampers are on sheet Sheet M-118?',
     tool: 'count_components',
-    sql: "SELECT count(*) AS total FROM objects WHERE class = 'FIRE_DAMPER' AND sheet_id = 'PfMCC_118'",
-    answerText: 'Found 175 Fire Dampers on sheet PfMCC Page 118 across mechanical zones A, B, and C.',
+    sql: "SELECT count(*) AS total FROM objects WHERE class = 'FIRE_DAMPER' AND sheet_id = 'M_118'",
+    answerText: 'Found 175 Fire Dampers on sheet Sheet M-118 across mechanical zones A, B, and C.',
     evidence: '175 verified bounding boxes mapped to SVG coordinates.',
     arithmeticCheck: 'ZERO LLM Arithmetic: Integer count pulled directly from SQLite database row.',
   },

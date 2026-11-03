@@ -109,20 +109,20 @@ def evaluate_fixture_tiling_and_metrics(gt_path: Path) -> dict[str, Any]:
     }
 
 
-def evaluate_l2_tracer_avexis() -> dict[str, Any]:
-    """Evaluate L2 Tracer on Avexis Page 22 (cold/warm cache, run count, fail-closed scale)."""
-    avexis_pdf = FIXTURES_DIR / "mechanical" / "avexis_page_22.pdf"
+def evaluate_l2_tracer_hvac() -> dict[str, Any]:
+    """Evaluate L2 Tracer on Sheet M-201 Level 2 (cold/warm cache, run count, fail-closed scale)."""
+    hvac_pdf = FIXTURES_DIR / "mechanical" / "hvac_plan_level2.pdf"
     clear_l2_cache()
 
     t0 = time.perf_counter()
-    unscaled = run_l2_pipeline(avexis_pdf, page_num=0, scale_override=None, use_topology=True)
+    unscaled = run_l2_pipeline(hvac_pdf, page_num=0, scale_override=None, use_topology=True)
     cold_ms = (time.perf_counter() - t0) * 1000.0
 
     t1 = time.perf_counter()
-    warm = run_l2_pipeline(avexis_pdf, page_num=0, scale_override=None, use_topology=True)
+    warm = run_l2_pipeline(hvac_pdf, page_num=0, scale_override=None, use_topology=True)
     warm_ms = (time.perf_counter() - t1) * 1000.0
 
-    calibrated = run_l2_pipeline(avexis_pdf, page_num=0, scale_override='1/8" = 1\'-0"', use_topology=True)
+    calibrated = run_l2_pipeline(hvac_pdf, page_num=0, scale_override='1/8" = 1\'-0"', use_topology=True)
 
     gt_runs = 329
     actual_runs = int(unscaled.get("run_count", 0))
@@ -132,7 +132,7 @@ def evaluate_l2_tracer_avexis() -> dict[str, Any]:
     unscaled_review = unscaled.get("scale_status") != "VALID"
 
     return {
-        "fixture": "avexis_page_22.pdf",
+        "fixture": "hvac_plan_level2.pdf",
         "gt_runs": gt_runs,
         "actual_runs": actual_runs,
         "run_count_error_pct": round(run_count_err_pct, 2),
@@ -147,7 +147,7 @@ def evaluate_l2_tracer_avexis() -> dict[str, Any]:
 
 async def evaluate_agents_pipeline() -> dict[str, Any]:
     """Evaluate L1 Finder offline abstention, Agent 04 Reconciler, Agent 05 Watchdog, Agent 06 Copilot."""
-    pfmcc_pdf = FIXTURES_DIR / "mechanical" / "pfmcc_page_118.pdf"
+    schedule_pdf = FIXTURES_DIR / "mechanical" / "hvac_schedule_plan.pdf"
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_root = Path(tmpdir)
         db_path = tmp_root / "eval_takeoff.db"
@@ -155,21 +155,21 @@ async def evaluate_agents_pipeline() -> dict[str, Any]:
         await store.initialize()
 
         project_id = "eval-proj-001"
-        sheet_id = "pfmcc_p0"
+        sheet_id = "hvac_schedule_p0"
         await store.insert_project(project_id, "Evaluation Project")
         await store.insert_sheet(
             sheet_id=sheet_id,
             project_id=project_id,
             page_index=0,
             sheet_number="M-118",
-            sheet_title="PfMCC Mechanical Plan",
+            sheet_title="M-118 Mechanical Schedule Plan",
             discipline="Mechanical",
             scale_raw="1/4\" = 1'-0\"",
             scale_ratio=0.0,
             scale_status="REVIEW_REQUIRED",
             width_pt=2592.0,
             height_pt=1728.0,
-            pdf_path=str(pfmcc_pdf),
+            pdf_path=str(schedule_pdf),
         )
 
         # 1. L1 Finder offline abstention check (key absent -> 0 fabricated items)
@@ -180,7 +180,7 @@ async def evaluate_agents_pipeline() -> dict[str, Any]:
             project_id=project_id,
             job_id="eval-job-1",
             sheet_id=sheet_id,
-            pdf_path=pfmcc_pdf,
+            pdf_path=schedule_pdf,
             page_index=0,
             discipline="Mechanical",
             scale_ratio=0.0,
@@ -279,8 +279,8 @@ async def evaluate_agents_pipeline() -> dict[str, Any]:
 
 
 def build_eval_report_md(
-    pfmcc_eval: dict[str, Any],
-    avexis_gt_eval: dict[str, Any],
+    schedule_eval: dict[str, Any],
+    hvac_gt_eval: dict[str, Any],
     l2_eval: dict[str, Any],
     agent_eval: dict[str, Any],
     generated_at: str,
@@ -293,23 +293,23 @@ def build_eval_report_md(
 
 > [!NOTE]
 > **Verification Scope**:
-> All geometry, tiling round-trip, vector corridor centerline, schedule reconciliation, watchdog QA, and offline fail-closed abstention metrics below are verified from direct execution against repository fixtures (`fixtures/mechanical/avexis_page_22.pdf`, `fixtures/mechanical/pfmcc_page_118.pdf`, and their `*_gt.json` ground-truth files). Live cloud VLM inference (`MODEL_API_KEY` with `mock=False`) abstains fail-closed when unconfigured.
+> All geometry, tiling round-trip, vector corridor centerline, schedule reconciliation, watchdog QA, and offline fail-closed abstention metrics below are verified from direct execution against repository fixtures (`fixtures/mechanical/hvac_plan_level2.pdf`, `fixtures/mechanical/hvac_schedule_plan.pdf`, and their `*_gt.json` ground-truth files). Live cloud VLM inference (`MODEL_API_KEY` with `mock=False`) abstains fail-closed when unconfigured.
 
 ---
 
-## 1. Symbol Finder & Tiling Coordinate Round-Trip (`pfmcc_page_118_gt.json` & `avexis_page_22_gt.json`)
+## 1. Symbol Finder & Tiling Coordinate Round-Trip (`hvac_schedule_plan_gt.json` & `hvac_plan_level2_gt.json`)
 
 | Fixture | GT Annotations | Max Untile Drift (pt) | Tolerance Gate | Precision (@0.5 IoU) | Recall (@0.5 IoU) | F1 Score | Mean IoU | Offline Fabricated Items | Gate Status |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|:---:|
-| `{pfmcc_eval["fixture"]}` | {pfmcc_eval["num_annotations"]} | `{pfmcc_eval["max_drift_pt"]:.6f} pt` | `<= 0.5000 pt` | `{pfmcc_eval["precision"]:.4f}` | `{pfmcc_eval["recall"]:.4f}` | `{pfmcc_eval["f1"]:.4f}` | `{pfmcc_eval["iou_mean"]:.4f}` | `{agent_eval["l1_offline_fabricated_items"]}` | **PASS** |
-| `{avexis_gt_eval["fixture"]}` | {avexis_gt_eval["num_annotations"]} | `{avexis_gt_eval["max_drift_pt"]:.6f} pt` | `<= 0.5000 pt` | `{avexis_gt_eval["precision"]:.4f}` | `{avexis_gt_eval["recall"]:.4f}` | `{avexis_gt_eval["f1"]:.4f}` | `{avexis_gt_eval["iou_mean"]:.4f}` | `0` | **PASS** |
+| `{schedule_eval["fixture"]}` | {schedule_eval["num_annotations"]} | `{schedule_eval["max_drift_pt"]:.6f} pt` | `<= 0.5000 pt` | `{schedule_eval["precision"]:.4f}` | `{schedule_eval["recall"]:.4f}` | `{schedule_eval["f1"]:.4f}` | `{schedule_eval["iou_mean"]:.4f}` | `{agent_eval["l1_offline_fabricated_items"]}` | **PASS** |
+| `{hvac_gt_eval["fixture"]}` | {hvac_gt_eval["num_annotations"]} | `{hvac_gt_eval["max_drift_pt"]:.6f} pt` | `<= 0.5000 pt` | `{hvac_gt_eval["precision"]:.4f}` | `{hvac_gt_eval["recall"]:.4f}` | `{hvac_gt_eval["f1"]:.4f}` | `{hvac_gt_eval["iou_mean"]:.4f}` | `0` | **PASS** |
 
 - **Legend-First Invariant**: Verified (`FinderL1Agent` parses legend exemplars first; mock/offline legends are refused as exemplar vocabulary and emit `NO_LEGEND_FOUND` / `MANUAL_COUNT_REQUIRED`).
 - **Offline Abstention**: When `MODEL_API_KEY` is absent, `FinderL1Agent` returns `{agent_eval["l1_offline_fabricated_items"]}` fabricated items (`false-accept rate = 0.0`).
 
 ---
 
-## 2. Vector Tracer & Caching Benchmark (`avexis_page_22.pdf`)
+## 2. Vector Tracer & Caching Benchmark (`hvac_plan_level2.pdf`)
 
 | Metric | Measured Value | Target / Invariant | Verification | Verdict |
 |---|---|---|---|---|
@@ -444,15 +444,15 @@ def build_api_reference_md(generated_at: str) -> str:
 
 def main() -> None:
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    pfmcc_gt = FIXTURES_DIR / "mechanical" / "pfmcc_page_118_gt.json"
-    avexis_gt = FIXTURES_DIR / "mechanical" / "avexis_page_22_gt.json"
+    schedule_gt = FIXTURES_DIR / "mechanical" / "hvac_schedule_plan_gt.json"
+    hvac_gt = FIXTURES_DIR / "mechanical" / "hvac_plan_level2_gt.json"
 
-    pfmcc_eval = evaluate_fixture_tiling_and_metrics(pfmcc_gt)
-    avexis_gt_eval = evaluate_fixture_tiling_and_metrics(avexis_gt)
-    l2_eval = evaluate_l2_tracer_avexis()
+    schedule_eval = evaluate_fixture_tiling_and_metrics(schedule_gt)
+    hvac_gt_eval = evaluate_fixture_tiling_and_metrics(hvac_gt)
+    l2_eval = evaluate_l2_tracer_hvac()
     agent_eval = asyncio.run(evaluate_agents_pipeline())
 
-    eval_md = build_eval_report_md(pfmcc_eval, avexis_gt_eval, l2_eval, agent_eval, generated_at)
+    eval_md = build_eval_report_md(schedule_eval, hvac_gt_eval, l2_eval, agent_eval, generated_at)
     eval_path = DOCS_DIR / "EVAL_REPORT.md"
     eval_path.write_text(eval_md, encoding="utf-8")
 

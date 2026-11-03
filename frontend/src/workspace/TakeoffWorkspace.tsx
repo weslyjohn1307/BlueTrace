@@ -708,7 +708,7 @@ export const TakeoffWorkspace: React.FC = () => {
       <ModeBanner mode="live" />
       <GlobalTopNav
         modelReady={state.backendOnline}
-        onLoadSample={() => void openFixture('fixtures/mechanical/avexis_page_22.pdf')}
+        onLoadSample={() => void openFixture('fixtures/mechanical/hvac_plan_level2.pdf')}
         onNewAnalysis={reset}
         onFileSelect={(file) => void selectFile(file)}
         aiConfigured={state.aiConfigured}

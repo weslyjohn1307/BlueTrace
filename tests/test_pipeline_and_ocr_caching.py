@@ -182,10 +182,10 @@ def test_geometry_cache_synthetic_plan_latency(tmp_path: Path) -> None:
 
 
 def test_geometry_cache_real_fixture_latency() -> None:
-    """TASK-OPT-001: Measure geometry cache latency on actual real-world fixtures (avexis 120KB & pfmcc 627KB)."""
+    """TASK-OPT-001: Measure geometry cache latency on actual real-world fixtures (hvac_plan 120KB & hvac_schedule 627KB)."""
     fixture_paths = [
-        Path("fixtures/mechanical/avexis_page_22.pdf"),
-        Path("fixtures/mechanical/pfmcc_page_118.pdf"),
+        Path("fixtures/mechanical/hvac_plan_level2.pdf"),
+        Path("fixtures/mechanical/hvac_schedule_plan.pdf"),
     ]
 
     for fpath in fixture_paths:
@@ -267,7 +267,7 @@ def test_geometry_cache_bottleneck_profiling() -> None:
     """Empirical breakdown of geometry cache latency bottleneck on real blueprint fixture."""
     import copy
 
-    fpath = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fpath = Path("fixtures/mechanical/hvac_plan_level2.pdf")
     if not fpath.exists():
         pytest.skip("Fixture not found")
 

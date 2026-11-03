@@ -10,7 +10,7 @@ Covers:
 - Product Agent 00 (Orchestrator M2 Integration): multi-agent dispatch on SheetType.PLAN,
   AgentRegistry alias resolution, fail-closed gate interception, atomic TakeoffStore persistence,
   anti-redundancy check on zero items, subagent flag relaying, and SSE lifecycle event streaming.
-- End-to-End Fixture Verification: live evaluation on real PDF fixtures (avexis_page_22.pdf).
+- End-to-End Fixture Verification: live evaluation on real PDF fixtures (hvac_plan_level2.pdf).
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ class TestFinderL1Symbols:
         mock_client.is_configured.return_value = False
 
         finder = FinderL1Agent(client=mock_client)
-        res = finder.parse_legend_exemplars("fixtures/mechanical/avexis_page_22.pdf", page_index=0)
+        res = finder.parse_legend_exemplars("fixtures/mechanical/hvac_plan_level2.pdf", page_index=0)
         assert isinstance(res, (LegendScanResult, list, dict))
 
     def test_tiling_vector_prefilter_skips_empty_tiles(self) -> None:
@@ -501,10 +501,10 @@ class TestTracerL2Linework:
         context = AgentContext(
             project_id="test_proj",
             job_id="job_001",
-            pdf_path=Path("fixtures/mechanical/avexis_page_22.pdf"),
+            pdf_path=Path("fixtures/mechanical/hvac_plan_level2.pdf"),
         )
         sheet_meta = SheetMetadata(
-            sheet_id="avexis_22",
+            sheet_id="hvac_plan_level2",
             page_index=0,
             sheet_number="M-22",
             sheet_title="HVAC Plan",
@@ -763,7 +763,7 @@ class TestOrchestratorM2Integration:
         context = AgentContext(
             project_id="test_proj",
             job_id="job_m2_001",
-            pdf_path=Path("fixtures/mechanical/avexis_page_22.pdf"),
+            pdf_path=Path("fixtures/mechanical/hvac_plan_level2.pdf"),
         )
 
         events = []
@@ -800,7 +800,7 @@ class TestOrchestratorM2Integration:
         context = AgentContext(
             project_id="test_proj",
             job_id="job_m2_002",
-            pdf_path=Path("fixtures/mechanical/avexis_page_22.pdf"),
+            pdf_path=Path("fixtures/mechanical/hvac_plan_level2.pdf"),
         )
 
         async for _ in orch.orchestrate_stream(context):
@@ -866,7 +866,7 @@ class TestOrchestratorM2Integration:
         context = AgentContext(
             project_id="test_proj",
             job_id="job_m2_003",
-            pdf_path=Path("fixtures/mechanical/avexis_page_22.pdf"),
+            pdf_path=Path("fixtures/mechanical/hvac_plan_level2.pdf"),
         )
 
         events = []
@@ -903,7 +903,7 @@ class TestOrchestratorM2Integration:
         context = AgentContext(
             project_id="test_no_dup",
             job_id="job_no_dup_001",
-            pdf_path=Path("fixtures/mechanical/avexis_page_22.pdf"),
+            pdf_path=Path("fixtures/mechanical/hvac_plan_level2.pdf"),
         )
 
         async for _ in orch.orchestrate_stream(context):
@@ -943,7 +943,7 @@ class TestOrchestratorM2Integration:
         context = AgentContext(
             project_id="test_flag_relay",
             job_id="job_flag_002",
-            pdf_path=Path("fixtures/mechanical/avexis_page_22.pdf"),
+            pdf_path=Path("fixtures/mechanical/hvac_plan_level2.pdf"),
         )
 
         events: list[AgentEvent] = []
@@ -962,9 +962,9 @@ class TestEndToEndRealFixture:
     """Full vertical pipeline execution against verified drawing fixtures."""
 
     @pytest.mark.asyncio
-    async def test_e2e_avexis_page_22_takeoff(self, tmp_path: Path) -> None:
-        """Execute end-to-end multi-agent pipeline on avexis_page_22.pdf."""
-        store = TakeoffStore(db_path=tmp_path / "e2e_avexis.sqlite3")
+    async def test_e2e_hvac_plan_level2_takeoff(self, tmp_path: Path) -> None:
+        """Execute end-to-end multi-agent pipeline on hvac_plan_level2.pdf."""
+        store = TakeoffStore(db_path=tmp_path / "e2e_hvac.sqlite3")
         await store.initialize()
 
         registry = AgentRegistry()
@@ -974,9 +974,9 @@ class TestEndToEndRealFixture:
 
         orch = OrchestratorAgent(registry=registry, store=store)
         context = AgentContext(
-            project_id="proj_avexis",
-            job_id="job_avexis_01",
-            pdf_path=Path("fixtures/mechanical/avexis_page_22.pdf"),
+            project_id="proj_hvac",
+            job_id="job_hvac_01",
+            pdf_path=Path("fixtures/mechanical/hvac_plan_level2.pdf"),
         )
 
         events: list[AgentEvent] = []
@@ -989,15 +989,15 @@ class TestEndToEndRealFixture:
         assert len(res.document_map.sheets) == 1
         assert res.document_map.routes[0].sheet_type == SheetType.PLAN
 
-        items = await store.list_items(project_id="proj_avexis")
+        items = await store.list_items(project_id="proj_hvac")
         # Tracer extracts > 300 physical vector duct runs
         assert len(items) >= 300, f"Expected >= 300 duct runs from vector engine, got {len(items)}"
         assert all(it.status == "SUGGESTED" for it in items)
         assert all(it.review_required is True for it in items)
 
-        # On avexis_page_22 (which has no legend), Finder must have emitted NO_LEGEND_FOUND flag
+        # On hvac_plan_level2 (which has no legend), Finder must have emitted NO_LEGEND_FOUND flag
         all_flags = res.flags + [e.payload for e in events if e.event_type == AgentEventType.FLAG_RAISED]
         assert any("NO_LEGEND" in str(f) for f in all_flags), "Expected NO_LEGEND_FOUND flag on legendless sheet"
 
-        summary = await store.get_ledger_summary(project_id="proj_avexis")
+        summary = await store.get_ledger_summary(project_id="proj_hvac")
         assert len(summary) > 0

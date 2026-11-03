@@ -4,7 +4,7 @@
 Accepted (2026-10-30). Source: Questions.md Q4-followup.
 
 ## Context
-The predecessor (`D:\Imagineers`) ships an Ultralytics YOLO11n detector trained on
+The predecessor (offline engineering baseline) ships an Ultralytics YOLO11n detector trained on
 a single class (fire dampers, 175 verified objects) plus ~72 MB of weights
 (`yolo11n.pt`, `rtdetr-l.pt`). Extending it to the dozens of MEP symbol classes
 (diffusers, VAVs, valves, pumps, fixtures) requires per-class data collection and
@@ -32,5 +32,5 @@ agent:
 - Negative: dense full-sheet counting precision will trail a trained per-class
   detector; tiled VLM detection is background/async (seconds per sheet), never on
   the <500 ms hover path.
-- Validation: score VLM detections against dataset ground truth (Avexis 329 runs,
-  PfMCC 175 dampers) and quote measured precision in the demo.
+- Validation: score VLM detections against dataset ground truth (M-201 Mechanical 329 runs,
+  M-118 Schedule 175 dampers) and quote measured precision in the demo.

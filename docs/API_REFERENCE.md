@@ -1,6 +1,6 @@
 # BlueTraceAI — REST & SSE API Reference
 
-**Generated**: `2026-11-03T12:43:01Z`  
+**Generated**: `2026-11-03T14:51:14Z`  
 **OpenAPI Version**: `3.1.0`  
 **Service Title**: `BlueTraceAI API` (`v1.0.0`)  
 **Source of Truth**: `src/api/main.py` & `src/api/routes.py`

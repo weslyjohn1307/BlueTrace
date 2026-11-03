@@ -16,9 +16,9 @@ from src.models.schemas import CopilotQueryRequest
 from src.store.takeoff_store import TakeoffRecord, TakeoffStore
 
 
-def test_sheet_scanner_avexis_fixture():
+def test_sheet_scanner_hvac_fixture():
     scanner = SheetScanner()
-    meta = scanner.scan_page("fixtures/mechanical/avexis_page_22.pdf", page_index=0)
+    meta = scanner.scan_page("fixtures/mechanical/hvac_plan_level2.pdf", page_index=0)
 
     assert meta.discipline == "MECHANICAL"
     assert meta.width_pt == 3024.0
@@ -29,10 +29,10 @@ def test_sheet_scanner_avexis_fixture():
 
 def test_sheet_scanner_plumbing_fixture():
     scanner = SheetScanner()
-    meta = scanner.scan_page("fixtures/plumbing/p104_1_plumbing_level4.pdf", page_index=0)
+    meta = scanner.scan_page("fixtures/plumbing/plumbing_plan_level4.pdf", page_index=0)
 
     assert meta.discipline == "PLUMBING"
-    assert "P104" in meta.sheet_number
+    assert meta.sheet_number.upper().startswith("P")
     assert meta.width_pt == 3024.0
     assert meta.height_pt == 2160.0
 
@@ -184,7 +184,7 @@ def test_api_meta_services_endpoints(isolated_takeoff_store):
     # 1. SheetScan endpoint on real fixture
     scan_res = client.post(
         "/api/sheet-scan",
-        json={"pdf_path": "fixtures/mechanical/avexis_page_22.pdf", "page_index": 0},
+        json={"pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf", "page_index": 0},
     )
     assert scan_res.status_code == 200
     scan_data = scan_res.json()

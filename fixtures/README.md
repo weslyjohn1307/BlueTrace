@@ -7,29 +7,29 @@ This directory stores representative MEP drawing sheets and verified ground-trut
 ## 1. Fixture Inventory
 
 ### 1.1 Mechanical Primary Takeoff Sheet
-- **File**: `fixtures/mechanical/avexis_page_22.pdf`
+- **File**: `fixtures/mechanical/hvac_plan_level2.pdf`
 - **Discipline**: Mechanical (HVAC Ductwork & Equipment)
 - **Sheet Dimensions**: 3024.0 x 2160.0 pt (42" x 30" Arch E1)
 - **Render Output**: 6300 x 4500 px @ 150 DPI
 - **Scale**: `1/4" = 1'-0"` (verified 48.0 scale factor)
-- **Ground Truth**: `fixtures/mechanical/avexis_page_22_gt.json` (21 Flexible Duct annotations)
-- **Duct Line Segments**: `fixtures/mechanical/avexis_page_22_detected_hvac.json` (4,541 raw duct segments, resolving to 329 verified continuous centerline runs)
+- **Ground Truth**: `fixtures/mechanical/hvac_plan_level2_gt.json` (21 Flexible Duct annotations)
+- **Duct Line Segments**: `fixtures/mechanical/hvac_plan_level2_detected_hvac.json` (4,541 raw duct segments, resolving to 329 verified continuous centerline runs)
 - **Primary Demonstration**: Startup track 3-minute flow (SheetScan -> Schedule linking -> QuickDraw hover dimensioning -> Vector centerline tracing -> Takeoff rollup).
 
 ### 1.2 Mechanical Symbol Benchmark (Fire Dampers)
-- **File**: `fixtures/mechanical/pfmcc_page_118.pdf`
+- **File**: `fixtures/mechanical/hvac_schedule_plan.pdf`
 - **Discipline**: Mechanical (HVAC Fire Protection & Dampers)
 - **Sheet Dimensions**: 3024.0 x 2160.0 pt (42" x 30" Arch E1)
 - **Render Output**: 6300 x 4500 px @ 150 DPI
-- **Ground Truth**: `fixtures/mechanical/pfmcc_page_118_gt.json` (168 Fire Damper / FD verified annotations)
+- **Ground Truth**: `fixtures/mechanical/hvac_schedule_plan_gt.json` (168 Fire Damper / FD verified annotations)
 - **Purpose**: Comparative benchmark for `muse-spark-1.3` VLM symbol detection vs legacy single-class YOLO detector (ADR-003).
 
 ### 1.3 Plumbing Pipeline Sheet
-- **File**: `fixtures/plumbing/p104_1_plumbing_level4.pdf`
+- **File**: `fixtures/plumbing/plumbing_plan_level4.pdf`
 - **Discipline**: Plumbing (Level 4 Plan - Area 1)
 - **Sheet Dimensions**: 3024.0 x 2160.0 pt (42" x 30" Arch E1)
 - **Render Output**: 6300 x 4500 px @ 150 DPI
-- **Line Segments**: `fixtures/plumbing/p104_1_detected_pipelines.json` (pipeline vector linework)
+- **Line Segments**: `fixtures/plumbing/plumbing_plan_level4_detected_pipelines.json` (pipeline vector linework)
 - **Purpose**: Verification of pipeline centerline derivation and multi-discipline scale adaptation.
 
 ---

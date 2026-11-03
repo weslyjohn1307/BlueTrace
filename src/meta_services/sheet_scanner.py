@@ -1,7 +1,7 @@
 """SheetScan: Automated title block reconnaissance and sheet indexing via muse-spark-1.3.
 
 Extracts:
-  - Sheet number (e.g. 'M-2.2', 'P104.1')
+  - Sheet number (e.g. 'M-2.2', 'P-104')
   - Sheet title (e.g. 'HVAC DUCTWORK PLAN')
   - Discipline (MECHANICAL, PLUMBING, ELECTRICAL, etc.)
   - Scale string & validated scale ratio (fail-closed)

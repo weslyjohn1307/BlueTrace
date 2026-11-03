@@ -9,8 +9,8 @@ Covers:
   - Taxonomy mapping: duct_segment -> pipe for plumbing
   - Error handling (missing file, invalid page)
   - Real fixture verification:
-      * Avexis Page 22 (329 verified runs, paired boundary centerline extraction)
-      * P104.1 Plumbing Level 4
+      * Sheet M-201 Level 2 (329 verified runs, paired boundary centerline extraction)
+      * P-104 Plumbing Level 4
 """
 
 from __future__ import annotations
@@ -142,15 +142,15 @@ class TestVectorPipelineSynthetic:
 class TestRepresentativeFixtures:
     """End-to-end execution against real project fixtures."""
 
-    _AVEXIS_PATH = Path("fixtures/mechanical/avexis_page_22.pdf")
-    _PLUMBING_PATH = Path("fixtures/plumbing/p104_1_plumbing_level4.pdf")
+    _HVAC_PATH = Path("fixtures/mechanical/hvac_plan_level2.pdf")
+    _PLUMBING_PATH = Path("fixtures/plumbing/plumbing_plan_level4.pdf")
 
-    def test_topology_integration_avexis_p22(self):
-        """Avexis Page 22 must assemble exactly 329 verified centerline runs."""
-        assert self._AVEXIS_PATH.exists(), f"Fixture missing: {self._AVEXIS_PATH}"
+    def test_topology_integration_hvac_plan_l2(self):
+        """Sheet M-201 Level 2 must assemble exactly 329 verified centerline runs."""
+        assert self._HVAC_PATH.exists(), f"Fixture missing: {self._HVAC_PATH}"
 
-        res = run_l2_pipeline(self._AVEXIS_PATH, use_topology=True)
-        assert "avexis_page_22" in res["sheet_id"].lower()
+        res = run_l2_pipeline(self._HVAC_PATH, use_topology=True)
+        assert "hvac_plan_level2" in res["sheet_id"].lower()
         assert res["discipline"] == "mechanical"
         assert res["run_count"] == 329
         assert res["result_count"] == 329
@@ -159,22 +159,22 @@ class TestRepresentativeFixtures:
         assert all(r["continuity_status"] is not None for r in res["results"])
         assert all(r["source_route_fragment_ids"] for r in res["results"])
 
-    def test_calibrated_scale_avexis_p22(self):
-        """Avexis Page 22 with calibrated scale 1/4\" = 1'-0\" yields positive physical footage."""
-        assert self._AVEXIS_PATH.exists()
+    def test_calibrated_scale_hvac_plan_l2(self):
+        """Sheet M-201 Level 2 with calibrated scale 1/4\" = 1'-0\" yields positive physical footage."""
+        assert self._HVAC_PATH.exists()
 
-        res = run_l2_pipeline(self._AVEXIS_PATH, scale_override='1/4" = 1\'-0"', use_topology=True)
+        res = run_l2_pipeline(self._HVAC_PATH, scale_override='1/4" = 1\'-0"', use_topology=True)
         assert res["scale_status"] == "VALID"
         assert res["total_length_m"] is not None
         assert res["total_length_ft"] is not None
         assert res["total_length_ft"] > 100.0
 
-    def test_plumbing_fixture_p104_1(self):
-        """P104.1 Plumbing plan extracts pipeline runs and classifies as plumbing."""
+    def test_plumbing_fixture_plumbing_plan_level4(self):
+        """P-104 Plumbing plan extracts pipeline runs and classifies as plumbing."""
         assert self._PLUMBING_PATH.exists()
 
         res = run_l2_pipeline(self._PLUMBING_PATH)
-        assert res["sheet_id"] == "P104.1"
+        assert "plumbing_plan_level4" in res["sheet_id"].lower()
         assert res["discipline"] == "plumbing"
         assert res["run_count"] > 50
         assert res["results"][0]["object_type"] == "pipe"

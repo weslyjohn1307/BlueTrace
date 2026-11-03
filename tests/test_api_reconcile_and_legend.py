@@ -24,7 +24,7 @@ from src.api.routes import get_meta_client
 from src.meta_services.client import MetaModelClient
 from src.meta_services.legend_scanner import LegendScanResult, LegendSymbolEntry
 
-FIXTURE_PDF = "fixtures/mechanical/avexis_page_22.pdf"
+FIXTURE_PDF = "fixtures/mechanical/hvac_plan_level2.pdf"
 SHEET_ID = "M-101"
 
 
@@ -92,7 +92,7 @@ class _FakeLegendScanner:
     def scan_sheet(self, pdf_path: str, page_index: int = 0) -> LegendScanResult:
         type(self).calls.append((str(pdf_path), page_index))
         return LegendScanResult(
-            sheet_id="avexis_page_22_p0",
+            sheet_id="hvac_plan_level2_p0",
             legend_detected=True,
             legend_bbox_pt=(400.0, 100.0, 600.0, 700.0),
             symbols=[

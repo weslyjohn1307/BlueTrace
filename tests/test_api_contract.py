@@ -96,7 +96,7 @@ def test_backend_endpoints_respond(client: TestClient):
 
     scan = client.post(
         "/api/sheet-scan",
-        json={"pdf_path": "fixtures/mechanical/avexis_page_22.pdf", "page_index": 0},
+        json={"pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf", "page_index": 0},
     )
     assert scan.status_code == 200
     assert scan.json()["scale_status"] in ("VERIFIED", "UNVERIFIED", "CALIBRATED")
@@ -273,7 +273,7 @@ def test_project_session_endpoints(client: TestClient):
     scan = client.post(
         "/api/sheet-scan",
         json={
-            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf",
             "page_index": 0,
             "project_id": "sess_proj",
         },
@@ -325,7 +325,7 @@ def test_project_session_viewport_scale_rejected(client: TestClient):
     scan = client.post(
         "/api/sheet-scan",
         json={
-            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf",
             "page_index": 0,
             "project_id": "sess_scale_proj",
         },
@@ -353,7 +353,7 @@ def test_intake_sse_stream(client: TestClient):
     """TASK-INTK-003: batch intake persists sheets and replays progress over SSE."""
     res = client.post(
         "/api/intake/batch",
-        json={"pdf_path": "fixtures/mechanical/avexis_page_22.pdf"},
+        json={"pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf"},
     )
     assert res.status_code == 200
     body = res.json()
@@ -389,7 +389,7 @@ def test_intake_batch_rejects_unsafe_project_id(client: TestClient):
         res = client.post(
             "/api/intake/batch",
             json={
-                "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+                "pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf",
                 "project_id": unsafe,
             },
         )
@@ -404,7 +404,7 @@ def test_intake_batch_rejects_unsafe_project_id(client: TestClient):
         ok = client.post(
             "/api/intake/batch",
             json={
-                "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+                "pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf",
                 "project_id": "safe_project-1",
             },
         )
@@ -453,7 +453,7 @@ def test_intake_failing_job_emits_error_terminal(
     monkeypatch.setattr(SheetScanner, "scan_package_reconnaissance", _boom, raising=True)
     res = client.post(
         "/api/intake/batch",
-        json={"pdf_path": "fixtures/mechanical/avexis_page_22.pdf", "project_id": "boom_proj"},
+        json={"pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf", "project_id": "boom_proj"},
     )
     assert res.status_code == 502
     assert "reconnaissance exploded" in res.json()["detail"]
@@ -495,7 +495,7 @@ def test_intake_sse_always_terminates(client: TestClient):
                 job_id=job_id,
                 status="running",
                 project_id="stuck_proj",
-                pdf_path="fixtures/mechanical/avexis_page_22.pdf",
+                pdf_path="fixtures/mechanical/hvac_plan_level2.pdf",
             ),
             "events": [],
         },
@@ -570,7 +570,7 @@ def test_feedback_events_crop_project_guard_and_nulls(
     scan = client.post(
         "/api/sheet-scan",
         json={
-            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf",
             "page_index": 0,
             "project_id": "fdbk_route_proj",
         },

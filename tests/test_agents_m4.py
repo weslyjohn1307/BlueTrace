@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 from src.api.main import app
 
-AVEXIS_PDF = "fixtures/mechanical/avexis_page_22.pdf"
+HVAC_PDF = "fixtures/mechanical/hvac_plan_level2.pdf"
 
 
 def _schedule_pdf(path: Path) -> None:
@@ -57,7 +57,7 @@ class TestAgentEndpointContracts:
         )
         assert r.status_code == 404
         r = api_client.post(
-            "/api/agents/orchestrate", json={"file_path": AVEXIS_PDF, "project_id": "../x"}
+            "/api/agents/orchestrate", json={"file_path": HVAC_PDF, "project_id": "../x"}
         )
         assert r.status_code == 400
         r = api_client.post(
@@ -68,7 +68,7 @@ class TestAgentEndpointContracts:
     def test_reconcile_unknown_plan_sheets(self, api_client: TestClient) -> None:
         r = api_client.post(
             "/api/agents/reconcile",
-            json={"project_id": "p1", "file_path": AVEXIS_PDF, "plan_sheet_ids": ["nope"]},
+            json={"project_id": "p1", "file_path": HVAC_PDF, "plan_sheet_ids": ["nope"]},
         )
         assert r.status_code == 400
 
@@ -101,7 +101,7 @@ class TestFullLoop:
         project = "m4_full"
         # 1. Orchestrate the real plan fixture (offline client in tests).
         r = api_client.post(
-            "/api/agents/orchestrate", json={"file_path": AVEXIS_PDF, "project_id": project}
+            "/api/agents/orchestrate", json={"file_path": HVAC_PDF, "project_id": project}
         )
         assert r.status_code == 200
         body = r.json()

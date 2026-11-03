@@ -87,7 +87,7 @@ def test_legend_scanner_malformed_and_empty_pdf():
 
 def test_legend_scanner_out_of_bounds_page_index():
     """Fail-closed: page indices < 0 or >= len(doc) must raise ValueError."""
-    fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
     assert fixture.exists()
 
     with pytest.raises(ValueError, match="Page index -1 out of range"):
@@ -103,7 +103,7 @@ def test_legend_scanner_unconfigured_client_mock_contract():
     assert client.is_configured() is False
 
     scanner = LegendScanner(client=client)
-    res = scanner.scan_sheet("fixtures/mechanical/avexis_page_22.pdf", page_index=0)
+    res = scanner.scan_sheet("fixtures/mechanical/hvac_plan_level2.pdf", page_index=0)
 
     assert isinstance(res, LegendScanResult)
     assert res.mock is True
@@ -116,7 +116,7 @@ def test_legend_scanner_unconfigured_client_mock_contract():
 
 def test_legend_scanner_live_scan_fail_closed_on_api_failures():
     """Live VLM inference must catch all parsing/network failures and return review_required=True."""
-    fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
 
     # Helper to create a mock MetaModelClient that appears configured
     def make_mock_client(response_content: str | None, raise_exc: Exception | None = None):
@@ -174,7 +174,7 @@ def test_legend_scanner_live_scan_fail_closed_on_api_failures():
 
 def test_adversarial_vlm_payload_variations():
     """Empirically test simulated VLM payloads with markdown wrappers, conversational text, and missing fields."""
-    fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
 
     def make_client_with_content(content: str):
         mock_client = MagicMock(spec=MetaModelClient)
@@ -303,7 +303,7 @@ def test_adversarial_vlm_payload_variations():
 
 def test_adversarial_negative_and_out_of_bounds_coordinates():
     """Empirically test handling of negative, inverted, degenerate, and out-of-bounds coordinates."""
-    fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
 
     def make_client_with_content(content: str):
         mock_client = MagicMock(spec=MetaModelClient)
@@ -414,7 +414,7 @@ def test_adversarial_downstream_consumer_compatibility():
     assert len(res_dict["symbols"]) == 1
 
     # 4. Mock mode raster crops for mechanical fixture
-    fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
     unconfigured_client = MetaModelClient(api_key="mock_key_unconfigured")
     scanner = LegendScanner(client=unconfigured_client)
     res_mech = scanner.scan_sheet(fixture, page_index=0)
@@ -428,7 +428,7 @@ def test_adversarial_downstream_consumer_compatibility():
 
 def test_adversarial_network_timeout_and_http_status_httpx():
     """Verify fail-closed behavior on direct httpx network timeouts, connect errors, and 500/504 errors."""
-    fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
 
     mock_client = MagicMock(spec=MetaModelClient)
     mock_client.is_configured.return_value = True
@@ -490,7 +490,7 @@ def test_adversarial_network_timeout_and_http_status_openai():
     Invariant: scan_sheet_legend must fail closed (confidence=0.0, review_required=True, symbols=[])
     without throwing uncaught exceptions to caller.
     """
-    fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
 
     def make_openai_error_client(exc: Exception):
         mock_client = MagicMock(spec=MetaModelClient)
@@ -545,7 +545,7 @@ def test_adversarial_unexpected_exceptions_during_parsing():
     Invariant: LegendScanner.scan_sheet and scan_sheet_legend must fail closed:
     (confidence=0.0, review_required=True, symbols=[], legend_detected=False).
     """
-    fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
 
     # 1. TypeError during model response or bbox parsing
     mock_client_type = MagicMock(spec=MetaModelClient)

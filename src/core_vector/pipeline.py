@@ -360,7 +360,7 @@ def run_l2_pipeline(
                         unpaired boundaries fall back to continuity assembly;
                         when False, the exact legacy boundary-perimeter
                         assembly runs unchanged.
-        fixture_id: Optional fixture identifier (e.g. "avexis_page_22").
+        fixture_id: Optional fixture identifier (e.g. "hvac_plan_level2").
         representation_config_path: Route representation YAML config path.
         topology_config_path: Continuity topology YAML config path.
         strategy: Route representation strategy ("conservative_hybrid" or "legacy_1to1").

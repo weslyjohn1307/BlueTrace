@@ -465,7 +465,7 @@ class TestOrchestratorStreamingStress:
     @pytest.mark.asyncio
     async def test_sse_wire_json_serialization_integrity(self, tmp_path: Path) -> None:
         """Verify 100% of streamed events serialize to valid JSON without non-standard types."""
-        pdf_fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+        pdf_fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
         assert pdf_fixture.is_file()
 
         store = await _create_test_store(tmp_path, "store_sse.sqlite3")
@@ -524,7 +524,7 @@ class TestOrchestratorStreamingStress:
     @pytest.mark.asyncio
     async def test_fault_tolerant_recon_failure_emits_warning_and_continues(self, tmp_path: Path) -> None:
         """If ReconAgent throws an exception, Orchestrator emits WARNING and completes orchestration."""
-        pdf_fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+        pdf_fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
         assert pdf_fixture.is_file()
 
         registry = AgentRegistry()
@@ -546,7 +546,7 @@ class TestOrchestratorStreamingStress:
     @pytest.mark.asyncio
     async def test_concurrent_streaming_stress(self, tmp_path: Path) -> None:
         """Run 5 concurrent streaming orchestration tasks to test race conditions and concurrency."""
-        pdf_fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+        pdf_fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
         assert pdf_fixture.is_file()
         store = await _create_test_store(tmp_path, "store_concurrent.sqlite3")
         orch = OrchestratorAgent(store=store)

@@ -14,10 +14,10 @@ import {
 
 describe('Transform Math Engine', () => {
   const viewport = { width: 1200, height: 800 };
-  const pageAvexis = { width: 3024, height: 2160 }; // Standard Avexis 22 page points (pt)
+  const pageMechanical = { width: 3024, height: 2160 }; // Standard M-201 Level 2 page points (pt)
 
   it('calculates exact fit transform with symmetric padding', () => {
-    const transform = calculateFitTransform(viewport, pageAvexis, 24);
+    const transform = calculateFitTransform(viewport, pageMechanical, 24);
     expect(transform.mode).toBe('fit');
 
     // Avail width: 1200 - 48 = 1152. 1152 / 3024 = 0.380952...
@@ -29,12 +29,12 @@ describe('Transform Math Engine', () => {
     expect(transform.translationY).toBeCloseTo(24, 4);
 
     // Width is centered horizontally in 1200 viewport
-    const renderedWidth = pageAvexis.width * transform.scale;
+    const renderedWidth = pageMechanical.width * transform.scale;
     expect(transform.translationX).toBeCloseTo((viewport.width - renderedWidth) / 2, 4);
   });
 
   it('guarantees roundtrip exactness between page user space and screen pixels', () => {
-    const transform = calculateFitTransform(viewport, pageAvexis, 24);
+    const transform = calculateFitTransform(viewport, pageMechanical, 24);
 
     const testPoints = [
       { x: 0, y: 0 },
@@ -54,7 +54,7 @@ describe('Transform Math Engine', () => {
   });
 
   it('preserves page point under screen anchor across zoom operations', () => {
-    const initialTransform = calculateFitTransform(viewport, pageAvexis, 24);
+    const initialTransform = calculateFitTransform(viewport, pageMechanical, 24);
     const screenCursor = { x: 600, y: 400 };
 
     // Page point under cursor before zoom
@@ -76,7 +76,7 @@ describe('Transform Math Engine', () => {
   });
 
   it('pans accurately by screen delta', () => {
-    const initialTransform = calculateFitTransform(viewport, pageAvexis, 24);
+    const initialTransform = calculateFitTransform(viewport, pageMechanical, 24);
     const delta = { x: 45, y: -30 };
 
     const panned = panByScreenDelta(initialTransform, delta);
@@ -87,14 +87,14 @@ describe('Transform Math Engine', () => {
   });
 
   it('resets to fit viewport', () => {
-    const initialTransform = calculateFitTransform(viewport, pageAvexis, 24);
+    const initialTransform = calculateFitTransform(viewport, pageMechanical, 24);
     const modified = panByScreenDelta(
       zoomAroundScreenAnchor(initialTransform, { x: 300, y: 300 }, 1.5),
       { x: 100, y: 100 }
     );
     expect(modified.mode).toBe('manual');
 
-    const reset = resetToFit(viewport, pageAvexis, 24);
+    const reset = resetToFit(viewport, pageMechanical, 24);
     expect(reset.mode).toBe('fit');
     expect(reset.scale).toBeCloseTo(initialTransform.scale, 5);
     expect(reset.translationX).toBeCloseTo(initialTransform.translationX, 5);
@@ -102,7 +102,7 @@ describe('Transform Math Engine', () => {
   });
 
   it('handles zero or degenerate dimensions safely without dividing by zero', () => {
-    const deg1 = calculateFitTransform({ width: 0, height: 0 }, pageAvexis);
+    const deg1 = calculateFitTransform({ width: 0, height: 0 }, pageMechanical);
     expect(deg1.scale).toBe(1.0);
     expect(deg1.translationX).toBe(0);
 
@@ -119,7 +119,7 @@ describe('Transform Math Engine', () => {
     const targetPoint = { x: 500, y: 400 };
     const targetScale = 1.5;
 
-    const centered = zoomToPageCoordinate(viewport, pageAvexis, targetPoint, targetScale);
+    const centered = zoomToPageCoordinate(viewport, pageMechanical, targetPoint, targetScale);
     expect(centered.mode).toBe('manual');
     expect(centered.scale).toBe(1.5);
 

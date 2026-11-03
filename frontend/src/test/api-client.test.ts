@@ -42,14 +42,14 @@ describe('api client', () => {
   it('posts JSON bodies for sheet scan', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ sheet_id: 's1' }));
     const client = createApiClient();
-    await client.scanSheet('fixtures/mechanical/avexis_page_22.pdf', 0);
+    await client.scanSheet('fixtures/mechanical/hvac_plan_level2.pdf', 0);
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('/api/sheet-scan');
     expect(init.method).toBe('POST');
     expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' });
     expect(JSON.parse(String(init.body))).toEqual({
-      pdf_path: 'fixtures/mechanical/avexis_page_22.pdf',
+      pdf_path: 'fixtures/mechanical/hvac_plan_level2.pdf',
       page_index: 0,
     });
   });
@@ -83,7 +83,7 @@ describe('api client', () => {
 
   it('builds page-image URLs with query params', () => {
     const client = createApiClient();
-    const url = client.getPageImageUrl('fixtures/mechanical/avexis_page_22.pdf', 2, 150);
+    const url = client.getPageImageUrl('fixtures/mechanical/hvac_plan_level2.pdf', 2, 150);
     expect(url.startsWith('/api/page-image?')).toBe(true);
     expect(url).toContain('page_index=2');
     expect(url).toContain('dpi=150');

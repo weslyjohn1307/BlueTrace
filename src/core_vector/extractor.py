@@ -403,7 +403,7 @@ def detect_viewports(
     """
     pw, ph = page.rect.width, page.rect.height
 
-    if fixture_id == "p104_1_plumbing_level4" or discipline == "plumbing":
+    if fixture_id == "plumbing_plan_level4" or discipline == "plumbing":
         # Plumbing fixture plan viewport
         bounds = [500.0, 500.0, min(2050.0, pw), min(1900.0, ph)]
         v_id = f"VP-{fixture_id or 'PLUM'}-01"
@@ -419,7 +419,7 @@ def detect_viewports(
                 confidence=1.0,
             )
         ]
-    elif fixture_id == "avexis_page_22" or discipline == "mechanical":
+    elif fixture_id == "hvac_plan_level2" or discipline == "mechanical":
         # Mechanical fixture plan viewport
         bounds = [50.0, 50.0, min(2050.0, pw), min(2050.0, ph)]
         v_id = f"VP-{fixture_id or 'MECH'}-01"

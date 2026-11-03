@@ -1,14 +1,14 @@
 {
   "info": {
-    "description": "Vector duct geometry extracted from Architecture and Mechanical_IFC Set_Avexis_page_22_detected_hvac.pdf",
-    "source_pdf": "Architecture and Mechanical_IFC Set_Avexis_page_22_detected_hvac.pdf",
+    "description": "Vector duct geometry extracted from hvac_plan_level2_detected_hvac.pdf",
+    "source_pdf": "hvac_plan_level2_detected_hvac.pdf",
     "date_created": "2026-08-06T09:29:08.186686+00:00",
     "generator": "pdf_to_coco.py (PyMuPDF)"
   },
   "images": [
     {
       "id": 1,
-      "file_name": "Architecture and Mechanical_IFC Set_Avexis_page_22_detected_hvac.png",
+      "file_name": "hvac_plan_level2_detected_hvac.png",
       "width": 6300,
       "height": 4500,
       "page_width_pt": 3024.0,

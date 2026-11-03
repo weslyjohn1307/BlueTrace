@@ -17,7 +17,7 @@ async def test_takeoff_store_crud(tmp_path: Path):
     store = TakeoffStore(db_path=db_file)
     await store.initialize()
 
-    await store.insert_project("proj_01", "Avexis Facility")
+    await store.insert_project("proj_01", "North Wing Mechanical")
     await store.insert_sheet(
         sheet_id="sheet_m22",
         project_id="proj_01",
@@ -521,11 +521,11 @@ async def test_feedback_null_original_project_guard_and_pdf_path(tmp_path: Path)
         scale_status="UNVERIFIED",
         width_pt=612.0,
         height_pt=792.0,
-        pdf_path="fixtures/mechanical/avexis_page_22.pdf",
+        pdf_path="fixtures/mechanical/hvac_plan_level2.pdf",
     )
     sheet = await store.get_sheet("sheet_null")
     assert sheet is not None
-    assert sheet["pdf_path"] == "fixtures/mechanical/avexis_page_22.pdf"
+    assert sheet["pdf_path"] == "fixtures/mechanical/hvac_plan_level2.pdf"
 
     feedback_id = await store.record_feedback_event(
         project_id="p_null",

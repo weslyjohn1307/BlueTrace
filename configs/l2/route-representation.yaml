@@ -1,7 +1,7 @@
 # Route Representation Configuration — L2-03
 # Frozen before the first real representation run.
 # All thresholds are derived from OBSERVED L2-02 candidate population
-# (fixtures: avexis_page_22, p104_1_plumbing_level4; 12,547 candidates).
+# (fixtures: hvac_plan_level2, plumbing_plan_level4; 12,547 candidates).
 # DO NOT modify without updating ADR evidence and re-running representation.
 
 # --- Evidence anchor ---

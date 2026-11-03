@@ -34,7 +34,7 @@ from src.meta_services.legend_scanner import (
 
 def test_linework_extracts_from_mechanical_fixture():
     """Verify clean vector linework extraction on real drawing fixture."""
-    fixture_path = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture_path = Path("fixtures/mechanical/hvac_plan_level2.pdf")
     assert fixture_path.exists()
 
     result = extract_vector_linework(fixture_path, page_index=0)
@@ -59,7 +59,7 @@ def test_linework_fail_closed_on_missing_or_invalid_page():
     with pytest.raises(ValueError, match="PDF file does not exist"):
         extract_vector_linework("fixtures/non_existent_blueprint.pdf", page_index=0)
 
-    fixture_path = Path("fixtures/mechanical/avexis_page_22.pdf")
+    fixture_path = Path("fixtures/mechanical/hvac_plan_level2.pdf")
     with pytest.raises(ValueError, match="Page index 99 out of range"):
         extract_vector_linework(fixture_path, page_index=99)
 
@@ -211,7 +211,7 @@ def test_legend_scanner_mechanical_mock_mode():
     assert client.is_configured() is False
 
     scanner = LegendScanner(client=client)
-    res = scanner.scan_sheet("fixtures/mechanical/avexis_page_22.pdf", page_index=0)
+    res = scanner.scan_sheet("fixtures/mechanical/hvac_plan_level2.pdf", page_index=0)
 
     assert isinstance(res, LegendScanResult)
     assert res.legend_detected is True
@@ -238,7 +238,7 @@ def test_legend_scanner_mechanical_mock_mode():
 def test_legend_scanner_plumbing_mock_mode():
     """LegendScanner adapts symbol taxonomy when scanning plumbing fixtures."""
     client = MetaModelClient(api_key="mock_key_unconfigured")
-    res = scan_sheet_legend("fixtures/plumbing/p104_1_plumbing_level4.pdf", client=client)
+    res = scan_sheet_legend("fixtures/plumbing/plumbing_plan_level4.pdf", client=client)
 
     assert res.legend_detected is True
     labels = [s.label for s in res.symbols]

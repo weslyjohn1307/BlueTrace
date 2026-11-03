@@ -7,7 +7,7 @@ Accepted
 2026-10-30
 
 ## Context
-In our predecessor engineering project (`D:\Imagineers`), we developed and validated a full offline 2D MEP extraction pipeline backed by 715 unit/integration tests:
+In our predecessor engineering project (offline engineering baseline), we developed and validated a full offline 2D MEP extraction pipeline backed by 715 unit/integration tests:
 - Native vector extraction and double-line duct centerline derivation.
 - Conservative topological graph routing and fail-closed scale validation.
 - Fine-tuned Fire Damper detection and spatial vector matchers.
@@ -23,7 +23,7 @@ In the real world of mechanical estimating (exemplified by modern state-of-the-a
 
 ## Decision
 1. **Reuse Battle-Tested Offline Foundation**:
-   - Directly import and adapt the mathematical vector linework algorithms, paired duct centerline derivation, and 150 DPI canvas viewer from `Imagineers`.
+   - Directly import and adapt the mathematical vector linework algorithms, paired duct centerline derivation, and 150 DPI canvas viewer from our offline engineering baseline.
    - Strictly sanitize and strip all legacy naming or hackathon tokens using `scripts/sanitize_import.py` and git pre-commit hooks.
 2. **Evolve to Live Multi-Agent Architecture with Meta Model API**:
    - Deploy **Agent 1 (SheetScan)**: Fast background reconnaissance reading sheet title blocks and scales (`muse-spark-1.3`).

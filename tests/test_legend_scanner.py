@@ -34,8 +34,8 @@ from src.meta_services.tiling import (
     untile_candidate,
 )
 
-FIXTURE_MECH = Path("fixtures/mechanical/avexis_page_22.pdf")
-FIXTURE_PLUMB = Path("fixtures/plumbing/p104_1_plumbing_level4.pdf")
+FIXTURE_MECH = Path("fixtures/mechanical/hvac_plan_level2.pdf")
+FIXTURE_PLUMB = Path("fixtures/plumbing/plumbing_plan_level4.pdf")
 
 
 # ---------------------------------------------------------------------------

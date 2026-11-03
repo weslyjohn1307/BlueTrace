@@ -1,6 +1,6 @@
 """End-to-end ingestion test: upload -> scan-all -> ledger -> summary -> export.
 
-Proves the full pipeline on the Avexis mechanical fixture:
+Proves the full pipeline on the M-201 Mechanical mechanical fixture:
   PDF upload, multi-sheet reconnaissance, automated vector extraction,
   fail-closed scale gating, ledger population, and CSV/JSON export.
 A synthetic scaled sheet covers the VERIFIED branch (ACCEPTED footage),
@@ -18,7 +18,7 @@ from starlette.testclient import TestClient
 from src.api.main import app
 from src.store.takeoff_store import pipeline_results_to_records
 
-AVEXIS = Path("fixtures/mechanical/avexis_page_22.pdf")
+HVAC_FIXTURE = Path("fixtures/mechanical/hvac_plan_level2.pdf")
 
 
 @pytest.fixture()
@@ -54,7 +54,7 @@ def _make_pdf_bytes(pages: list[tuple[str, list[tuple[tuple[float, float], tuple
 
 
 def test_upload_scan_all_populates_ledger_fail_closed(client: TestClient):
-    uploaded = _upload(client, "avexis_page_22.pdf", AVEXIS.read_bytes())
+    uploaded = _upload(client, "hvac_plan_level2.pdf", HVAC_FIXTURE.read_bytes())
     assert uploaded["file_path"].startswith("data/uploads/")
 
     scan = client.post(
@@ -67,7 +67,7 @@ def test_upload_scan_all_populates_ledger_fail_closed(client: TestClient):
     assert len(body["sheets"]) == 1
     sheet = body["sheets"][0]
     assert sheet["discipline"] == "MECHANICAL"
-    # Avexis carries no readable scale: the sheet must fail closed.
+    # M-201 Mechanical carries no readable scale: the sheet must fail closed.
     assert sheet["scale_status"] == "UNVERIFIED"
     assert body["takeoff"][0]["run_count"] > 300
     assert body["takeoff"][0]["items_created"] > 300
@@ -125,7 +125,7 @@ def test_single_sheet_scan_auto_populates_ledger(client: TestClient):
     scan = client.post(
         "/api/sheet-scan",
         json={
-            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf",
             "page_index": 0,
             "project_id": "single_scan_project",
         },
@@ -143,7 +143,7 @@ def test_single_sheet_scan_auto_populates_ledger(client: TestClient):
     again = client.post(
         "/api/sheet-scan",
         json={
-            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf",
             "page_index": 0,
             "project_id": "single_scan_project",
         },
@@ -317,7 +317,7 @@ def test_unverified_acceptance_is_blocked_and_rescan_replaces_rows(client: TestC
     scan = client.post(
         "/api/sheet-scan",
         json={
-            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf",
             "page_index": 0,
             "project_id": "review_project",
         },
@@ -344,7 +344,7 @@ def test_unverified_acceptance_is_blocked_and_rescan_replaces_rows(client: TestC
     rescan = client.post(
         "/api/sheet-scan",
         json={
-            "pdf_path": "fixtures/mechanical/avexis_page_22.pdf",
+            "pdf_path": "fixtures/mechanical/hvac_plan_level2.pdf",
             "page_index": 0,
             "project_id": "review_project",
         },

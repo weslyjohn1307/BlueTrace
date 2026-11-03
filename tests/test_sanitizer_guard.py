@@ -32,7 +32,16 @@ def _write(tmp_path: Path, name: str, text: str) -> Path:
 def test_trademark_terms_are_flagged(tmp_path: Path):
     # Terms are assembled at runtime so this guard file stays audit-clean by content;
     # it is also exempted by name in GUARD_SELF_FILES as a second layer.
-    for term in ("Cana" + "veral", "Blue" + "beam", "Re" + "vu"):
+    for term in (
+        "Cana" + "veral",
+        "Blue" + "beam",
+        "Re" + "vu",
+        "ave" + "xis",
+        "pf" + "mcc",
+        "p104" + "_1",
+        "Imagi" + "neers",
+        "C" + "TD",
+    ):
         f = _write(tmp_path, "note.md", f"Comparison against {term} workflows.\n")
         assert sanitize_import.audit_file(f), f"term not flagged: {term}"
 

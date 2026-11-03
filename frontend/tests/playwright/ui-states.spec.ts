@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 const SCREENSHOT_DIR = path.resolve('playwright-screenshots');
-const FIXTURE = path.resolve('../fixtures/mechanical/avexis_page_22.pdf');
+const FIXTURE = path.resolve('../fixtures/mechanical/hvac_plan_level2.pdf');
 
 async function saveScreenshot(page: Page, name: string) {
   if (!fs.existsSync(SCREENSHOT_DIR)) {
@@ -34,7 +34,7 @@ test.describe('BlueTraceAI — smoke & visual QA', () => {
     await expect(page.getByText('BlueTraceAI').first()).toBeVisible();
     await expect(page.locator('#topnav-choose-pdf-btn')).toBeVisible();
     await expect(page.getByTestId('upload-card')).toBeVisible();
-    await expect(page.getByText('Avexis HVAC plan')).toBeVisible();
+    await expect(page.getByText('M-201 HVAC plan')).toBeVisible();
 
     const bodyText = await page.locator('body').innerText();
     expect(bodyText).not.toContain('31.699');
@@ -45,7 +45,7 @@ test.describe('BlueTraceAI — smoke & visual QA', () => {
 
   test('02-flow: fixture scan shows canvas, scale badge, and ledger', async ({ page }) => {
     await page.goto('/', { waitUntil: 'networkidle' });
-    await page.getByText('Avexis HVAC plan').click();
+    await page.getByText('M-201 HVAC plan').click();
 
     await expect(page.getByTestId('sheet-canvas')).toBeVisible({ timeout: 30000 });
     await expect(page.getByTestId('ledger-panel')).toBeVisible();
@@ -57,7 +57,7 @@ test.describe('BlueTraceAI — smoke & visual QA', () => {
 
   test('03-copilot: drawer opens and answers with provenance', async ({ page }) => {
     await page.goto('/', { waitUntil: 'networkidle' });
-    await page.getByText('Avexis HVAC plan').click();
+    await page.getByText('M-201 HVAC plan').click();
     await expect(page.getByTestId('sheet-canvas')).toBeVisible({ timeout: 30000 });
 
     await page.getByRole('button', { name: 'Open copilot' }).click();

@@ -147,9 +147,9 @@ Repository fixtures in `fixtures/mechanical/` provide reproducible local verific
 
 | Verification target | Fixture / input | Measured result | Command |
 |---|---|---|---|
-| **Vector centerline extraction** | `fixtures/mechanical/avexis_page_22.pdf` (Page 22 mechanical plan) | **329** extracted centerline runs vs. **329** ground-truth runs (`0.00%` count error; `636.62 ft` calibrated at $1/8" = 1'-0"$, `0.00 ft` when uncalibrated) | `.\.venv\Scripts\python.exe scripts/generate_eval_report.py` |
-| **Geometry SHA-256 cache** | `fixtures/mechanical/avexis_page_22.pdf` | Warm cache lookup in `< 2.0 ms` (`1.35 ms` recorded vs. `23.47 s` cold 6-stage topological extraction) | `.\.venv\Scripts\python.exe scripts/generate_eval_report.py` |
-| **Tiling coordinate round-trip** | `pfmcc_page_118_gt.json` (168 boxes) & `avexis_page_22_gt.json` (21 boxes) | `0.000000 pt` max untile drift (`<= 0.50 pt` gate); `0` fabricated items in offline mode | `.\.venv\Scripts\python.exe scripts/generate_eval_report.py` |
+| **Vector centerline extraction** | `fixtures/mechanical/hvac_plan_level2.pdf` (Page 22 mechanical plan) | **329** extracted centerline runs vs. **329** ground-truth runs (`0.00%` count error; `636.62 ft` calibrated at $1/8" = 1'-0"$, `0.00 ft` when uncalibrated) | `.\.venv\Scripts\python.exe scripts/generate_eval_report.py` |
+| **Geometry SHA-256 cache** | `fixtures/mechanical/hvac_plan_level2.pdf` | Warm cache lookup in `< 2.0 ms` (`1.35 ms` recorded vs. `23.47 s` cold 6-stage topological extraction) | `.\.venv\Scripts\python.exe scripts/generate_eval_report.py` |
+| **Tiling coordinate round-trip** | `hvac_schedule_plan_gt.json` (168 boxes) & `hvac_plan_level2_gt.json` (21 boxes) | `0.000000 pt` max untile drift (`<= 0.50 pt` gate); `0` fabricated items in offline mode | `.\.venv\Scripts\python.exe scripts/generate_eval_report.py` |
 | **Schedule & watchdog gates** | Seeded schedule-vs-plan fixture | `1.00` mismatch recall (`1` matched, `1` ghost pin, `2` mismatch flags); durable `qa_annotations` persisted | `.\.venv\Scripts\python.exe scripts/generate_eval_report.py` |
 
 Run the test, lint, type-check, and sanitizer suites from a clean environment:

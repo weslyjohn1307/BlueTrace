@@ -2,11 +2,12 @@
 """
 BlueTraceAI Sanitization & Anti-Leak Guardian
 Strictly detects, strips, and prevents any mentions of legacy naming (e.g. 'CTD',
-'CTD Dataset', 'ctd-fire-damper') when importing files from predecessor projects
-or writing to frontend/backend.
+'CTD Dataset', 'ctd-fire-damper') and source dataset project names when importing
+files from predecessor projects or writing to frontend/backend.
 """
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -20,12 +21,24 @@ REPLACEMENTS = [
     (re.compile(r'\bCTD\s+2026\b', re.IGNORECASE), 'BlueTraceAI'),
     (re.compile(r'\bCTD\s+AI\s+Hackathon\b', re.IGNORECASE), 'AI Hackathon'),
     (re.compile(r'\bCTD\b', re.IGNORECASE), 'MEP'),
+    (re.compile(r'avexis_page_22', re.IGNORECASE), 'hvac_plan_level2'),
+    (re.compile(r'pfmcc_page_118', re.IGNORECASE), 'hvac_schedule_plan'),
+    (re.compile(r'p104_1_plumbing_level4', re.IGNORECASE), 'plumbing_plan_level4'),
 ]
 
 # Patterns that strictly trigger an audit violation (whole workspace).
 FORBIDDEN_PATTERNS = [
     re.compile(r'\bCTD\b', re.IGNORECASE),
     re.compile(r'ctd[-_]', re.IGNORECASE),
+    re.compile(r'avexis', re.IGNORECASE),
+    re.compile(r'pfmcc', re.IGNORECASE),
+    re.compile(r'p104_1', re.IGNORECASE),
+    re.compile(r'\bbswh\b', re.IGNORECASE),
+    re.compile(r'\bvumc\b', re.IGNORECASE),
+    re.compile(r'moss[\s_-]+adams', re.IGNORECASE),
+    re.compile(r'701[\s_-]+dexter', re.IGNORECASE),
+    re.compile(r'metro_p1', re.IGNORECASE),
+    re.compile(r'\bImagineers\b', re.IGNORECASE),
 ]
 
 # Third-party product/trademark patterns (copyright guard): forbidden in every
@@ -38,7 +51,10 @@ TRADEMARK_FORBIDDEN_PATTERNS = [
     re.compile(r'bluebeam', re.IGNORECASE),
     re.compile(r'\brevu\b', re.IGNORECASE),
 ]
-TRADEMARK_FILENAME_TOKENS = ('canaveral', 'bluebeam', 'revu')
+TRADEMARK_FILENAME_TOKENS = (
+    'canaveral', 'bluebeam', 'revu',
+    'avexis', 'pfmcc', 'p104_1', 'bswh', 'vumc', 'imagineers', 'ctd',
+)
 
 # Files that define the guard itself and therefore legitimately contain the
 # forbidden literals as patterns/test data.
@@ -64,11 +80,13 @@ CODE_FORBIDDEN_PATTERNS = [
 CODE_DIRS = ('src/', 'frontend/src/', 'frontend/tests/', 'configs/', 'tests/', 'scripts/')
 
 IGNORED_DIRS = {
-    '.git', 'node_modules', '.venv', '__pycache__', 'dist', 'build', '.pytest_cache',
+    '.git', 'node_modules', '.venv', 'venv', '__pycache__', 'dist', 'build', '.pytest_cache',
+    '.mypy_cache', '.ruff_cache', 'target', 'data',
     'meta_api', 'meta-model-cookbook', 'meta-oss-cookbook', 'ECC', 'docs/meta_api', 'docs/research/ECC',
     # Internal-only research sanctuary: may discuss third-party products, is
     # gitignored, and must never be committed (see internal-research/README.md).
     'internal-research', '.scrape-cache', 'teamwork',
+    '.agents', '.opencode', '.ai', 'agent-os',
 }
 IGNORED_FILES = {
     'AUDIT-2026-10-30-antigravity-slices-0-5.md',
@@ -123,23 +141,27 @@ def audit_file(file_path: Path) -> list[tuple[int, str]]:
 def audit_directory(root_dir: Path) -> int:
     """Scans directory and returns total violations count."""
     total_violations = 0
-    for path in root_dir.rglob('*'):
-        if any(ignored in path.parts for ignored in IGNORED_DIRS) or path.name in IGNORED_FILES:
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        dirnames[:] = [d for d in dirnames if d not in IGNORED_DIRS]
+        rel_dir = Path(dirpath).relative_to(root_dir)
+        if any(part in IGNORED_DIRS for part in rel_dir.parts):
             continue
-        # Filename guard: a forbidden token in a path is a violation even if
-        # the file's contents are clean (e.g. renamed-but-unscrubbed docs).
-        if path.is_file() and any(tok in path.name.lower() for tok in TRADEMARK_FILENAME_TOKENS):
-            print(f"\n[VIOLATION] in {path.relative_to(root_dir)}: forbidden token in filename")
-            total_violations += 1
-            continue
-        if path.is_file() and path.suffix in SCANNABLE_EXTS:
-            violations = audit_file(path)
-            if violations:
-                print(f"\n[VIOLATION] in {path.relative_to(root_dir)}:")
-                for line_num, line in violations[:5]:
-                    safe_line = line.encode('ascii', errors='replace').decode('ascii')
-                    print(f"   L{line_num}: {safe_line}")
-                total_violations += len(violations)
+        for fn in filenames:
+            if fn in IGNORED_FILES:
+                continue
+            path = Path(dirpath) / fn
+            if any(tok in fn.lower() for tok in TRADEMARK_FILENAME_TOKENS):
+                print(f"\n[VIOLATION] in {path.relative_to(root_dir)}: forbidden token in filename")
+                total_violations += 1
+                continue
+            if path.suffix in SCANNABLE_EXTS:
+                violations = audit_file(path)
+                if violations:
+                    print(f"\n[VIOLATION] in {path.relative_to(root_dir)}:")
+                    for line_num, line in violations[:5]:
+                        safe_line = line.encode('ascii', errors='replace').decode('ascii')
+                        print(f"   L{line_num}: {safe_line}")
+                    total_violations += len(violations)
     return total_violations
 
 
@@ -160,7 +182,6 @@ def sanitize_and_copy(src_path: Path, dest_path: Path):
             f.write(sanitized_content)
         print(f"Sanitized & copied: {src_path.name} -> {target_dest} ({count} replacements)")
     else:
-        # Binary copy (e.g. weights, images)
         import shutil
         shutil.copy2(src_path, target_dest)
         print(f"Copied binary: {src_path.name} -> {target_dest}")
@@ -182,12 +203,8 @@ def main():
         return
 
     if args.sanitize_all:
-        # RETIRED: blind in-place rewriting corrupted real dataset paths in repo
-        # docs (see audit H2). Bulk replacement is only safe for fresh vendor
-        # copies via --import-file. Fall through to audit instead.
         print("NOTE: --sanitize-all is retired; running audit instead.")
 
-    # Default or explicit audit
     print(f"\nRunning Anti-Leak Audit on {workspace_dir}...")
     violations = audit_directory(workspace_dir)
     if violations > 0:

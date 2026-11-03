@@ -275,8 +275,8 @@ class TestOrchestratorAgent:
 
     @pytest.mark.asyncio
     async def test_orchestrate_stream_end_to_end_on_real_pdf(self, tmp_path: Path) -> None:
-        pdf_fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
-        assert pdf_fixture.is_file(), "Fixture avexis_page_22.pdf must exist"
+        pdf_fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
+        assert pdf_fixture.is_file(), "Fixture hvac_plan_level2.pdf must exist"
 
         store = await _create_test_store(tmp_path)
         registry = AgentRegistry()
@@ -413,7 +413,7 @@ class TestReconAgent:
     async def test_recon_sheet_on_real_fixture(self) -> None:
         pdf_fixture = Path("fixtures/mechanical/sample_mechanical_p1_p3.pdf")
         if not pdf_fixture.is_file():
-            pdf_fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+            pdf_fixture = Path("fixtures/mechanical/hvac_plan_level2.pdf")
         assert pdf_fixture.is_file(), f"{pdf_fixture} must exist"
 
         recon = ReconAgent()

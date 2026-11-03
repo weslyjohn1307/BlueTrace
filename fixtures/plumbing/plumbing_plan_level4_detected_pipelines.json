@@ -1,14 +1,14 @@
 {
   "info": {
-    "description": "Vector duct geometry extracted from P104.1_PLUMBING PLAN LEVEL 4 - AREA 1_detected_pipelines.pdf",
-    "source_pdf": "P104.1_PLUMBING PLAN LEVEL 4 - AREA 1_detected_pipelines.pdf",
+    "description": "Vector duct geometry extracted from plumbing_plan_level4_detected_pipelines.pdf",
+    "source_pdf": "plumbing_plan_level4_detected_pipelines.pdf",
     "date_created": "2026-08-06T08:45:06.425142+00:00",
     "generator": "pdf_to_coco.py (PyMuPDF)"
   },
   "images": [
     {
       "id": 1,
-      "file_name": "P104.1_PLUMBING PLAN LEVEL 4 - AREA 1_detected_pipelines.png",
+      "file_name": "plumbing_plan_level4_detected_pipelines.png",
       "width": 6300,
       "height": 4500,
       "page_width_pt": 3024.0,

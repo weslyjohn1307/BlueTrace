@@ -123,11 +123,11 @@ describe('useTakeoffSession', () => {
     const { result } = renderHook(() => useTakeoffSession());
 
     await act(async () => {
-      await result.current.openFixture('fixtures/mechanical/avexis_page_22.pdf');
+      await result.current.openFixture('fixtures/mechanical/hvac_plan_level2.pdf');
     });
 
-    expect(mocked.scanAllSheets).toHaveBeenCalledWith('fixtures/mechanical/avexis_page_22.pdf', {
-      projectId: 'avexis_page_22',
+    expect(mocked.scanAllSheets).toHaveBeenCalledWith('fixtures/mechanical/hvac_plan_level2.pdf', {
+      projectId: 'hvac_plan_level2',
     });
     expect(result.current.state.stage).toBe('ready');
   });

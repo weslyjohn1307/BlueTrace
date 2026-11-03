@@ -241,7 +241,7 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
           className="w-full flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-500/30 text-cyan-300 font-mono text-xs cursor-pointer transition-all disabled:opacity-50 shadow-xs"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Load Benchmark Avexis Equipment Schedule</span>
+          <span>Load Benchmark M-201 Equipment Schedule</span>
         </button>
       </div>
 
