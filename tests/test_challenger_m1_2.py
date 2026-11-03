@@ -408,6 +408,16 @@ class TestOrchestratorStreamingStress:
     async def test_streaming_event_ordering_and_monotonic_progress(self, tmp_path: Path) -> None:
         """Verify strict ordering and non-decreasing progress on a multi-page PDF package."""
         pdf_fixture = Path("fixtures/mechanical/sample_mechanical_p1_p3.pdf")
+        if not pdf_fixture.is_file():
+            import pymupdf
+
+            pdf_fixture = tmp_path / "synthetic_3page.pdf"
+            doc = pymupdf.open()
+            for i in range(3):
+                page = doc.new_page(width=792, height=612)
+                page.insert_text((72, 72), f"SHEET M-10{i + 1}\nSCALE: 1/4\" = 1'-0\"")
+            doc.save(str(pdf_fixture))
+            doc.close()
         assert pdf_fixture.is_file(), f"Fixture {pdf_fixture} missing"
 
         store = await _create_test_store(tmp_path, "store_stream.sqlite3")

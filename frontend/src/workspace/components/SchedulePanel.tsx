@@ -81,6 +81,7 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<ScheduledItem[]>([]);
+  const [isBenchmark, setIsBenchmark] = useState(false);
   const [title, setTitle] = useState('MEP Mechanical Equipment Schedule');
 
   const run = async (file: File) => {
@@ -103,6 +104,7 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
         page_text_blocks: pageText.blocks.map((b) => [b.text, [...b.bbox]] as [string, number[]]),
       });
       const returnedItems = res.unplaced_ghost_pins ?? [];
+      setIsBenchmark(false);
       setItems(returnedItems);
       let ghostCounter = 0;
       const pins: CanvasPin[] = returnedItems.map((item) => {
@@ -142,6 +144,7 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
   const loadBenchmarkSchedule = () => {
     setError(null);
+    setIsBenchmark(true);
     setItems(BENCHMARK_SCHEDULE_ITEMS);
     let ghostCounter = 0;
     const pins: CanvasPin[] = BENCHMARK_SCHEDULE_ITEMS.map((item) => {
@@ -252,9 +255,19 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
       {/* Reconciled Schedule Items Grid (ReUI Data Grid Pattern) */}
       {items.length > 0 && (
         <div className="flex-1 overflow-y-auto space-y-1.5 pt-1">
-          <div className="text-[10px] uppercase tracking-wider text-amber-400 font-mono flex items-center space-x-1.5 pb-1">
-            <Pin className="w-3 h-3" />
-            <span>Reconciled Ghost Pins ({items.length})</span>
+          <div className="text-[10px] uppercase tracking-wider text-amber-400 font-mono flex items-center justify-between pb-1">
+            <div className="flex items-center space-x-1.5">
+              <Pin className="w-3 h-3" />
+              <span>Reconciled Ghost Pins ({items.length})</span>
+            </div>
+            {isBenchmark && (
+              <span
+                className="px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-500/50 text-amber-300 text-[9px] font-bold tracking-wider"
+                data-testid="benchmark-fixture-badge"
+              >
+                BENCHMARK FIXTURE (DEMO)
+              </span>
+            )}
           </div>
 
           <div className="space-y-1">

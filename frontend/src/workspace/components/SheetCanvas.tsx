@@ -40,6 +40,7 @@ export interface CalibrationResult {
 }
 
 /** Snap a calibration endpoint to 0/45/90 deg when Shift is held. */
+// eslint-disable-next-line react-refresh/only-export-components
 export function snapCalibrationPoint(
   p1: Point,
   raw: Point,
@@ -56,6 +57,7 @@ export function snapCalibrationPoint(
   return { x: p1.x + dist * Math.cos(snapped), y: p1.y + dist * Math.sin(snapped) };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function calibrationLengthPt(p1: Point, p2: Point): number {
   return Math.hypot(p2.x - p1.x, p2.y - p1.y);
 }
@@ -136,12 +138,15 @@ export interface SheetCanvasProps {
   calibrationResult?: CalibrationResult | null;
   scaleStatus?: string;
   onCalibrationPointsSelected?: (p1: [number, number], p2: [number, number]) => void;
-  onCalibrationCancel?: () => void;}
+  onCalibrationCancel?: () => void;
+  /** Instant 72 DPI blur-up thumbnail preview during sheet transitions. */
+  thumbnailUrl?: string;
+}
 
 const SYSTEM_RUN_COLORS: Record<string, string> = {
-  supply: '#0099ff',
-  return: '#10b981',
-  exhaust: '#f59e0b',
+  supply: '#0284c7',
+  return: '#16a34a',
+  exhaust: '#d97706',
 };
 
 function vectorRunColor(system?: string): string {
@@ -169,7 +174,7 @@ function getPinFill(pin: CanvasPin): string {
   return PIN_COLORS[pin.kind] ?? '#34D399';
 }
 
-const HOVER_DEBOUNCE_MS = 400;
+const HOVER_DEBOUNCE_MS = 250;
 
 function isValidInitialTransform(
   value: SheetCanvasProps['initialTransform']
@@ -221,7 +226,9 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   calibrationResult = null,
   scaleStatus,
   onCalibrationPointsSelected,
-  onCalibrationCancel,}) => {
+  onCalibrationCancel,
+  thumbnailUrl,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [transform, setTransform] = useState<TransformState>(() => initialTransformOrFit(initialTransform));
@@ -803,7 +810,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
 
       {/* Floating CAD HUD Dock */}
       {imgLoaded && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 rounded-xl px-2 py-1 shadow-[0_8px_32px_rgba(0,0,0,0.6)] space-x-1 select-none">
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 flex items-center bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 rounded-xl px-2 py-1 shadow-[0_8px_32px_rgba(0,0,0,0.6)] space-x-1 select-none">
           <button
             type="button"
             title="Select & Inspect [V]"
@@ -816,6 +823,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
           >
             <MousePointer className="w-3.5 h-3.5" />
             <span>Select</span>
+            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">V</kbd>
           </button>
 
           <button
@@ -830,6 +838,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
           >
             <Hand className="w-3.5 h-3.5" />
             <span>Pan</span>
+            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">H</kbd>
           </button>
 
           <button
@@ -845,6 +854,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
             <span>QuickDraw</span>
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">Q</kbd>
           </button>
 
           <button
@@ -860,6 +870,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             <Scan className="w-3.5 h-3.5 text-emerald-400" />
             <span>SAM 3.1</span>
             {isSegmenting && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
+            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">S</kbd>
           </button>
 
           <button
@@ -874,6 +885,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
           >
             <Ruler className="w-3.5 h-3.5 text-amber-400" />
             <span>Calibrate</span>
+            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">C</kbd>
           </button>
 
           <div className="w-[1px] h-4 bg-slate-700/80 mx-1" />
@@ -955,6 +967,24 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
           visibility: imgLoaded ? 'visible' : 'hidden',
         }}
       />
+
+      {/* 72 DPI instant blur-up thumbnail preview during sheet transitions */}
+      {thumbnailUrl && !imgLoaded && !imgError && (
+        <img
+          src={thumbnailUrl}
+          alt=""
+          aria-hidden="true"
+          data-testid="sheet-canvas-thumbnail"
+          draggable={false}
+          className="absolute left-0 top-0 max-w-none filter blur-xs opacity-75 transition-opacity duration-300 pointer-events-none select-none"
+          style={{
+            transform: matrix,
+            transformOrigin: '0 0',
+            width: `${widthPt}px`,
+            height: `${heightPt}px`,
+          }}
+        />
+      )}
 
       <svg
         className="absolute left-0 top-0 pointer-events-none"
@@ -1052,7 +1082,19 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
               data-discipline={pin.discipline}
               data-status={pin.status}
               data-ghost={isGhost ? 'true' : undefined}
-              className="pointer-events-auto cursor-pointer"
+              className="pointer-events-auto cursor-pointer outline-none focus-visible:outline-none"
+              tabIndex={0}
+              role="button"
+              aria-label={displayLabel ? `Pin: ${displayLabel}` : `Pin at ${pin.x.toFixed(0)}, ${pin.y.toFixed(0)}`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSelectPin?.(pin);
+                }
+              }}
+              onFocus={() => handlePinMouseEnter(pin)}
+              onBlur={handlePinMouseLeave}
               {...(isGhost ? ({ draggable: true } as Record<string, unknown>) : {})}
               onDragStart={(e) => {
                 draggedGhostIdRef.current = pin.id;
@@ -1280,24 +1322,24 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
         </div>
         <div className="flex flex-col">
           <span className="text-slate-200 font-bold">315.0° N</span>
-          <span className="text-[9px] text-slate-500">ROT: LOCKED</span>
+          <span className="text-[9px] text-slate-300">ROT: LOCKED</span>
         </div>
       </div>
 
       {/* Bottom Status & Coordinate Telemetry */}
-      <div className="absolute bottom-2 left-2 z-30 text-[10px] font-mono text-slate-400 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-md border border-slate-800 flex items-center space-x-3 select-none">
+      <div className="absolute bottom-2 left-2 z-30 text-[10px] font-mono text-slate-300 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-md border border-slate-800 flex items-center space-x-3 select-none">
         <span className="flex items-center space-x-1.5 text-cyan-400 font-semibold">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
           <span>TOOL: {toolMode.toUpperCase()}</span>
         </span>
-        <span className="text-slate-600">|</span>
+        <span className="text-slate-500">|</span>
         <span>
           {cursor
             ? `PDF ${cursor.page.x.toFixed(1)}, ${cursor.page.y.toFixed(1)} pt`
             : `${(transform.scale * 100).toFixed(0)}% zoom`}
         </span>
-        <span className="text-slate-600">|</span>
-        <span className="text-slate-500">
+        <span className="text-slate-500">|</span>
+        <span className="text-slate-300">
           {toolMode === 'segment'
             ? 'Click equipment boundary to segment with SAM 3.1'
             : 'Hover / [Q] dimension · [H] pan · [0] fit'}

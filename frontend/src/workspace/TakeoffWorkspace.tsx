@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { AlertTriangle, CheckCircle2, PanelLeft, PanelRight, Sparkles } from 'lucide-react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { Sparkles } from 'lucide-react';
 import { GlobalTopNav } from '../app/GlobalTopNav';
 import { ModeBanner } from '../components/ModeBanner';
 import { useTakeoffSession } from './hooks/useTakeoffSession';
@@ -7,16 +7,21 @@ import { UploadCard } from './components/UploadCard';
 import { SheetCanvas, type CalibrationResult, type CanvasPin, type VectorRun } from './components/SheetCanvas';
 import { CalibrationModal } from './components/CalibrationModal';
 import { HoverBadge } from './components/HoverBadge';
-import { SheetTree, type SheetItemData } from './components/SheetTree';
-import { SheetNavigator } from './components/SheetNavigator';
+import { type SheetItemData } from './components/SheetTree';
 import { LedgerPanel } from './components/LedgerPanel';
 import { CorrectionModal, type CorrectionSubmitPayload } from './components/CorrectionModal';
+import { RejectionModal } from './components/modals/RejectionModal';
 import { SchedulePanel } from './components/SchedulePanel';
 import { QAPanel } from './components/QAPanel';
 import { CopilotDrawer } from './components/CopilotDrawer';
 import { ByokDialog } from './components/ByokDialog';
+import {
+  WorkstationHeader,
+  SidebarLeft,
+  SidebarRight,
+  ViewportContainer,
+} from './components/layout';
 import { apiClient, ApiError } from '../api/client';
-import { Filter } from 'lucide-react';
 import type {
   CursorCropResponse,
   DiscrepancyItem,
@@ -71,6 +76,47 @@ export const TakeoffWorkspace: React.FC = () => {
   const [correctingItem, setCorrectingItem] = useState<TakeoffRecord | null>(null);
   const [correctionSubmitting, setCorrectionSubmitting] = useState(false);
   const [correctionError, setCorrectionError] = useState<string | null>(null);
+  // Rejection modal session: which ledger item the RejectionModal is rejecting.
+  const [rejectingItem, setRejectingItem] = useState<TakeoffRecord | null>(null);
+
+  // Optimistic status transitions (<16ms instant feedback)
+  const [optimisticOverrides, setOptimisticOverrides] = useState<
+    Record<
+      string,
+      {
+        status: 'SUGGESTED' | 'ACCEPTED' | 'CORRECTED' | 'REJECTED' | 'CANNOT_DETERMINE';
+        dimension_label?: string;
+        system?: string;
+      }
+    >
+  >({});
+
+  useEffect(() => {
+    setOptimisticOverrides((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const item of state.items) {
+        if (next[item.item_id] && item.status === next[item.item_id].status) {
+          delete next[item.item_id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [state.items]);
+
+  const effectiveItems = useMemo(() => {
+    return state.items.map((item) => {
+      const override = optimisticOverrides[item.item_id];
+      if (!override) return item;
+      return {
+        ...item,
+        status: override.status,
+        dimension_label: override.dimension_label ?? item.dimension_label,
+        system: override.system ?? item.system,
+      };
+    });
+  }, [state.items, optimisticOverrides]);
 
   // Ruler overlay is per-sheet evidence: never let it leak across sheets.
   const activeSheetId = state.activeSheetId;
@@ -132,7 +178,7 @@ export const TakeoffWorkspace: React.FC = () => {
     page_index: s.meta.page_index,
   }));
 
-  const vectorRuns: VectorRun[] = state.items.flatMap((item) => {
+  const vectorRuns: VectorRun[] = effectiveItems.flatMap((item) => {
     if (state.activeSheetId && item.sheet_id !== state.activeSheetId) return [];
     const geometry = item.geometry as { points?: unknown };
     if (
@@ -165,7 +211,7 @@ export const TakeoffWorkspace: React.FC = () => {
     ];
   });
 
-  const itemPins: CanvasPin[] = state.items
+  const itemPins: CanvasPin[] = effectiveItems
     .filter((item) => {
       const geometry = item.geometry as { coordinates?: unknown };
       return (
@@ -484,6 +530,17 @@ export const TakeoffWorkspace: React.FC = () => {
     ) => {
       setCorrectionSubmitting(true);
       setCorrectionError(null);
+      if (context.item) {
+        setOptimisticOverrides((prev) => ({
+          ...prev,
+          [payload.itemId]: {
+            status: 'CORRECTED',
+            dimension_label: payload.correctedValues.dimensionLabel,
+            system: payload.correctedValues.system,
+          },
+        }));
+      }
+      setCorrectingItem(null);
       try {
         await apiClient.submitItemCorrection(payload.itemId, {
           status: payload.status,
@@ -521,9 +578,15 @@ export const TakeoffWorkspace: React.FC = () => {
             });
           }
         }
-        setCorrectingItem(null);
         await refreshLedger();
       } catch (err) {
+        // Failure rollback: restore previous values
+        setOptimisticOverrides((prev) => {
+          const next = { ...prev };
+          delete next[payload.itemId];
+          return next;
+        });
+        setCorrectingItem(context.item);
         // Fail closed: keep the modal open with the error; ledger is untouched.
         setCorrectionError(
           err instanceof ApiError
@@ -537,6 +600,44 @@ export const TakeoffWorkspace: React.FC = () => {
       }
     },
     [refreshLedger]
+  );
+
+  const handleAcceptItem = useCallback(
+    async (id: string) => {
+      const item = effectiveItems.find((i) => i.item_id === id);
+      const prevStatus = item?.status ?? 'SUGGESTED';
+      // Immediate optimistic transition (<16ms)
+      setOptimisticOverrides((prev) => ({
+        ...prev,
+        [id]: { status: 'ACCEPTED' },
+      }));
+      try {
+        await setItemStatus(id, 'ACCEPTED');
+        if (state.projectName && state.activeSheetId) {
+          if (!item) {
+            debugSkipUnknownItem(id, 'ACCEPT');
+          } else {
+            logAcceptTelemetry({
+              projectId: state.projectName,
+              sheetId: state.activeSheetId,
+              itemId: id,
+              previousStatus: prevStatus,
+              originalOutput: item
+                ? { dimension_label: item.dimension_label, system: item.system }
+                : null,
+            });
+          }
+        }
+      } catch {
+        // Failure rollback
+        setOptimisticOverrides((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+    },
+    [effectiveItems, setItemStatus, state.projectName, state.activeSheetId]
   );
 
   // Viewport autosave sink: SheetCanvas debounces manual pan/zoom and calls
@@ -626,180 +727,44 @@ export const TakeoffWorkspace: React.FC = () => {
         </main>
       ) : (
         <main className="flex-1 flex overflow-hidden relative" style={{ minHeight: 0 }}>
-          {/* Partial-failure banner: per-sheet scan / ledger errors stay visible in-workspace */}
-          {state.error && (
-            <div
-              role="alert"
-              className="absolute top-2 left-1/2 -translate-x-1/2 z-40 flex items-center space-x-2 max-w-xl px-3 py-2 rounded-lg bg-amber-950/90 backdrop-blur-md border border-amber-500/40 text-amber-200 text-[11px] font-mono shadow-lg"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-              <span className="truncate">{state.error}</span>
-            </div>
-          )}
-          {reconcileError && (
-            <div
-              role="alert"
-              className={`absolute ${state.error ? 'top-12' : 'top-2'} left-1/2 -translate-x-1/2 z-40 flex items-center space-x-2 max-w-xl px-3 py-2 rounded-lg bg-amber-950/90 backdrop-blur-md border border-amber-500/40 text-amber-200 text-[11px] font-mono shadow-lg`}
-            >
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-              <span className="truncate">{reconcileError}</span>
-            </div>
-          )}
-
-          {/* Left Sheet Panel (Progressive Disclosure): directory tree or thumbnail filmstrip */}
-          {leftSidebarOpen && (
-            <aside className="w-64 shrink-0 hidden md:flex flex-col border-r border-slate-800" aria-label="Sheet directory">
-              <div
-                role="group"
-                aria-label="Sheet panel view"
-                className="flex items-center gap-1 px-2 py-1.5 bg-slate-950 border-b border-slate-800"
-              >
-                <button
-                  type="button"
-                  aria-pressed={sheetPanelMode === 'tree'}
-                  onClick={() => setSheetPanelMode('tree')}
-                  className={`flex-1 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-                    sheetPanelMode === 'tree'
-                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
-                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
-                  }`}
-                >
-                  Tree
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={sheetPanelMode === 'filmstrip'}
-                  onClick={() => setSheetPanelMode('filmstrip')}
-                  className={`flex-1 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-                    sheetPanelMode === 'filmstrip'
-                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
-                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
-                  }`}
-                >
-                  Filmstrip
-                </button>
-              </div>
-              <div className="flex-1 flex flex-col min-h-0">
-                {sheetPanelMode === 'tree' ? (
-                  <SheetTree
-                    sheets={treeSheets}
-                    activeSheetId={state.activeSheetId}
-                    onSelectSheet={selectSheet}
-                  />
-                ) : (
-                  <SheetNavigator
-                    sheets={state.sheets}
-                    activeSheetId={state.activeSheetId}
-                    onSelectSheet={selectSheet}
-                    projectId={state.projectName || null}
-                  />
-                )}
-              </div>
-            </aside>
-          )}
+          {/* Left Sheet Panel (Progressive Disclosure) */}
+          <SidebarLeft
+            open={leftSidebarOpen}
+            sheetPanelMode={sheetPanelMode}
+            onSheetPanelModeChange={setSheetPanelMode}
+            treeSheets={treeSheets}
+            sheets={state.sheets}
+            activeSheetId={state.activeSheetId}
+            onSelectSheet={selectSheet}
+            projectId={state.projectName || null}
+          />
 
           {/* Central CAD Workstation Viewport */}
-          <section className="flex-1 flex flex-col overflow-hidden relative" aria-label="Sheet canvas">
-            {/* Workstation Header Bar */}
-            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 text-[11px] font-mono z-20 backdrop-blur-md">
-              <div className="flex items-center space-x-2 truncate">
-                <button
-                  type="button"
-                  onClick={() => setLeftSidebarOpen((prev) => !prev)}
-                  className={`p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer hidden md:block ${
-                    !leftSidebarOpen ? 'text-cyan-400 bg-cyan-950/60' : ''
-                  }`}
-                  title="Toggle Sheet Directory [[]"
-                >
-                  <PanelLeft className="w-3.5 h-3.5" />
-                </button>
-                <span className="text-slate-200 font-semibold truncate">
-                  {activeSheet.meta.sheet_number} — {activeSheet.meta.sheet_title}
-                </span>
-                <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                  {activeSheet.meta.discipline}
-                </span>
+          <div className="flex-1 flex flex-col overflow-hidden relative" style={{ minHeight: 0 }}>
+            <WorkstationHeader
+              sheetNumber={activeSheet.meta.sheet_number}
+              sheetTitle={activeSheet.meta.sheet_title}
+              discipline={activeSheet.meta.discipline}
+              scaleRaw={activeSheet.meta.scale_raw}
+              scaleOk={Boolean(scaleOk)}
+              leftSidebarOpen={leftSidebarOpen}
+              onToggleLeftSidebar={() => setLeftSidebarOpen((prev) => !prev)}
+              rightSidebarOpen={rightSidebarOpen}
+              onToggleRightSidebar={() => setRightSidebarOpen((prev) => !prev)}
+              disciplineFilter={disciplineFilter as 'ALL' | 'Supply' | 'Return' | 'Exhaust'}
+              onDisciplineFilterChange={setDisciplineFilter}
+              statusFilter={statusFilter as 'ALL' | 'MATCHED' | 'DISCREPANCIES' | 'GHOST'}
+              onStatusFilterChange={setStatusFilter}
+            />
 
-                {/* Multi-Axis Discipline & Status Filter Bar */}
-                <div className="hidden xl:flex items-center space-x-1.5 pl-3 border-l border-slate-800 text-[10px]">
-                  <Filter className="w-3 h-3 text-slate-500" />
-                  <span className="text-slate-500">Trade:</span>
-                  {(['ALL', 'Supply', 'Return', 'Exhaust'] as const).map((disc) => (
-                    <button
-                      key={disc}
-                      type="button"
-                      onClick={() => setDisciplineFilter(disc)}
-                      className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                        disciplineFilter === disc
-                          ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {disc}
-                    </button>
-                  ))}
-                  <span className="text-slate-700">|</span>
-                  <span className="text-slate-500">Status:</span>
-                  {(['ALL', 'MATCHED', 'DISCREPANCIES', 'GHOST'] as const).map((st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setStatusFilter(st)}
-                      className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                        statusFilter === st
-                          ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {st}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2 shrink-0">
-                {scaleOk ? (
-                  <span className="flex items-center space-x-1.5 text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-[10px]">
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>{activeSheet.meta.scale_raw}</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center space-x-1.5 text-amber-400 font-medium px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/30 text-[10px] animate-pulse">
-                    <AlertTriangle className="w-3 h-3" />
-                    <span>Scale Unverified // Review Required</span>
-                  </span>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setRightSidebarOpen((prev) => !prev)}
-                  className={`p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer hidden lg:block ${
-                    !rightSidebarOpen ? 'text-cyan-400 bg-cyan-950/60' : ''
-                  }`}
-                  title="Toggle Ledger & Schedule []]"
-                >
-                  <PanelRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Canvas Viewport */}
-            <div className="flex-1 relative" style={{ minHeight: 0 }}>
-              {!sheetImageAvailable ? (
-                <div
-                  role="alert"
-                  className="absolute inset-0 flex flex-col items-center justify-center space-y-2 text-center px-6"
-                >
-                  <p className="text-slate-200 text-sm font-mono font-semibold">
-                    Session restored — page images need the source PDF.
-                  </p>
-                  <p className="text-slate-400 text-xs font-mono">
-                    Re-open the PDF to restore page images. Ledger, sheets, and viewport state are intact.
-                  </p>
-                </div>
-              ) : (
+            <ViewportContainer
+              error={state.error}
+              reconcileError={reconcileError}
+              sheetImageAvailable={sheetImageAvailable}
+            >
               <SheetCanvas
                 imageUrl={apiClient.getPageImageUrl(activeSheet.pdfPath, activeSheet.pageIndex, 150)}
+                thumbnailUrl={apiClient.getPageImageUrl(activeSheet.pdfPath, activeSheet.pageIndex, 72)}
                 widthPt={activeSheet.meta.width_pt}
                 heightPt={activeSheet.meta.height_pt}
                 pins={filteredPins}
@@ -840,141 +805,72 @@ export const TakeoffWorkspace: React.FC = () => {
                   ) : null
                 }
               />
-              )}
-            </div>
-          </section>
+            </ViewportContainer>
+          </div>
 
           {/* Right Ledger & Schedule Sidebar (Progressive Disclosure) */}
-          {rightSidebarOpen && (
-            <aside className="w-84 shrink-0 hidden lg:flex flex-col border-l border-slate-800 bg-slate-900" aria-label="Ledger, schedule and QA review">
-              <div className="flex bg-slate-950 border-b border-slate-800 text-[11px] font-mono font-semibold uppercase tracking-wider">
-                <button
-                  type="button"
-                  onClick={() => setRightTab('ledger')}
-                  className={`flex-1 px-3 py-2.5 cursor-pointer transition-colors ${
-                    rightTab === 'ledger'
-                      ? 'text-cyan-300 border-b-2 border-cyan-400 bg-slate-900'
-                      : 'text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  Takeoff Ledger
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRightTab('schedule')}
-                  className={`flex-1 px-3 py-2.5 cursor-pointer transition-colors ${
-                    rightTab === 'schedule'
-                      ? 'text-cyan-300 border-b-2 border-cyan-400 bg-slate-900'
-                      : 'text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  Equipment Schedule
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRightTab('qa')}
-                  className={`flex-1 px-3 py-2.5 cursor-pointer transition-colors ${
-                    rightTab === 'qa'
-                      ? 'text-cyan-300 border-b-2 border-cyan-400 bg-slate-900'
-                      : 'text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  QA Review{qaOpenCount > 0 ? ` (${qaOpenCount})` : ''}
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
-                {rightTab === 'ledger' && (
-                  <LedgerPanel
-                    items={state.items}
-                    summary={state.summary}
-                    loading={state.itemsLoading}
-                    onAccept={(id) => {
-                      const item = state.items.find((i) => i.item_id === id);
-                      void setItemStatus(id, 'ACCEPTED');
-                      if (state.projectName && state.activeSheetId) {
-                        if (!item) {
-                          debugSkipUnknownItem(id, 'ACCEPT');
-                        } else {
-                          logAcceptTelemetry({
-                            projectId: state.projectName,
-                            sheetId: state.activeSheetId,
-                            itemId: id,
-                            previousStatus: item.status,
-                            originalOutput: item
-                              ? { dimension_label: item.dimension_label, system: item.system }
-                              : null,
-                          });
-                        }
-                      }
-                    }}
-                    onReject={(id) => {
-                      const item = state.items.find((i) => i.item_id === id);
-                      const reason =
-                        typeof window !== 'undefined'
-                          ? window.prompt('Reason for rejection (optional):')
-                          : null;
-                      void setItemStatus(id, 'REJECTED');
-                      if (state.projectName && state.activeSheetId) {
-                        if (!item) {
-                          debugSkipUnknownItem(id, 'REJECT');
-                        } else {
-                          logRejectTelemetry({
-                            projectId: state.projectName,
-                            sheetId: state.activeSheetId,
-                            itemId: id,
-                            previousStatus: item.status,
-                            originalOutput: item
-                              ? { dimension_label: item.dimension_label, system: item.system }
-                              : null,
-                            reason: reason?.trim() ? reason.trim() : null,
-                          });
-                        }
-                      }
-                    }}
-                    onCorrect={(id) => {
-                      const item = state.items.find((i) => i.item_id === id) ?? null;
-                      setCorrectionError(null);
-                      setCorrectingItem(item);
-                    }}
-                    onExportCsv={() =>
-                      void apiClient
-                        .exportTakeoffCsv({ project_id: state.projectName, sheet_id: state.activeSheetId ?? undefined })
-                        .then((blob) => downloadBlob(blob, 'bluetrace_takeoff.csv'))
-                    }
-                    onExportJson={() =>
-                      void apiClient
-                        .exportTakeoffJson({ project_id: state.projectName, sheet_id: state.activeSheetId ?? undefined })
-                        .then((blob) => downloadBlob(blob, 'bluetrace_takeoff.json'))
-                    }
-                  />
-                )}
-                {rightTab === 'schedule' && (
-                  <SchedulePanel
-                    projectName={state.projectName}
-                    sheetId={state.activeSheetId}
-                    pdfPath={activeSheet.pdfPath}
-                    pageIndex={activeSheet.pageIndex}
-                    onGhostPins={setGhostPins}
-                    onReconcile={(scheduled, scheduleSheet) =>
-                      void runReconcileFromSchedule(scheduled, scheduleSheet)
-                    }
-                    onLinked={() => void refreshLedger()}
-                  />
-                )}
-                {rightTab === 'qa' && (
-                  <QAPanel
-                    annotations={qaAnnotations}
-                    checklist={qaChecklist}
-                    loading={qaLoading}
-                    error={qaError}
-                    onResolve={handleQAResolve}
-                    onRefresh={() => void refreshQAAnnotations()}
-                  />
-                )}
-              </div>
-            </aside>
-          )}
+          <SidebarRight
+            open={rightSidebarOpen}
+            rightTab={rightTab}
+            onTabChange={setRightTab}
+            qaOpenCount={qaOpenCount}
+          >
+            {rightTab === 'ledger' && (
+              <LedgerPanel
+                items={effectiveItems}
+                summary={state.summary}
+                loading={state.itemsLoading}
+                scaleCalibrated={Boolean(scaleOk)}
+                onAccept={(id) => void handleAcceptItem(id)}
+                onReject={(id) => {
+                  const item = effectiveItems.find((i) => i.item_id === id);
+                  if (item) {
+                    setRejectingItem(item);
+                  } else {
+                    void handleAcceptItem(id);
+                  }
+                }}
+                onCorrect={(id) => {
+                  const item = effectiveItems.find((i) => i.item_id === id) ?? null;
+                  setCorrectionError(null);
+                  setCorrectingItem(item);
+                }}
+                onExportCsv={() =>
+                  void apiClient
+                    .exportTakeoffCsv({ project_id: state.projectName, sheet_id: state.activeSheetId ?? undefined })
+                    .then((blob) => downloadBlob(blob, 'bluetrace_takeoff.csv'))
+                }
+                onExportJson={() =>
+                  void apiClient
+                    .exportTakeoffJson({ project_id: state.projectName, sheet_id: state.activeSheetId ?? undefined })
+                    .then((blob) => downloadBlob(blob, 'bluetrace_takeoff.json'))
+                }
+              />
+            )}
+            {rightTab === 'schedule' && (
+              <SchedulePanel
+                projectName={state.projectName}
+                sheetId={state.activeSheetId}
+                pdfPath={activeSheet.pdfPath}
+                pageIndex={activeSheet.pageIndex}
+                onGhostPins={setGhostPins}
+                onReconcile={(scheduled, scheduleSheet) =>
+                  void runReconcileFromSchedule(scheduled, scheduleSheet)
+                }
+                onLinked={() => void refreshLedger()}
+              />
+            )}
+            {rightTab === 'qa' && (
+              <QAPanel
+                annotations={qaAnnotations}
+                checklist={qaChecklist}
+                loading={qaLoading}
+                error={qaError}
+                onResolve={handleQAResolve}
+                onRefresh={() => void refreshQAAnnotations()}
+              />
+            )}
+          </SidebarRight>
         </main>
       )}
 
@@ -1014,6 +910,52 @@ export const TakeoffWorkspace: React.FC = () => {
             })
           }
           onCancel={handleCorrectionCancel}
+        />
+      )}
+
+      {/* Accessible Rejection Modal with AEC Reason Codes */}
+      {rejectingItem && (
+        <RejectionModal
+          open={rejectingItem !== null}
+          itemId={rejectingItem.item_id}
+          itemLabel={rejectingItem.dimension_label ?? rejectingItem.item_id}
+          onConfirm={(reasonCode, note) => {
+            const id = rejectingItem.item_id;
+            const combinedReason = note ? `${reasonCode}: ${note}` : reasonCode;
+            const prevStatus = rejectingItem.status;
+            // Immediate optimistic state transition (<16ms)
+            setOptimisticOverrides((prev) => ({
+              ...prev,
+              [id]: { status: 'REJECTED' },
+            }));
+            setRejectingItem(null);
+            void (async () => {
+              try {
+                await setItemStatus(id, 'REJECTED');
+                if (state.projectName && state.activeSheetId) {
+                  logRejectTelemetry({
+                    projectId: state.projectName,
+                    sheetId: state.activeSheetId,
+                    itemId: id,
+                    previousStatus: prevStatus,
+                    originalOutput: {
+                      dimension_label: rejectingItem.dimension_label,
+                      system: rejectingItem.system,
+                    },
+                    reason: combinedReason,
+                  });
+                }
+              } catch {
+                // Failure rollback
+                setOptimisticOverrides((prev) => {
+                  const next = { ...prev };
+                  delete next[id];
+                  return next;
+                });
+              }
+            })();
+          }}
+          onCancel={() => setRejectingItem(null)}
         />
       )}
 

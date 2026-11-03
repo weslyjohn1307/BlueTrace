@@ -19,6 +19,7 @@ export const SYMBOL_SYSTEM_COLORS = {
   default: '#64748B',
 } as const;
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function symbolSystemColor(system?: string | null): string {
   if (!system) return SYMBOL_SYSTEM_COLORS.default;
   const key = system.toLowerCase();

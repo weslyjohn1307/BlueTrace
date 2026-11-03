@@ -31,6 +31,191 @@ const QUICK_PROMPTS = [
   'Summarize duct linear footage by dimension',
 ];
 
+function parseInlineMarkdown(text: string, onEvidence?: (boxes: number[][]) => void): React.ReactNode[] {
+  const tokenRegex = /(\*\*[^*]+\*\*|`[^`]+`|\[\s*\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?\s*\](?:\s*pt)?)/g;
+  const parts = text.split(tokenRegex);
+
+  return parts.map((part, i) => {
+    if (!part) return null;
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={i} className="font-bold text-slate-100">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={i} className="bg-slate-950 px-1 py-0.5 rounded text-cyan-300 font-mono text-[11px] border border-slate-800">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    const coordMatch = part.match(/\[\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\]/);
+    if (coordMatch) {
+      const x = parseFloat(coordMatch[1]);
+      const y = parseFloat(coordMatch[2]);
+      return (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onEvidence?.([[x, y]])}
+          className="inline-flex items-center space-x-0.5 px-1.5 py-0.2 mx-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] hover:bg-cyan-900 transition-colors cursor-pointer align-baseline"
+          title={`Highlight coordinate [${x}, ${y}] on drawing canvas`}
+        >
+          <MapPin className="w-2.5 h-2.5 inline" />
+          <span>[{x.toFixed(0)}, {y.toFixed(0)}] pt</span>
+        </button>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+}
+
+export function MarkdownContent({ text, onEvidence }: { text: string; onEvidence?: (boxes: number[][]) => void }) {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const blocks: React.ReactNode[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      i++;
+      continue;
+    }
+
+    // Markdown Table: header line with pipes, followed by divider line
+    if (
+      trimmed.startsWith('|') &&
+      trimmed.endsWith('|') &&
+      i + 1 < lines.length &&
+      lines[i + 1].includes('|') &&
+      lines[i + 1].includes('-')
+    ) {
+      const headerRow = trimmed.split('|').map((s) => s.trim()).filter(Boolean);
+      i += 2; // skip header and divider
+      const bodyRows: string[][] = [];
+
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        const row = lines[i].trim().split('|').map((s) => s.trim()).filter(Boolean);
+        bodyRows.push(row);
+        i++;
+      }
+
+      blocks.push(
+        <div key={`table-${i}`} className="overflow-x-auto my-2 rounded-lg border border-slate-700 bg-slate-950/70 shadow-inner">
+          <table className="w-full text-left font-mono text-[11px] border-collapse">
+            <thead>
+              <tr className="border-b border-slate-700 bg-slate-900/90 text-cyan-300 font-semibold">
+                {headerRow.map((h, colIdx) => (
+                  <th key={colIdx} className="px-2.5 py-1.5 border-r border-slate-800 last:border-r-0 whitespace-nowrap">
+                    {parseInlineMarkdown(h, onEvidence)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {bodyRows.map((row, rowIdx) => (
+                <tr key={rowIdx} className="border-b border-slate-800/60 hover:bg-slate-800/40 transition-colors">
+                  {row.map((cell, colIdx) => (
+                    <td key={colIdx} className="px-2.5 py-1 border-r border-slate-800/40 last:border-r-0 tabular-nums text-slate-200">
+                      {parseInlineMarkdown(cell, onEvidence)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      continue;
+    }
+
+    // Headings
+    if (trimmed.startsWith('### ')) {
+      blocks.push(
+        <h4 key={`h4-${i}`} className="font-bold text-cyan-300 font-mono text-[11px] uppercase tracking-wider mt-2 mb-1">
+          {parseInlineMarkdown(trimmed.replace(/^###\s+/, ''), onEvidence)}
+        </h4>
+      );
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith('## ')) {
+      blocks.push(
+        <h3 key={`h3-${i}`} className="font-bold text-white font-mono text-xs uppercase tracking-wider mt-2.5 mb-1 border-b border-slate-800 pb-0.5">
+          {parseInlineMarkdown(trimmed.replace(/^##\s+/, ''), onEvidence)}
+        </h3>
+      );
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith('# ')) {
+      blocks.push(
+        <h2 key={`h2-${i}`} className="font-bold text-white font-mono text-sm tracking-tight mt-3 mb-1.5">
+          {parseInlineMarkdown(trimmed.replace(/^#\s+/, ''), onEvidence)}
+        </h2>
+      );
+      i++;
+      continue;
+    }
+
+    // Bullet lists (- or * or •)
+    if (/^[-*•]\s+/.test(trimmed)) {
+      const items: string[] = [];
+      while (i < lines.length && /^[-*•]\s+/.test(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^[-*•]\s+/, ''));
+        i++;
+      }
+      blocks.push(
+        <ul key={`ul-${i}`} className="my-1.5 space-y-1 pl-1">
+          {items.map((item, idx) => (
+            <li key={idx} className="flex items-start space-x-1.5 text-slate-200 leading-relaxed">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 mt-1.5 shrink-0" />
+              <span>{parseInlineMarkdown(item, onEvidence)}</span>
+            </li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    // Numbered lists (1. 2. etc.)
+    if (/^\d+\.\s+/.test(trimmed)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^\d+\.\s+/, ''));
+        i++;
+      }
+      blocks.push(
+        <ol key={`ol-${i}`} className="my-1.5 space-y-1 pl-1">
+          {items.map((item, idx) => (
+            <li key={idx} className="flex items-start space-x-2 text-slate-200 leading-relaxed">
+              <span className="text-cyan-400 font-mono font-bold text-[10px] shrink-0 mt-0.5">{idx + 1}.</span>
+              <span>{parseInlineMarkdown(item, onEvidence)}</span>
+            </li>
+          ))}
+        </ol>
+      );
+      continue;
+    }
+
+    // Regular paragraph
+    blocks.push(
+      <p key={`p-${i}`} className="my-1 leading-relaxed text-slate-200">
+        {parseInlineMarkdown(trimmed, onEvidence)}
+      </p>
+    );
+    i++;
+  }
+
+  return <div className="space-y-1 text-slate-100">{blocks}</div>;
+}
+
 export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence }) => {
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [input, setInput] = useState('');
@@ -201,8 +386,15 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
                 )}
 
                 {/* Assistant Output Content */}
-                <div className="p-3 rounded-lg bg-slate-800/90 border border-slate-700/80 text-slate-100 whitespace-pre-wrap leading-relaxed">
-                  {msg.text || (msg.streaming ? 'Synthesizing verified spatial response…' : '')}
+                <div className="p-3 rounded-lg bg-slate-800/90 border border-slate-700/80 text-slate-100 leading-relaxed font-sans text-xs">
+                  {msg.text ? (
+                    <MarkdownContent text={msg.text} onEvidence={onEvidence} />
+                  ) : msg.streaming ? (
+                    <div className="flex items-center space-x-2 text-cyan-300 font-mono text-[11px] animate-pulse">
+                      <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Synthesizing verified spatial response…</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Inline Citations Group */}

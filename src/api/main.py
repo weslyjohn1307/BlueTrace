@@ -32,32 +32,29 @@ app.add_middleware(
 app.include_router(router)
 
 # Mount frontend production assets if built (enables standalone single-port execution)
-FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+FRONTEND_INDEX = PROJECT_ROOT / "frontend" / "index.html"
 
-if FRONTEND_DIST.exists() and (FRONTEND_DIST / "index.html").exists():
-    assets_dir = FRONTEND_DIST / "assets"
-    if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+if (FRONTEND_DIST / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
 
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        # Pass through API and docs routes
-        if full_path == "api" or full_path.startswith(("api/", "docs", "openapi.json")):
-            raise HTTPException(status_code=404, detail="Not Found")
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # Pass through API and docs routes
+    if full_path == "api" or full_path.startswith(("api/", "docs", "openapi.json")):
+        raise HTTPException(status_code=404, detail="Not Found")
+    if FRONTEND_DIST.exists():
         file_path = FRONTEND_DIST / full_path
-        if file_path.exists() and file_path.is_file():
+        if full_path and file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
-        return FileResponse(FRONTEND_DIST / "index.html")
-else:
-    @app.get("/")
-    async def root():
-        return {
-            "app": "BlueTraceAI",
-            "description": "The Drawing Sheet is the Interface",
-            "docs_url": "/docs",
-            "health_url": "/api/health",
-            "standalone_ui": "Build frontend via 'npm --prefix frontend run build'",
-        }
+        dist_index = FRONTEND_DIST / "index.html"
+        if dist_index.exists():
+            return FileResponse(dist_index)
+    if FRONTEND_INDEX.exists():
+        return FileResponse(FRONTEND_INDEX)
+    raise HTTPException(status_code=404, detail="Frontend index not found")
 
 
 if __name__ == "__main__":

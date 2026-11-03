@@ -5,6 +5,7 @@ import {
   CORRECTION_SYSTEMS,
   type CorrectionFieldValues,
 } from '../../api/contracts';
+import { Modal } from './primitives/Modal';
 
 export interface CorrectionSubmitPayload {
   itemId: string;
@@ -71,15 +72,6 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, itemId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onCancel]);
-
   const validationError = useMemo(() => {
     if (!dimensionLabel.trim()) return 'Dimension label is required (e.g. 12x8 or 10" dia).';
     const trimmedCfm = cfm.trim();
@@ -115,17 +107,13 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
   };
 
   return (
-    <div
+    <Modal
+      open={open}
+      onClose={onCancel}
       data-testid="correction-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Correct takeoff item ${itemLabel ?? itemId}`}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
+      ariaLabel={`Correct takeoff item ${itemLabel ?? itemId}`}
+      className="w-[26rem] max-w-[calc(100vw-2rem)] rounded-xl bg-slate-900 border border-cyan-500/40 shadow-2xl p-5"
     >
-      <div className="w-[26rem] max-w-[calc(100vw-2rem)] rounded-xl bg-slate-900 border border-cyan-500/40 shadow-2xl p-5">
         <h2 className="text-sm font-mono font-bold text-cyan-300">Correct takeoff item</h2>
         <p className="mt-1 text-[11px] font-mono text-slate-400 truncate">
           {itemLabel ?? itemId} · original proposal is preserved in the payload
@@ -142,6 +130,8 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
               type="text"
               value={dimensionLabel}
               onChange={(e) => setDimensionLabel(e.target.value)}
+              aria-invalid={!dimensionLabel.trim()}
+              aria-describedby={validationError ? 'correction-error' : undefined}
               className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
             />
           </div>
@@ -159,6 +149,8 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
               inputMode="numeric"
               value={cfm}
               onChange={(e) => setCfm(e.target.value)}
+              aria-invalid={cfm.trim() !== '' && !/^\d+$/.test(cfm.trim())}
+              aria-describedby={validationError ? 'correction-error' : undefined}
               className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
             />
           </div>
@@ -211,6 +203,8 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
               data-testid="correction-reason-select"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
+              aria-invalid={!reason}
+              aria-describedby={validationError ? 'correction-error' : undefined}
               className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
             >
               <option value="">Select a reason…</option>
@@ -224,7 +218,7 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
         </div>
 
         {(validationError || submitError) && (
-          <div data-testid="correction-error" role="alert" className="mt-3 text-[11px] font-mono text-rose-400">
+          <div id="correction-error" data-testid="correction-error" role="alert" className="mt-3 text-[11px] font-mono text-rose-400">
             {validationError ?? submitError}
           </div>
         )}
@@ -242,13 +236,13 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
             type="button"
             data-testid="correction-submit"
             disabled={invalid}
+            aria-disabled={invalid}
             onClick={handleSubmit}
             className="px-3 py-1.5 rounded-md text-xs font-mono font-semibold bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {isSubmitting ? 'Submitting…' : 'Submit correction'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

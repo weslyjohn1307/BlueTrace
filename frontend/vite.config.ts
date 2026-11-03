@@ -8,14 +8,24 @@ import { fileURLToPath } from 'node:url'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       ...(process.env.VITE_GITHUB_PAGES === 'true'
         ? { input: fileURLToPath(new URL('./showcase.html', import.meta.url)) }
         : {}),
       output: {
         manualChunks(id) {
-          if (id.includes('/node_modules/three/')) return 'three-vendor'
-          if (id.includes('/node_modules/gsap/')) return 'gsap-vendor'
+          const normalized = id.replace(/\\/g, '/')
+          if (normalized.includes('/node_modules/three/')) return 'three-vendor'
+          if (normalized.includes('/node_modules/gsap/')) return 'gsap-vendor'
+          if (normalized.includes('/node_modules/lucide-react/')) return 'lucide-vendor'
+          if (
+            normalized.includes('/node_modules/react/') ||
+            normalized.includes('/node_modules/react-dom/') ||
+            normalized.includes('/node_modules/react-router')
+          ) {
+            return 'react-vendor'
+          }
         },
       },
     },

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { KeyRound, ShieldCheck, X } from 'lucide-react';
 import { apiClient } from '../../api/client';
+import { Modal } from './primitives/Modal';
+import { Button } from './primitives/Button';
 
 export interface ByokDialogProps {
   open: boolean;
@@ -22,7 +24,11 @@ export const ByokDialog: React.FC<ByokDialogProps> = ({ open, onClose, configure
   if (!open) return null;
 
   const save = async () => {
-    if (!keyInput.trim() || busy) return;
+    if (busy) return;
+    if (!keyInput.trim()) {
+      setError('Please enter a valid Meta Model API key.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -52,75 +58,87 @@ export const ByokDialog: React.FC<ByokDialogProps> = ({ open, onClose, configure
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-label="API key">
-      <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl p-4 text-slate-200 text-xs">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <KeyRound className="w-4 h-4 text-cyan-400" />
-            <span className="font-semibold text-slate-100 uppercase tracking-wider text-[11px]">Meta API key</span>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <Modal
+      open={open}
+      onClose={onClose}
+      ariaLabel="API key configuration"
+      className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl p-4 text-slate-200 text-xs shadow-2xl"
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center space-x-2">
+          <KeyRound className="w-4 h-4 text-cyan-400" />
+          <span className="font-semibold text-slate-100 uppercase tracking-wider text-[11px]">Meta API key</span>
         </div>
-
-        {configured ? (
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2 text-emerald-300 font-mono">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Configured{maskedKey ? ` (${maskedKey})` : ''} — this session only</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => void clear()}
-              disabled={busy}
-              className="w-full px-3 py-2 rounded-lg bg-slate-800 hover:bg-rose-700 disabled:opacity-40 cursor-pointer"
-            >
-              Clear key for this session
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-slate-400">
-              Paste a Meta Model API key to enable SheetScan, hover OCR, schedule parsing, and the reasoning copilot.
-              Vectors, ledger, and export work without one.
-            </p>
-            <input
-              type="password"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void save();
-              }}
-              placeholder="API key"
-              aria-label="API key"
-              autoComplete="off"
-              className="w-full px-2.5 py-2 rounded-lg bg-slate-800 border border-slate-700 outline-none focus:border-cyan-500 font-mono"
-            />
-            <button
-              type="button"
-              onClick={() => void save()}
-              disabled={busy || keyInput.trim() === ''}
-              className="w-full px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-40 cursor-pointer"
-            >
-              Save for this session
-            </button>
-          </div>
-        )}
-        {error && (
-          <div className="mt-2 p-2 rounded bg-rose-950/40 border border-rose-500/40 text-rose-200" role="alert">
-            {error}
-          </div>
-        )}
-        <p className="mt-2 text-[10px] text-slate-500">
-          Memory-only: never written to disk, logs, or browser storage. Discarded on tab close.
-        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
-    </div>
+
+      {configured ? (
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2 text-emerald-300 font-mono">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span>Configured{maskedKey ? ` (${maskedKey})` : ''} — this session only</span>
+          </div>
+          <Button
+            type="button"
+            variant="danger"
+            size="md"
+            onClick={() => void clear()}
+            disabled={busy}
+            className="w-full"
+          >
+            Clear key for this session
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-slate-400">
+            Paste a Meta Model API key to enable SheetScan, hover OCR, schedule parsing, and the reasoning copilot.
+            Vectors, ledger, and export work without one.
+          </p>
+          <input
+            type="password"
+            value={keyInput}
+            onChange={(e) => {
+              setKeyInput(e.target.value);
+              if (error) setError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void save();
+            }}
+            placeholder="API key"
+            aria-label="API key"
+            aria-invalid={error !== null}
+            aria-describedby={error ? 'byok-error' : undefined}
+            autoComplete="off"
+            className="w-full px-2.5 py-2 rounded-lg bg-slate-800 border border-slate-700 outline-none focus:border-cyan-500 font-mono text-slate-100"
+          />
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => void save()}
+            disabled={busy || keyInput.trim() === ''}
+            className="w-full"
+          >
+            Save for this session
+          </Button>
+        </div>
+      )}
+      {error && (
+        <div id="byok-error" className="mt-2 p-2 rounded bg-rose-950/40 border border-rose-500/40 text-rose-200" role="alert">
+          {error}
+        </div>
+      )}
+      <p className="mt-2 text-[10px] text-slate-500">
+        Memory-only: never written to disk, logs, or browser storage. Discarded on tab close.
+      </p>
+    </Modal>
   );
 };

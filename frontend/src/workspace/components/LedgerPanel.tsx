@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Check, X, Download, ClipboardList, Pencil } from 'lucide-react';
 import type { LedgerSummaryRow, TakeoffRecord } from '../../api/contracts';
 import { EmptyPanel } from '../../components/EmptyPanel';
@@ -13,6 +13,7 @@ export interface LedgerPanelProps {
   onCorrect?: (itemId: string) => void;
   onExportCsv: () => void;
   onExportJson: () => void;
+  scaleCalibrated?: boolean;
 }
 
 type LedgerFilter = 'all' | 'suggested' | 'accepted';
@@ -26,14 +27,37 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
   onCorrect,
   onExportCsv,
   onExportJson,
+  scaleCalibrated = true,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
+  const [pendingStatus, setPendingStatus] = useState<Record<string, string>>({});
 
-  const suggested = items.filter((i) => i.status === 'SUGGESTED');
-  const accepted = items.filter((i) => i.status === 'ACCEPTED');
+  // Sync / clear pending status when items update from backend
+  useEffect(() => {
+    setPendingStatus((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const item of items) {
+        if (next[item.item_id] && item.status === next[item.item_id]) {
+          delete next[item.item_id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [items]);
+
+  // Compute effective items with optimistic pending transitions
+  const effectiveItems = items.map((item) => {
+    const override = pendingStatus[item.item_id];
+    return override ? { ...item, status: override } : item;
+  });
+
+  const suggested = effectiveItems.filter((i) => i.status === 'SUGGESTED');
+  const accepted = effectiveItems.filter((i) => i.status === 'ACCEPTED');
   const totalFt = summary.reduce((acc, row) => acc + row.total_length_ft, 0);
 
-  const filteredItems = items.filter((item) => {
+  const filteredItems = effectiveItems.filter((item) => {
     if (filter === 'suggested') return item.status === 'SUGGESTED';
     if (filter === 'accepted') return item.status === 'ACCEPTED';
     return true;
@@ -41,10 +65,21 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
 
   const getSystemColor = (system?: string) => {
     const s = (system || '').toLowerCase();
-    if (s.includes('supply')) return 'text-cyan-400 bg-cyan-950/60 border-cyan-500/30';
+    if (s.includes('supply')) return 'text-sky-400 bg-sky-950/60 border-sky-500/30';
     if (s.includes('return')) return 'text-emerald-400 bg-emerald-950/60 border-emerald-500/30';
     if (s.includes('exhaust')) return 'text-amber-400 bg-amber-950/60 border-amber-500/30';
+    if (s.includes('fire') || s.includes('life safety')) return 'text-rose-400 bg-rose-950/60 border-rose-500/30';
     return 'text-slate-400 bg-slate-800 border-slate-700';
+  };
+
+  const handleOptimisticAccept = (id: string) => {
+    setPendingStatus((prev) => ({ ...prev, [id]: 'ACCEPTED' }));
+    onAccept(id);
+  };
+
+  const handleOptimisticReject = (id: string) => {
+    setPendingStatus((prev) => ({ ...prev, [id]: 'REJECTED' }));
+    onReject(id);
   };
 
   return (
@@ -58,24 +93,24 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
               Takeoff Ledger
             </span>
           </div>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-            {items.length} records
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 tabular-nums">
+            {effectiveItems.length} records
           </span>
         </div>
 
         {/* KPI Mini-Cards */}
         <div className="grid grid-cols-3 gap-2 font-mono">
           <div className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 flex flex-col">
-            <span className="text-[9px] text-slate-500 uppercase">Verified</span>
-            <span className="text-xs font-bold text-cyan-300 truncate">{totalFt.toFixed(1)} ft</span>
+            <span className="text-[9px] text-slate-500 uppercase">Total LF</span>
+            <span className="text-xs font-bold text-cyan-300 truncate tabular-nums">{totalFt.toFixed(1)} ft</span>
           </div>
           <div className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 flex flex-col">
             <span className="text-[9px] text-emerald-500 uppercase">Accepted</span>
-            <span className="text-xs font-bold text-emerald-300">{accepted.length}</span>
+            <span className="text-xs font-bold text-emerald-300 tabular-nums">{accepted.length}</span>
           </div>
           <div className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 flex flex-col">
             <span className="text-[9px] text-amber-500 uppercase">Review</span>
-            <span className="text-xs font-bold text-amber-300">{suggested.length}</span>
+            <span className="text-xs font-bold text-amber-300 tabular-nums">{suggested.length}</span>
           </div>
         </div>
 
@@ -84,16 +119,16 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
           <button
             type="button"
             onClick={() => setFilter('all')}
-            className={`px-2 py-1 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+            className={`px-2 py-1 rounded text-[10px] font-mono transition-all duration-100 active:scale-[0.98] cursor-pointer ${
               filter === 'all' ? 'bg-cyan-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
             }`}
           >
-            All ({items.length})
+            All ({effectiveItems.length})
           </button>
           <button
             type="button"
             onClick={() => setFilter('suggested')}
-            className={`px-2 py-1 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+            className={`px-2 py-1 rounded text-[10px] font-mono transition-all duration-100 active:scale-[0.98] cursor-pointer ${
               filter === 'suggested' ? 'bg-amber-600 text-white font-semibold' : 'text-amber-400 hover:bg-slate-800'
             }`}
           >
@@ -102,7 +137,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
           <button
             type="button"
             onClick={() => setFilter('accepted')}
-            className={`px-2 py-1 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+            className={`px-2 py-1 rounded text-[10px] font-mono transition-all duration-100 active:scale-[0.98] cursor-pointer ${
               filter === 'accepted' ? 'bg-emerald-600 text-white font-semibold' : 'text-emerald-400 hover:bg-slate-800'
             }`}
           >
@@ -152,7 +187,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
                     <span className="text-cyan-400">{(item.confidence * 100).toFixed(0)}%</span>
                   )}
                 </div>
-                <span className="font-bold text-slate-200">
+                <span className="font-bold text-slate-200 tabular-nums">
                   {item.total_length_ft > 0 ? `${item.total_length_ft.toFixed(1)} ft` : `Qty: ${item.count || 1}`}
                 </span>
               </div>
@@ -161,8 +196,9 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
                 <div className="flex space-x-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => onAccept(item.item_id)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white font-mono text-[11px] cursor-pointer transition-colors shadow-xs"
+                    onClick={() => handleOptimisticAccept(item.item_id)}
+                    title={scaleCalibrated === false ? 'Scale calibration required before accepting measurements' : undefined}
+                    className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white font-mono text-[11px] cursor-pointer transition-all duration-100 active:scale-[0.98] shadow-xs"
                   >
                     <Check className="w-3 h-3" />
                     <span>Accept</span>
@@ -172,7 +208,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
                       type="button"
                       aria-label={`Correct ${item.dimension_label}`}
                       onClick={() => onCorrect(item.item_id)}
-                      className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-white font-mono text-[11px] cursor-pointer transition-colors shadow-xs"
+                      className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-white font-mono text-[11px] cursor-pointer transition-all duration-100 active:scale-[0.98] shadow-xs"
                     >
                       <Pencil className="w-3 h-3" />
                       <span>Correct</span>
@@ -180,8 +216,8 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
                   )}
                   <button
                     type="button"
-                    onClick={() => onReject(item.item_id)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white font-mono text-[11px] cursor-pointer transition-colors border border-slate-700"
+                    onClick={() => handleOptimisticReject(item.item_id)}
+                    className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white font-mono text-[11px] cursor-pointer transition-all duration-100 active:scale-[0.98] border border-slate-700"
                   >
                     <X className="w-3 h-3" />
                     <span>Reject</span>

@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
-import { Activity, ChevronDown, ChevronUp } from 'lucide-react';
+import { Layers, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle } from 'lucide-react';
 
-interface VectorTraceCardProps {
+export interface VectorTraceCardProps {
   totalRuns?: number;
   totalLengthFt?: number;
   confidence?: number;
   scaleVerified?: boolean;
+  scaleRatio?: number;
 }
 
 export const VectorTraceCard: React.FC<VectorTraceCardProps> = ({
-  totalRuns = 329,
-  totalLengthFt = 1840,
+  totalRuns = 0,
+  totalLengthFt = 0,
   confidence = 0.998,
-  scaleVerified = true,
+  scaleVerified = false,
+  scaleRatio,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
+
+  const avgSegmentLength =
+    totalRuns > 0 ? (totalLengthFt / totalRuns).toFixed(1) : '0.0';
 
   return (
     <div
@@ -24,11 +29,25 @@ export const VectorTraceCard: React.FC<VectorTraceCardProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between pb-2 border-b border-slate-800">
         <div className="flex items-center space-x-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#22d3ee]" />
-          <span className="text-xs font-bold text-slate-100 font-mono tracking-tight">Agent 01: VectorTrace</span>
+          <div
+            className={`w-2.5 h-2.5 rounded-full ${
+              scaleVerified
+                ? 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]'
+                : 'bg-amber-400 shadow-[0_0_8px_#fbbf24]'
+            }`}
+          />
+          <span className="text-xs font-bold text-slate-100 font-mono tracking-tight">
+            Vector Linework Engine
+          </span>
         </div>
         <div className="flex items-center space-x-1.5">
-          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-300 font-semibold border border-cyan-500/40">
+          <span
+            className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-semibold border ${
+              scaleVerified
+                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
+                : 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+            }`}
+          >
             {scaleVerified ? 'CALIBRATED' : 'REVIEW'}
           </span>
           <button
@@ -48,59 +67,63 @@ export const VectorTraceCard: React.FC<VectorTraceCardProps> = ({
           <div className="grid grid-cols-3 gap-2 font-mono">
             <div className="bg-slate-950/80 rounded-xl p-2 border border-slate-800 flex flex-col">
               <span className="text-[9px] uppercase text-slate-500">Total Run</span>
-              <span className="text-xs font-bold text-cyan-300 mt-0.5">
+              <span className="text-xs font-bold text-cyan-300 mt-0.5 tabular-nums">
                 {totalLengthFt.toFixed(0)} <span className="text-[9px] text-slate-400">LF</span>
               </span>
             </div>
             <div className="bg-slate-950/80 rounded-xl p-2 border border-slate-800 flex flex-col">
               <span className="text-[9px] uppercase text-slate-500">Segments</span>
-              <span className="text-xs font-bold text-slate-200 mt-0.5">{totalRuns}</span>
+              <span className="text-xs font-bold text-slate-200 mt-0.5 tabular-nums">{totalRuns}</span>
             </div>
             <div className="bg-slate-950/80 rounded-xl p-2 border border-slate-800 flex flex-col">
               <span className="text-[9px] uppercase text-slate-500">Confidence</span>
-              <span className="text-xs font-bold text-emerald-400 mt-0.5">
+              <span className="text-xs font-bold text-emerald-400 mt-0.5 tabular-nums">
                 {(confidence * 100).toFixed(1)}%
               </span>
             </div>
           </div>
 
-          {/* Micro Velocity Area Sparkline */}
-          <div className="space-y-1">
-            <div className="flex justify-between items-center text-[10px] font-mono text-slate-400">
-              <span className="flex items-center space-x-1">
-                <Activity className="w-3 h-3 text-cyan-400" />
-                <span>Parsing Velocity</span>
+          {/* Real Linework Telemetry (Replaces fake velocity & bezier curve) */}
+          <div className="space-y-1.5 bg-slate-950/90 rounded-xl p-2.5 border border-slate-800/80 font-mono text-[11px]">
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="flex items-center space-x-1.5">
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Segment Density</span>
               </span>
-              <span className="text-cyan-300 font-semibold">128 item/min</span>
+              <span className="text-slate-200 font-semibold tabular-nums">
+                {avgSegmentLength} LF/run
+              </span>
             </div>
-            <div className="h-9 w-full bg-slate-950/90 rounded-lg overflow-hidden border border-slate-800 p-0.5">
-              <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 28">
-                <path
-                  d="M0,24 Q15,18 30,20 T60,8 T85,12 T100,4 L100,28 L0,28 Z"
-                  fill="rgba(34, 211, 238, 0.2)"
-                />
-                <path
-                  d="M0,24 Q15,18 30,20 T60,8 T85,12 T100,4"
-                  fill="none"
-                  stroke="#22d3ee"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-                <circle cx="100" cy="4" fill="#22d3ee" r="2.5" />
-              </svg>
+            <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+              <span className="text-slate-400">Scale Ratio</span>
+              <div className="flex items-center space-x-1">
+                {scaleVerified ? (
+                  <>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span className="text-emerald-300 font-semibold">
+                      {scaleRatio != null ? `${scaleRatio.toFixed(1)}:1` : 'Verified'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="w-3 h-3 text-amber-400" />
+                    <span className="text-amber-300 font-semibold">Review Required</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Progress Bar */}
+          {/* Deterministic Linework Proof */}
           <div className="space-y-1">
             <div className="flex justify-between text-[10px] font-mono text-slate-400">
               <span>Vector Linework Proof</span>
-              <span className="text-cyan-400 font-semibold">100% Deterministic</span>
+              <span className="text-cyan-400 font-semibold">Deterministic</span>
             </div>
             <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full"
-                style={{ width: '100%' }}
+                style={{ width: totalRuns > 0 ? '100%' : '0%' }}
               />
             </div>
           </div>

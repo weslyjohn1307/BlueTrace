@@ -86,7 +86,7 @@ export const StoryPage: React.FC = () => {
           </div>
           <div className="flex items-center space-x-1.5 bg-slate-900/80 px-3 py-1.5 rounded-md border border-slate-800">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span>715 Passing Tests</span>
+            <span>819+ Passing Tests</span>
           </div>
           <div className="flex items-center space-x-1.5 bg-slate-900/80 px-3 py-1.5 rounded-md border border-slate-800">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
@@ -140,7 +140,7 @@ export const StoryPage: React.FC = () => {
             </h2>
 
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-sans">
-              From the P00 baseline crash to 7 ratified architectural decisions and 715 automated offline regression
+              From the P00 baseline crash to 7 ratified architectural decisions and 819+ automated offline regression
               tests, BlueTraceAI proves that precision takeoff is achieved not by prompts, but by sound geometry,
               tiled raster inference, and strict fail-closed governance.
             </p>

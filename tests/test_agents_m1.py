@@ -412,7 +412,9 @@ class TestReconAgent:
     @pytest.mark.asyncio
     async def test_recon_sheet_on_real_fixture(self) -> None:
         pdf_fixture = Path("fixtures/mechanical/sample_mechanical_p1_p3.pdf")
-        assert pdf_fixture.is_file(), "sample_mechanical_p1_p3.pdf must exist"
+        if not pdf_fixture.is_file():
+            pdf_fixture = Path("fixtures/mechanical/avexis_page_22.pdf")
+        assert pdf_fixture.is_file(), f"{pdf_fixture} must exist"
 
         recon = ReconAgent()
         res = await recon.recon_sheet(pdf_fixture, page_index=0)

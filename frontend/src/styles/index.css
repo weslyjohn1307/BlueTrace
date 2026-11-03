@@ -33,6 +33,28 @@
     --cat-linear-grille: oklch(0.588 0.158 241.966);
     --cat-duct-route: oklch(0.546 0.245 262.881);
     --cat-pipe-route: oklch(0.6 0.118 184.704);
+
+    /* High-Contrast Workstation Surfaces */
+    --surface-canvas: #030712;       /* slate-950 - CAD canvas background */
+    --surface-chrome: #0b0f19;       /* deep dark - topnav & sidebars */
+    --surface-panel: #111827;        /* slate-900 - cards & nested inspectors */
+    --surface-elevated: #1e293b;     /* slate-800 - floating docks & modals */
+    --border-subtle: #1e293b;        /* 1px subtle boundary */
+    --border-strong: #334155;        /* 1px active/hover boundary */
+    --border-accent: rgba(34, 211, 238, 0.4); /* cyan accent boundary */
+
+    /* Authoritative AEC MEP System Colors */
+    --mep-supply: #0284c7;           /* Blue - Supply Air */
+    --mep-return: #16a34a;           /* Green - Return Air */
+    --mep-exhaust: #d97706;          /* Amber - Exhaust Air */
+    --mep-fire: #dc2626;             /* Red - Fire Life Safety */
+    --mep-plumbing: #0284c7;         /* Blue - Plumbing */
+    --mep-electrical: #eab308;       /* Yellow - Electrical */
+
+    /* Text & Telemetry Contrast */
+    --text-primary: #f8fafc;         /* slate-50 - headings & primary figures */
+    --text-secondary: #cbd5e1;       /* slate-300 - body & table content (8.2:1) */
+    --text-muted: #94a3b8;           /* slate-400 - secondary telemetry (5.4:1) */
   }
 
   body {

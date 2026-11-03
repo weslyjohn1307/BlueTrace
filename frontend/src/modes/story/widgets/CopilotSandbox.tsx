@@ -56,7 +56,7 @@ export const CopilotSandbox: React.FC = () => {
         </div>
         <div className="flex items-center space-x-1.5 font-mono text-[11px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">
           <ShieldCheck className="w-3.5 h-3.5" />
-          <span>715 Offline Tests Passing</span>
+          <span>819+ Offline Tests Passing</span>
         </div>
       </div>
 

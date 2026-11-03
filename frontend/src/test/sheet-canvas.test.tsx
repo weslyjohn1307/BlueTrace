@@ -100,9 +100,9 @@ describe('SheetCanvas hover-to-crop', () => {
     );
     const runs = container.querySelectorAll('[data-testid="vector-run"]');
     expect(runs).toHaveLength(3);
-    expect(runs[0].getAttribute('stroke')).toBe('#0099ff');
-    expect(runs[1].getAttribute('stroke')).toBe('#10b981');
-    expect(runs[2].getAttribute('stroke')).toBe('#f59e0b');
+    expect(runs[0].getAttribute('stroke')).toBe('#0284c7');
+    expect(runs[1].getAttribute('stroke')).toBe('#16a34a');
+    expect(runs[2].getAttribute('stroke')).toBe('#d97706');
     expect(runs[0].getAttribute('class')).toContain('animate-duct-flow');
   });
 
