@@ -270,14 +270,6 @@ def test_adversarial_non_pdf_and_zero_byte_files_handled_fail_closed(filename: s
             scan_sheet_legend(file_path)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECT 1: LegendScanner._open_document does not verify doc.is_pdf. "
-        "MuPDF natively opens HTML and image files (PNG, JPEG), so non-PDF documents "
-        "bypass fail-closed validation and are processed as drawings."
-    ),
-)
 @pytest.mark.parametrize(
     ("filename", "content"),
     [
@@ -331,14 +323,6 @@ def test_multi_page_pdf_page_index_boundaries():
                 scan_sheet_legend(pdf_path, page_index=out_idx)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECT 2: LegendScanner._mock_legend_scan on small sheets (w < 50 or h < 200 pt) "
-        "produces inverted bounding boxes (y0=200 > y1=h) and completely out-of-page symbols "
-        "with empty crops, while falsely claiming legend_detected=True and review_required=False."
-    ),
-)
 def test_mock_legend_scan_small_sheet_inverted_coords_defect():
     """Proves Defect 2: Small sheets produce inverted bounding boxes and empty symbol crops."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -361,14 +345,6 @@ def test_mock_legend_scan_small_sheet_inverted_coords_defect():
                 assert s.exemplar_crop_base64 != "", f"Detected symbol {s.label} has empty crop on small sheet"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECT 3: LegendScanner.scan_sheet does not validate that page_index is an int. "
-        "Passing a float page_index like 0.5 triggers an unhandled AssertionError from PyMuPDF "
-        "instead of the documented ValueError."
-    ),
-)
 def test_non_integer_page_index_defect():
     """Proves Defect 3: Non-integer page indices raise AssertionError instead of ValueError."""
     with pytest.raises(ValueError, match="out of range|invalid"):

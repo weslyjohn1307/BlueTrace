@@ -20,12 +20,13 @@ Expected values are derived from the drawn geometry:
 from __future__ import annotations
 
 import math
+import time
 from itertools import pairwise
 from pathlib import Path
 
 import pymupdf
 
-from src.core_vector.pipeline import run_l2_pipeline
+from src.core_vector.pipeline import clear_l2_cache, run_l2_pipeline
 
 
 def _create_test_pdf(
@@ -376,4 +377,30 @@ class TestCenterlinePipeline:
                 math.hypot(px - apex[0], py - apex[1]) < 0.01 for px, py in points
             ), f"plumbing leg does not reach apex {apex}: {points}"
         assert abs(_total_geometric_length_pt(res) - 204.0) < 2.0
+
+    def test_pipeline_geometry_caching_returns_identical_sub_50ms(self, tmp_path: Path):
+        """TASK-OPT-001: Cached run_l2_pipeline returns identical results in <50ms."""
+        clear_l2_cache()
+        text = 'M-101 MECHANICAL PLAN\nSCALE: 1/8" = 1\'-0"'
+        lines = [
+            ((100.0, 100.0), (300.0, 100.0)),
+            ((100.0, 112.0), (300.0, 112.0)),
+        ]
+        pdf_path = _create_test_pdf(tmp_path, "M101_CACHE_TEST.pdf", text, lines)
+
+        # First run (uncached)
+        t0 = time.perf_counter()
+        res1 = run_l2_pipeline(pdf_path, discipline="mechanical")
+        t1 = time.perf_counter()
+
+        # Second run (cached)
+        res2 = run_l2_pipeline(pdf_path, discipline="mechanical")
+        t2 = time.perf_counter()
+
+        uncached_latency_ms = (t1 - t0) * 1000.0
+        cache_latency_ms = (t2 - t1) * 1000.0
+        assert res1 == res2
+        assert cache_latency_ms < 50.0, f"Cache latency too high: {cache_latency_ms:.2f} ms"
+        assert cache_latency_ms <= uncached_latency_ms
+
 

@@ -44,4 +44,4 @@ testpaths = ["tests"]
 explicit_package_bases = true
 ignore_missing_imports = true
 follow_imports = "silent"
-files = ["src/api", "src/meta_services", "src/models", "src/store"]
+files = ["src/agents", "src/api", "src/meta_services", "src/models", "src/store"]

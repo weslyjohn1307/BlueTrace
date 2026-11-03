@@ -602,6 +602,21 @@ class TestTracerL2Linework:
             assert sr_poly not in original_polys, "Crossing path was not split at intersection point"
             assert sr.get("continuity_status") == "REVIEW_REQUIRED" or sr.get("review_required") is True
 
+    def test_tee_junction_splitting(self) -> None:
+        """Tee-junctions where a branch endpoint touches a trunk interior must split the trunk."""
+        tracer = TracerL2Agent()
+        tee_paths = [
+            {"category": "DUCTWORK", "system": "SupplyAir", "polyline": [[100.0, 200.0], [300.0, 200.0]], "length_pt": 200.0},
+            {"category": "DUCTWORK", "system": "SupplyAir", "polyline": [[200.0, 200.0], [200.0, 300.0]], "length_pt": 100.0},
+        ]
+        split_runs, flags = tracer.resolve_junction_topology(tee_paths)
+
+        # Trunk (2 segments) + branch (1 segment) = 3 segments
+        assert len(split_runs) == 3, f"Expected 3 segments after tee-junction split, got {len(split_runs)}"
+        assert len(flags) == 1
+        assert flags[0]["type"] == "AMBIGUOUS_JUNCTION_SPLIT"
+        assert flags[0].get("junction_subtype") == "TEE"
+
     @pytest.mark.asyncio
     async def test_tracer_run_stream_crossing_junction_emits_split_items_and_flags(self, tmp_path: Path) -> None:
         """Finding 02 & 05: Verify tracer.run_stream() invokes resolve_junction_topology and yields FLAG_RAISED."""

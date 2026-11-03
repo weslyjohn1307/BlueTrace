@@ -496,6 +496,50 @@ class TracerL2Agent(BaseAgent):
                         "coordinates": [round(pt.x, 2), round(pt.y, 2)],
                     })
 
+        # 2b. Query spatial index for Tee-junctions (one endpoint touches interior of another run)
+        touch_pairs = tree.query(valid_lines, predicate="touches")
+        for a, b in zip(touch_pairs[0], touch_pairs[1]):
+            if a >= b:
+                continue
+            orig_a = valid_indices[a]
+            orig_b = valid_indices[b]
+            ls_a = valid_lines[a]
+            ls_b = valid_lines[b]
+
+            try:
+                inter = ls_a.intersection(ls_b)
+            except Exception:  # noqa: BLE001, S112
+                continue
+
+            inter_pts = []
+            if inter.geom_type == "Point":
+                inter_pts = [inter]
+            elif inter.geom_type == "MultiPoint":
+                inter_pts = list(inter.geoms)
+
+            for pt in inter_pts:
+                dist_bound_a = ls_a.boundary.distance(pt) if not ls_a.boundary.is_empty else float("inf")
+                dist_bound_b = ls_b.boundary.distance(pt) if not ls_b.boundary.is_empty else float("inf")
+                a_interior = dist_bound_a > 1e-4 and ls_a.distance(pt) < 1e-5
+                b_interior = dist_bound_b > 1e-4 and ls_b.distance(pt) < 1e-5
+                if a_interior or b_interior:
+                    if a_interior:
+                        split_points_per_path.setdefault(orig_a, []).append(pt)
+                    if b_interior:
+                        split_points_per_path.setdefault(orig_b, []).append(pt)
+                    flags.append({
+                        "flag_id": uuid.uuid4().hex[:12],
+                        "type": "AMBIGUOUS_JUNCTION_SPLIT",
+                        "junction_subtype": "TEE",
+                        "severity": "WARNING",
+                        "message": (
+                            f"Tee-junction between path {orig_a} and {orig_b} "
+                            f"at ({pt.x:.1f}, {pt.y:.1f}) split on trunk without bridging."
+                        ),
+                        "paths": [orig_a, orig_b],
+                        "coordinates": [round(pt.x, 2), round(pt.y, 2)],
+                    })
+
         # 3. Split intersecting polylines at crossing points
         for idx, p in enumerate(paths):
             if idx not in split_points_per_path:
@@ -574,7 +618,8 @@ class TracerL2Agent(BaseAgent):
             elif ev.event_type == AgentEventType.FLAG_RAISED:
                 flags.append(ev.payload)
 
-        sheet_ident = sheet_id or (sheet_metadata.sheet_id if sheet_metadata else f"{context.pdf_path.stem}_p{page_index}")
+        pdf_stem = context.pdf_path.stem if context.pdf_path is not None else "sheet"
+        sheet_ident = sheet_id or (sheet_metadata.sheet_id if sheet_metadata else f"{pdf_stem}_p{page_index}")
         return AgentResult(
             agent_id=self.agent_id,
             job_id=context.job_id,
@@ -603,6 +648,8 @@ class TracerL2Agent(BaseAgent):
         start_time = time.monotonic()
         job_id = context.job_id
         pdf_path = context.pdf_path
+        if pdf_path is None:
+            raise ValueError("AgentContext.pdf_path is required for TracerL2Agent")
         ev_gen = context.evidence_generator
         disc = discipline or (sheet_metadata.discipline.lower() if sheet_metadata else "mechanical")
         sheet_ident = sheet_id or (sheet_metadata.sheet_id if sheet_metadata else f"{pdf_path.stem}_p{page_index}")

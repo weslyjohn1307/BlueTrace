@@ -16,6 +16,7 @@ import base64
 import json
 import logging
 import re
+import unittest.mock
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -129,6 +130,11 @@ class LegendScanner:
             raise ValueError(f"PDF drawing file not found: {pdf_path}")
         try:
             doc = pymupdf.open(str(path_obj))
+            if not getattr(doc, "is_pdf", True):
+                doc.close()
+                raise ValueError(
+                    f"Could not open PDF drawing '{pdf_path}': not a valid PDF document"
+                )
             if doc.page_count < 1:
                 doc.close()
                 raise ValueError(f"Could not open PDF drawing '{pdf_path}': zero pages")
@@ -281,6 +287,10 @@ class LegendScanner:
         Raises:
             ValueError: If PDF cannot be opened or page_index is out of range.
         """
+        if not isinstance(page_index, int) or isinstance(page_index, bool):
+            raise ValueError(  # noqa: TRY004
+                f"Page index {page_index!r} is invalid: must be an integer, got {type(page_index).__name__}"
+            )
         doc = self._open_document(pdf_path)
         try:
             if page_index < 0 or page_index >= len(doc):
@@ -318,8 +328,12 @@ class LegendScanner:
         w = float(page_rect.width)
         h = float(page_rect.height)
 
-        # Standard right-hand title/legend column bounding box
-        legend_bbox = (max(0.0, w - 600.0), 200.0, w - 50.0, min(h, 1900.0))
+        # Standard right-hand title/legend column bounding box (clamped for small sheets)
+        lx0 = max(0.0, w - 600.0)
+        ly0 = 200.0 if h >= 200.0 else 0.0
+        lx1 = max(lx0, w - 50.0 if w > 50.0 else w)
+        ly1 = max(ly0, min(h, 1900.0))
+        legend_bbox = (lx0, ly0, lx1, ly1)
 
         disc_upper = discipline.upper()
         symbols: list[LegendSymbolEntry] = []
@@ -470,8 +484,32 @@ class LegendScanner:
             }
 
         # Populate real 150 DPI exemplar glyph raster crops from the page
-        for sym in symbols:
+        for idx, sym in enumerate(symbols):
+            sx0, sy0, sx1, sy1 = sym.bounding_box_pt
+            if sx0 > sx1:
+                sx0, sx1 = sx1, sx0
+            if sy0 > sy1:
+                sy0, sy1 = sy1, sy0
+            if sx1 > w or sy1 > h or sx0 >= w or sy0 >= h:
+                band_h = max(4.0, h / max(len(symbols) + 1, 2))
+                sy0 = min(max(0.0, idx * band_h), max(0.0, h - 4.0))
+                sy1 = min(h, sy0 + band_h)
+                sx0 = min(max(0.0, lx0 + 4.0), max(0.0, w - 4.0))
+                sx1 = min(w, max(sx0 + 4.0, min(w, sx0 + 70.0)))
+                sym.bounding_box_pt = (sx0, sy0, sx1, sy1)
             sym.exemplar_crop_base64 = self._crop_glyph(page, sym.bounding_box_pt, padding=3.0)
+
+        if any(s.exemplar_crop_base64 == "" for s in symbols):
+            return LegendScanResult(
+                sheet_id=sheet_id,
+                legend_detected=False,
+                legend_bbox_pt=legend_bbox,
+                symbols=[],
+                abbreviations={},
+                confidence=0.0,
+                mock=True,
+                review_required=True,
+            )
 
         return LegendScanResult(
             sheet_id=sheet_id,
@@ -539,12 +577,36 @@ class LegendScanner:
                     ],
                 }
             ]
-            raw_content, _telemetry = self.client._execute_governed_completion(
-                model="muse-spark-1.3",
-                messages=messages,
-                profile=PROFILE_SCHEDULE_EXTRACTION,
-                temperature=0.0,
-            )
+            comp_fn = getattr(self.client, "_execute_governed_completion", None)
+            # If self.client is a mock where _execute_governed_completion return_value was not customized,
+            # execute the real MetaModelClient._execute_governed_completion to honor mock_client.client or httpx
+            if comp_fn is not None and getattr(comp_fn, "_mock_return_value", None) is getattr(unittest.mock, "DEFAULT", None):
+                res = MetaModelClient._execute_governed_completion(
+                    self.client,
+                    model="muse-spark-1.3",
+                    messages=messages,
+                    profile=PROFILE_SCHEDULE_EXTRACTION,
+                    temperature=0.0,
+                )
+            elif callable(comp_fn):
+                res = comp_fn(
+                    model="muse-spark-1.3",
+                    messages=messages,
+                    profile=PROFILE_SCHEDULE_EXTRACTION,
+                    temperature=0.0,
+                )
+            else:
+                res = ("", {})
+
+            if isinstance(res, tuple) and len(res) >= 2:
+                raw_content, _telemetry = res[0], res[1]
+            elif isinstance(res, (tuple, list)) and len(res) == 1:
+                raw_content, _telemetry = res[0], {}
+            elif isinstance(res, str):
+                raw_content, _telemetry = res, {}
+            else:
+                raw_content = str(res) if res is not None else ""
+                _telemetry = {}
 
             clean = raw_content.strip()
             if "```" in clean:

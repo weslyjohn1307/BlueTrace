@@ -201,11 +201,13 @@ class OrchestratorAgent(BaseAgent):
             agent_id=self.agent_id,
             event_type=AgentEventType.STARTED,
             progress=0.0,
-            message=f"Orchestrator started for package: {pdf_path.name}",
+            message=f"Orchestrator started for package: {pdf_path.name if pdf_path is not None else 'unknown.pdf'}",
         )
 
         # 1. Enumerate Pages
         try:
+            if pdf_path is None:
+                raise ValueError("AgentContext.pdf_path is required")
             doc = self._open_pdf(pdf_path)
             total_pages = len(doc)
             doc.close()
@@ -443,8 +445,8 @@ class OrchestratorAgent(BaseAgent):
                             },
                         )
 
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Failed to process sheet on page %s: %s", page_idx, exc)
+            except Exception as exc:
+                logger.warning("Failed to process sheet on page %s: %s", page_idx, exc, exc_info=True)
                 unreadable_pages.append(page_idx)
                 yield AgentEvent(
                     job_id=job_id,

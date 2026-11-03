@@ -619,8 +619,9 @@ class ScheduleReconcilerAgent(BaseAgent):
         families: list[dict[str, Any]] = []
         report: dict[str, Any] | None = None
         mock_rows = False
+        pdf_stem = context.pdf_path.stem if context.pdf_path is not None else "sheet"
         schedule_sheet_id = (
-            sheet_metadata.sheet_id if sheet_metadata else f"{context.pdf_path.stem}_p{page_index}"
+            sheet_metadata.sheet_id if sheet_metadata else f"{pdf_stem}_p{page_index}"
         )
 
         async for ev in self.run_stream(
@@ -676,6 +677,8 @@ class ScheduleReconcilerAgent(BaseAgent):
         """Stream reconciliation execution events."""
         job_id = context.job_id
         pdf_path = context.pdf_path
+        if pdf_path is None:
+            raise ValueError("AgentContext.pdf_path is required for ScheduleReconcilerAgent")
         ev_gen = context.evidence_generator
         sched_sheet_id = (
             sheet_metadata.sheet_id if sheet_metadata else f"{pdf_path.stem}_p{page_index}"

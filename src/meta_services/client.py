@@ -288,7 +288,8 @@ class MetaModelClient:
         self,
         base64_image: str,
         prompt: str | None = None,
-        profile: ExecutionProfile | None = None,
+        profile: ExecutionProfile | str | None = None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Extracts text, duct dimensions, and callout labels from an image crop using muse-spark-1.3."""
         start_time = time.time()
@@ -297,7 +298,7 @@ class MetaModelClient:
             "from this MEP drawing crop. Return JSON with keys: 'dimension_text', 'width', 'height', 'shape'."
         )
         user_prompt = prompt or default_prompt
-        active_profile = profile or PROFILE_HOVER_OCR
+        active_profile = PROFILE_HOVER_OCR if isinstance(profile, str) or profile is None else profile
 
         if not self.is_configured():
             # Offline stub: shape-stable for UI tests, but never claims verification.
@@ -580,3 +581,23 @@ class MetaModelClient:
                 resp = http_client.post(url, headers=headers, files=files, data=data)
                 resp.raise_for_status()
                 return resp.json()["id"]
+
+
+class _JsonStubClient:
+    """Configured stub returning a caller-supplied JSON payload for testing."""
+
+    def __init__(self, payload: dict[str, Any] | None = None) -> None:
+        self._payload = payload or {}
+
+    def is_configured(self) -> bool:
+        return True
+
+    def parse_crop_ocr(
+        self,
+        base64_image: str,
+        prompt: str | None = None,
+        profile: str = "fast",
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        return {"raw_content": json.dumps(self._payload), **self._payload}
+

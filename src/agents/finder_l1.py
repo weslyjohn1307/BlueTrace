@@ -598,7 +598,8 @@ class FinderL1Agent(BaseAgent):
             elif ev.event_type == AgentEventType.FLAG_RAISED:
                 flags.append(ev.payload)
 
-        sheet_id = sheet_metadata.sheet_id if sheet_metadata else f"{context.pdf_path.stem}_p{page_index}"
+        pdf_stem = context.pdf_path.stem if context.pdf_path is not None else "sheet"
+        sheet_id = sheet_metadata.sheet_id if sheet_metadata else f"{pdf_stem}_p{page_index}"
         counts: dict[str, int] = {}
         for it in items:
             counts[it.dimension_label] = counts.get(it.dimension_label, 0) + it.count
@@ -629,6 +630,8 @@ class FinderL1Agent(BaseAgent):
         start_time = time.monotonic()
         job_id = context.job_id
         pdf_path = context.pdf_path
+        if pdf_path is None:
+            raise ValueError("AgentContext.pdf_path is required for FinderL1Agent")
         ev_gen = context.evidence_generator
         disc = discipline or (sheet_metadata.discipline if sheet_metadata else "mechanical")
         sheet_id = sheet_metadata.sheet_id if sheet_metadata else f"{pdf_path.stem}_p{page_index}"

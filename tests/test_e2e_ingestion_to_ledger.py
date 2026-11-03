@@ -313,7 +313,7 @@ def test_pipeline_mapping_rejects_malformed_measurements():
         assert records == []
 
 
-def test_rescan_after_human_review_replaces_rows(client: TestClient):
+def test_unverified_acceptance_is_blocked_and_rescan_replaces_rows(client: TestClient):
     scan = client.post(
         "/api/sheet-scan",
         json={
@@ -333,7 +333,13 @@ def test_rescan_after_human_review_replaces_rows(client: TestClient):
         f"/api/takeoff/items/{items[0]['item_id']}/status",
         json={"status": "ACCEPTED", "action": "USER_REVIEW"},
     )
-    assert accepted.status_code == 200
+    assert accepted.status_code == 409
+    assert "UNVERIFIED" in accepted.json()["detail"]
+    unchanged = client.get(
+        "/api/takeoff/items", params={"project_id": "review_project", "sheet_id": sheet_id}
+    ).json()
+    reviewed_item = next(item for item in unchanged if item["item_id"] == items[0]["item_id"])
+    assert reviewed_item["status"] == "SUGGESTED"
 
     rescan = client.post(
         "/api/sheet-scan",

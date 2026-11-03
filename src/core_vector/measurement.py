@@ -1,6 +1,8 @@
 """View-bound physical-length projection (L2-07).
 
-Reuses ViewBoundScaleDecision.conversion_factor_m_per_pdf_point().
+Reuses ViewBoundScaleDecision.conversion_factor_m_per_pdf_point() from
+``src/core_vector/schema.py`` / ``src/core_vector/scale.py`` (reconciled with
+API-facing ``src/core_vector/scale_validator.py``).
 Does not guess scale. Does not convert null length to zero.
 """
 

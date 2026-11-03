@@ -90,7 +90,13 @@ class _JsonStubClient:
     def is_configured(self) -> bool:
         return True
 
-    def parse_crop_ocr(self, base64_image: str, prompt: str | None = None) -> dict[str, Any]:
+    def parse_crop_ocr(
+        self,
+        base64_image: str,
+        prompt: str | None = None,
+        profile: str = "fast",
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         return {"raw_content": json.dumps(self._payload)}
 
 

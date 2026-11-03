@@ -583,6 +583,8 @@ class ReconAgent(BaseAgent):
         )
 
         try:
+            if context.pdf_path is None:
+                raise ValueError("AgentContext.pdf_path is required for ReconAgent")
             recon_res = await self.recon_sheet(
                 context.pdf_path,
                 page_index=page_index,
