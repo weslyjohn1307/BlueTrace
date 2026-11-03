@@ -230,7 +230,10 @@ def parse_tile_detections(
         if not (u1 < u2 and v1 < v2):
             continue
         try:
-            conf = float(entry.get("confidence"))
+            raw_val = entry.get("confidence")
+            if raw_val is None:
+                continue
+            conf = float(raw_val)
         except (ValueError, TypeError):
             continue
         if not math.isfinite(conf) or not 0.0 <= conf <= 1.0:
@@ -473,7 +476,10 @@ def _candidate_label(candidate: dict[str, Any]) -> str:
 
 def _candidate_confidence(candidate: dict[str, Any]) -> float | None:
     try:
-        conf = float(candidate.get("confidence"))
+        raw_val = candidate.get("confidence")
+        if raw_val is None:
+            return None
+        conf = float(raw_val)
     except (ValueError, TypeError):
         return None
     if not math.isfinite(conf):
