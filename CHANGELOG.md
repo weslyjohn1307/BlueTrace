@@ -8,10 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Standalone single-port server (`scripts/start_standalone.py`) serving the compiled React workstation and FastAPI REST endpoints with strict `/api/*` isolation.
+- Thread-safe SHA-256 LRU caching for deterministic vector geometry extraction (`src/core_vector/pipeline.py`) and point-of-need hover crop OCR (`src/api/routes.py`).
+- Native Windows desktop packaging with Tauri v2 (`src-tauri/`), PyInstaller `--onedir` sidecar recipe (`packaging/`), Windows Job Object process supervisor, and Ed25519 update manifest verification.
+- Accessible workstation UI primitives (`Button`, `SegmentedControl`, `StatusBadge`, `Modal`), decomposed layout regions (`WorkstationHeader`, `SidebarLeft`, `SidebarRight`, `ViewportContainer`), and zero-dependency streaming markdown rendering in the copilot drawer.
+- Automated evaluation report generator (`scripts/generate_eval_report.py`), empirical benchmark report (`docs/EVAL_REPORT.md`), OpenAPI reference (`docs/API_REFERENCE.md`), and operational runbook (`docs/RUNBOOK.md`).
 - Interactive project showcase deployed through GitHub Pages.
 - CI coverage for Python 3.10–3.13, frontend checks, dependency updates, and CodeQL analysis.
 
 ### Changed
+- Strengthened legend scanner input validation and tee-junction (`touches`) topology splitting with strict `mypy` type coverage across `src/agents/`.
+- Added explicit benchmark fixture indicator badges in the schedule panel and uncalibrated scale warnings in the takeoff ledger.
+- Configured deterministic Vite vendor chunk splitting (`three-vendor`, `gsap-vendor`, `lucide-vendor`, `react-vendor`).
 - Historic explainer links now open the current showcase.
 - Main navigation no longer displays unverified benchmark or agent-status claims.
 - Contributor and security guidance now reflects the public project setup.
