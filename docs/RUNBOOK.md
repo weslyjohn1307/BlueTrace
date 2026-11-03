@@ -1,6 +1,5 @@
 # BlueTraceAI — Operator Runbook & Data Retention Guide
 
-**Classification**: `USER_FACING` / `JUDGE_FACING`  
 **Scope**: Standalone Workstation Deployment, Native Desktop Sidecar Packaging, BYOK Configuration, Fail-Closed Scale Governance, and SQLite Data Retention.
 
 ---
@@ -58,7 +57,7 @@ BlueTraceAI enforces a strict hybrid architecture:
 ## 3. Fail-Closed Scale Governance & Troubleshooting
 
 ### Resolving `HTTP 409 Conflict` on Item Acceptance
-Under Constitutional Rule 01 (`01-fail-closed-scale.md`):
+Under the fail-closed scale invariant:
 - If a drawing sheet has no detected scale or conflicting scales (e.g., title block states `1/4" = 1'-0"` while a detail callout states `1/2" = 1'-0"`), the sheet is flagged with `review_required = True`, `scale_calibrated = False`, and `scale_ratio = 0.0`.
 - Linear footage for all vector runs on an uncalibrated sheet is locked to `0.00 ft`.
 - Attempting to transition a takeoff item to `ACCEPTED` returns `HTTP 409 Conflict`.
