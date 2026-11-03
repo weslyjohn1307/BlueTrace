@@ -10,10 +10,16 @@ import type {
   ItemCorrectionResponse,
   LedgerSummaryRow,
   LegendScanResult,
+  OrchestrateAgentRequest,
+  OrchestrateAgentResponse,
   PageTextResponse,
   ProjectSessionResponse,
   ProjectSessionState,
   ProjectSummary,
+  QAAnnotation,
+  QAResolveRequest,
+  ReconcileAgentRequest,
+  ReconcileAgentResponse,
   ReconcileRequest,
   ReconciliationReport,
   ReviewEvent,
@@ -25,6 +31,8 @@ import type {
   SheetScanAllResponse,
   TakeoffRecord,
   UploadResponse,
+  WatchdogRequest,
+  WatchdogResponse,
 } from './contracts';
 
 export class ApiError extends Error {
@@ -584,7 +592,60 @@ export function createApiClient(config: ApiClientConfig = {}) {
       }
       return terminal;
     },
-  };
+    async runAgentOrchestration(
+      payload: OrchestrateAgentRequest,
+      signal?: AbortSignal
+    ): Promise<OrchestrateAgentResponse> {
+      return request<OrchestrateAgentResponse>('/api/agents/orchestrate', {
+        method: 'POST',
+        body: payload,
+        signal,
+      });
+    },
+
+    async runScheduleReconciler(
+      payload: ReconcileAgentRequest,
+      signal?: AbortSignal
+    ): Promise<ReconcileAgentResponse> {
+      return request<ReconcileAgentResponse>('/api/agents/reconcile', {
+        method: 'POST',
+        body: payload,
+        signal,
+      });
+    },
+
+    async runWatchdogQA(
+      payload: WatchdogRequest,
+      signal?: AbortSignal
+    ): Promise<WatchdogResponse> {
+      return request<WatchdogResponse>('/api/agents/watchdog', {
+        method: 'POST',
+        body: payload,
+        signal,
+      });
+    },
+
+    async listQAAnnotations(
+      projectId: string,
+      opts?: { sheetId?: string; status?: string },
+      signal?: AbortSignal
+    ): Promise<QAAnnotation[]> {
+      const sp = new URLSearchParams({ project_id: projectId });
+      if (opts?.sheetId) sp.set('sheet_id', opts.sheetId);
+      if (opts?.status) sp.set('status', opts.status);
+      return request<QAAnnotation[]>(`/api/qa/annotations?${sp.toString()}`, { signal });
+    },
+
+    async resolveQAAnnotation(
+      annotationId: string,
+      payload: QAResolveRequest,
+      signal?: AbortSignal
+    ): Promise<QAAnnotation> {
+      return request<QAAnnotation>(
+        `/api/qa/annotations/${encodeURIComponent(annotationId)}`,
+        { method: 'PATCH', body: payload, signal }
+      );
+    },  };
 }
 
 export const apiClient = createApiClient();

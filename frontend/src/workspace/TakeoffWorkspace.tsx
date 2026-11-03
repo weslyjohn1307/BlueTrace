@@ -12,6 +12,7 @@ import { SheetNavigator } from './components/SheetNavigator';
 import { LedgerPanel } from './components/LedgerPanel';
 import { CorrectionModal, type CorrectionSubmitPayload } from './components/CorrectionModal';
 import { SchedulePanel } from './components/SchedulePanel';
+import { QAPanel } from './components/QAPanel';
 import { CopilotDrawer } from './components/CopilotDrawer';
 import { ByokDialog } from './components/ByokDialog';
 import { apiClient, ApiError } from '../api/client';
@@ -19,6 +20,8 @@ import { Filter } from 'lucide-react';
 import type {
   CursorCropResponse,
   DiscrepancyItem,
+  QAAnnotation,
+  QAChecklist,
   ReconcilePlanSymbol,
   ReconcileScheduledItem,
   ScheduledItem,
@@ -27,7 +30,7 @@ import type {
 import { mapReconcileGhostPins, pinFocusCoords } from './utils/reconcilePins';
 import { debugSkipUnknownItem, logAcceptTelemetry, logRejectTelemetry, logReviewTelemetry } from './utils/reviewTelemetry';
 
-type RightTab = 'ledger' | 'schedule';
+type RightTab = 'ledger' | 'schedule' | 'qa';
 type SheetPanelMode = 'tree' | 'filmstrip';
 
 export const TakeoffWorkspace: React.FC = () => {
@@ -47,6 +50,11 @@ export const TakeoffWorkspace: React.FC = () => {
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [byokOpen, setByokOpen] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('ledger');
+  const [qaAnnotations, setQaAnnotations] = useState<QAAnnotation[]>([]);
+  const [qaChecklist, setQaChecklist] = useState<QAChecklist[]>([]);
+  const [qaLoading, setQaLoading] = useState(false);
+  const [qaError, setQaError] = useState<string | null>(null);
+  const qaOpenCount = qaAnnotations.filter((a) => a.status === 'OPEN').length;
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
   // Sheets panel view: hierarchical tree (default) or thumbnail filmstrip.
@@ -73,6 +81,44 @@ export const TakeoffWorkspace: React.FC = () => {
   useEffect(() => {
     void checkBackend();
   }, [checkBackend]);
+
+  const refreshQAAnnotations = useCallback(async () => {
+    if (!state.projectName) {
+      setQaAnnotations([]);
+      setQaChecklist([]);
+      return;
+    }
+    setQaLoading(true);
+    setQaError(null);
+    try {
+      const [annotations, watchdog] = await Promise.all([
+        apiClient.listQAAnnotations(state.projectName, { status: 'OPEN' }),
+        apiClient.runWatchdogQA({ project_id: state.projectName }),
+      ]);
+      setQaAnnotations(annotations);
+      setQaChecklist(watchdog.checklist);
+    } catch (err) {
+      setQaError(err instanceof ApiError ? err.message : 'Failed to load QA annotations.');
+    } finally {
+      setQaLoading(false);
+    }
+  }, [state.projectName]);
+
+  useEffect(() => {
+    void refreshQAAnnotations();
+  }, [refreshQAAnnotations]);
+
+  const handleQAResolve = useCallback(
+    (annotationId: string, status: 'CONFIRMED' | 'DISMISSED', reason?: string) => {
+      void apiClient
+        .resolveQAAnnotation(annotationId, { status, resolution_reason: reason })
+        .then(() => refreshQAAnnotations())
+        .catch((err: unknown) => {
+          setQaError(err instanceof ApiError ? err.message : 'Failed to resolve QA annotation.');
+        });
+    },
+    [refreshQAAnnotations]
+  );
 
   const activeSheet = state.sheets.find((s) => s.meta.sheet_id === state.activeSheetId) ?? null;
   const treeSheets: SheetItemData[] = state.sheets.map((s) => ({
@@ -800,7 +846,7 @@ export const TakeoffWorkspace: React.FC = () => {
 
           {/* Right Ledger & Schedule Sidebar (Progressive Disclosure) */}
           {rightSidebarOpen && (
-            <aside className="w-84 shrink-0 hidden lg:flex flex-col border-l border-slate-800 bg-slate-900" aria-label="Ledger and schedule">
+            <aside className="w-84 shrink-0 hidden lg:flex flex-col border-l border-slate-800 bg-slate-900" aria-label="Ledger, schedule and QA review">
               <div className="flex bg-slate-950 border-b border-slate-800 text-[11px] font-mono font-semibold uppercase tracking-wider">
                 <button
                   type="button"
@@ -824,10 +870,21 @@ export const TakeoffWorkspace: React.FC = () => {
                 >
                   Equipment Schedule
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab('qa')}
+                  className={`flex-1 px-3 py-2.5 cursor-pointer transition-colors ${
+                    rightTab === 'qa'
+                      ? 'text-cyan-300 border-b-2 border-cyan-400 bg-slate-900'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  QA Review{qaOpenCount > 0 ? ` (${qaOpenCount})` : ''}
+                </button>
               </div>
 
               <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
-                {rightTab === 'ledger' ? (
+                {rightTab === 'ledger' && (
                   <LedgerPanel
                     items={state.items}
                     summary={state.summary}
@@ -891,7 +948,8 @@ export const TakeoffWorkspace: React.FC = () => {
                         .then((blob) => downloadBlob(blob, 'bluetrace_takeoff.json'))
                     }
                   />
-                ) : (
+                )}
+                {rightTab === 'schedule' && (
                   <SchedulePanel
                     projectName={state.projectName}
                     sheetId={state.activeSheetId}
@@ -902,6 +960,16 @@ export const TakeoffWorkspace: React.FC = () => {
                       void runReconcileFromSchedule(scheduled, scheduleSheet)
                     }
                     onLinked={() => void refreshLedger()}
+                  />
+                )}
+                {rightTab === 'qa' && (
+                  <QAPanel
+                    annotations={qaAnnotations}
+                    checklist={qaChecklist}
+                    loading={qaLoading}
+                    error={qaError}
+                    onResolve={handleQAResolve}
+                    onRefresh={() => void refreshQAAnnotations()}
                   />
                 )}
               </div>

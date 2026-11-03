@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AlertOctagon } from 'lucide-react';
 import { DemoApp } from '../modes/demo/DemoApp';
 import { TakeoffWorkspace } from '../workspace/TakeoffWorkspace';
-import { StoryPage } from '../modes/story/StoryPage';
 
 const ShowcasePage = lazy(() => import('../modes/showcase/ShowcasePage').then((module) => ({ default: module.ShowcasePage })));
 
@@ -31,15 +30,15 @@ export const AppRouter: React.FC = () => {
         <Route path="/workspace" element={<Navigate to="/" replace />} />
         <Route path="/live" element={<Navigate to="/" replace />} />
 
-        {/* Explorable Explanation Web Portal */}
-        <Route path="/story" element={<StoryPage />} />
+        {/* Keep historic explainer URLs pointing to the current public story. */}
+        <Route path="/story" element={<Navigate to="/showcase" replace />} />
         <Route path="/showcase" element={
           <Suspense fallback={<div className="min-h-screen bg-[#F0ECDF] p-8 font-mono text-sm text-slate-700" role="status">Preparing the interactive drawing…</div>}>
             <ShowcasePage />
           </Suspense>
         } />
-        <Route path="/explorable" element={<Navigate to="/story" replace />} />
-        <Route path="/how-it-works" element={<Navigate to="/story" replace />} />
+        <Route path="/explorable" element={<Navigate to="/showcase" replace />} />
+        <Route path="/how-it-works" element={<Navigate to="/showcase" replace />} />
 
         {/* Diagnostic / Demo */}
         <Route path="/demo" element={<DemoApp />} />

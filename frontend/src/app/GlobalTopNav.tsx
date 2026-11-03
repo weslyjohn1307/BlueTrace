@@ -25,7 +25,7 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
   const path = location.pathname;
   const fileRef = useRef<HTMLInputElement>(null);
   const isWorkspaceActive = path === '/' || path === '/new' || path === '/workspace';
-  const isStoryActive = path.startsWith('/story') || path.startsWith('/explorable') || path.startsWith('/how-it-works');
+  const isShowcaseActive = path === '/showcase';
 
   return (
     <header
@@ -59,44 +59,17 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
             Workspace
           </Link>
           <Link
-            to="/story"
+            to="/showcase"
             className={`px-3 py-1.5 rounded-lg no-underline font-mono transition-colors ${
-              isStoryActive
+              isShowcaseActive
                 ? 'bg-cyan-500/15 text-cyan-300 font-semibold border border-cyan-500/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
-            How it works
+            Showcase
           </Link>
         </nav>
 
-        {/* Engineering Benchmark Micro-Badges */}
-        <div className="hidden xl:flex items-center space-x-2 pl-4 border-l border-slate-800 text-[10px] font-mono select-none">
-          <span className="px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 flex items-center gap-1.5 shadow-[0_0_10px_rgba(34,211,238,0.1)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-            NIST LASER CALIBRATED
-          </span>
-          <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 flex items-center gap-1.5 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            ZERO HALLUCINATION
-          </span>
-        </div>
-      </div>
-
-      {/* Center Active Agent Runtime Strip (Direct from Stitch Screen 3 & 4) */}
-      <div className="hidden 2xl:flex items-center gap-2 select-none" data-purpose="agent-runtime-strip">
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] font-mono">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-slate-200">3 Agents Active</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-[11px] font-mono text-cyan-300">
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-          <span>VectorTrace 99.8%</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-950/60 border border-amber-500/30 text-[11px] font-mono text-amber-300">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-          <span>ScheduleLink [SYNC]</span>
-        </div>
       </div>
 
       <div className="flex items-center space-x-2 text-xs">
@@ -109,7 +82,7 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
           title={modelReady ? 'Backend connected' : 'Backend unreachable — start the API server'}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${modelReady ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
-          <span>{modelReady ? 'API 150 DPI' : 'Offline'}</span>
+            <span>{modelReady ? 'API ready' : 'Offline'}</span>
         </span>
 
         {onOpenByok && (
@@ -187,8 +160,8 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
         )}
 
         <Link
-          to="/story"
-          aria-label="How it works"
+          to="/showcase"
+          aria-label="Showcase"
           className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors border border-transparent hover:border-slate-800"
         >
           <BookOpen className="w-4 h-4" />

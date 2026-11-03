@@ -97,4 +97,56 @@ describe('api client', () => {
     expect((err as ApiError).status).toBe(403);
     expect((err as ApiError).message).toContain('Access denied');
   });
+
+  it('runs agent orchestration via POST with JSON body', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ job_id: 'j1', sheets_processed: 2 }));
+    const client = createApiClient();
+    const res = await client.runAgentOrchestration({ file_path: 'data/uploads/x.pdf' });
+
+    expect(res.sheets_processed).toBe(2);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/agents/orchestrate');
+    expect(init.method).toBe('POST');
+    expect(init.body).toBe(JSON.stringify({ file_path: 'data/uploads/x.pdf' }));
+  });
+
+  it('runs watchdog QA and schedule reconciler via POST', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ annotations: [], persisted: true }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ links: [], mock_rows: true }));
+    const client = createApiClient();
+    await client.runWatchdogQA({ project_id: 'p1' });
+    await client.runScheduleReconciler({ project_id: 'p1', file_path: 'data/uploads/s.pdf' });
+
+    const [url1, init1] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url2, init2] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url1).toBe('/api/agents/watchdog');
+    expect(init1.method).toBe('POST');
+    expect(url2).toBe('/api/agents/reconcile');
+    expect(init2.method).toBe('POST');
+  });
+
+  it('lists QA annotations with encoded query params', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse([]));
+    const client = createApiClient();
+    await client.listQAAnnotations('proj A', { status: 'OPEN' });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/qa/annotations?project_id=proj+A&status=OPEN');
+    expect(init.method ?? 'GET').toBe('GET');
+  });
+
+  it('resolves QA annotations via PATCH with status payload', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ annotation_id: 'a1', status: 'DISMISSED' }));
+    const client = createApiClient();
+    const res = await client.resolveQAAnnotation('a1/b', {
+      status: 'DISMISSED',
+      resolution_reason: 'duplicate',
+    });
+
+    expect(res.status).toBe('DISMISSED');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/qa/annotations/a1%2Fb');
+    expect(init.method).toBe('PATCH');
+    expect(init.body).toBe(JSON.stringify({ status: 'DISMISSED', resolution_reason: 'duplicate' }));
+  });
 });

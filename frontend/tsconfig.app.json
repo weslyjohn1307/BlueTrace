@@ -24,5 +24,6 @@
     "noUncheckedSideEffectImports": true,
     "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/modes/story/**"]
 }

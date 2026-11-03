@@ -475,3 +475,90 @@ export interface ItemCorrectionResponse {
   status: string;
   updated: boolean;
 }
+
+/** Mirrors backend `QAAnnotation` (src/agents/watchdog_qa.py). */
+export interface QAAnnotation {
+  annotation_id: string;
+  annotation_type: 'FLAG' | 'NOTE' | 'CONFLICT';
+  reason_code: string;
+  severity: 'CRITICAL' | 'HIGH' | 'WARNING' | 'INFO';
+  message: string;
+  sheet_id: string | null;
+  geometry: Record<string, unknown> | null;
+  evidence_ids: string[];
+  source_agent: string;
+  status: string;
+}
+
+/** Mirrors backend `QAChecklist` (src/agents/watchdog_qa.py). */
+export interface QAChecklist {
+  sheet_id: string;
+  scale_status: string;
+  items_total: number;
+  measured_count: number;
+  open_flags: number;
+  open_conflicts: number;
+  notes: number;
+  verdict: 'CLEAN' | 'NEEDS_REVIEW';
+}
+
+export interface OrchestrateAgentRequest {
+  file_path: string;
+  project_id?: string;
+  job_id?: string;
+}
+
+export interface OrchestrateAgentResponse {
+  job_id: string;
+  project_id: string;
+  document_map: Record<string, unknown>;
+  routes: Record<string, unknown>[];
+  flags: Record<string, unknown>[];
+  sheets_processed: number;
+}
+
+export interface ReconcileAgentRequest {
+  project_id: string;
+  file_path: string;
+  page_index?: number;
+  schedule_title?: string;
+  plan_sheet_ids?: string[];
+  job_id?: string;
+}
+
+export interface ReconcileAgentResponse {
+  job_id: string;
+  project_id: string;
+  schedule_sheet_id: string;
+  indexed: boolean;
+  rows: Record<string, unknown>[];
+  links: Record<string, unknown>[];
+  family_counts: Record<string, unknown>[];
+  report: Record<string, unknown> | null;
+  flags: Record<string, unknown>[];
+  mock_rows: boolean;
+  review_required: boolean;
+}
+
+export interface WatchdogRequest {
+  project_id: string;
+  job_id?: string;
+  sheet_ids?: string[];
+  reconcile_flags?: Record<string, unknown>[];
+}
+
+export interface WatchdogResponse {
+  job_id: string;
+  project_id: string;
+  annotations: QAAnnotation[];
+  checklist: QAChecklist[];
+  checks_run: string[];
+  rules_only: boolean;
+  persisted: boolean;
+  review_required: boolean;
+}
+
+export interface QAResolveRequest {
+  status: 'CONFIRMED' | 'DISMISSED';
+  resolution_reason?: string;
+}
