@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -202,17 +203,17 @@ class MetaModelClient:
                         reasoning_effort=current_effort,
                     )
                     choice = response.choices[0]
-                    finish_reason = choice.finish_reason or "stop"
+                    finish_reason = getattr(choice, "finish_reason", "stop") or "stop"
                     content = choice.message.content or ""
-                    if response.usage:
+                    if getattr(response, "usage", None):
                         u = response.usage
                         rt = 0
                         if hasattr(u, "completion_tokens_details") and u.completion_tokens_details:
                             rt = getattr(u.completion_tokens_details, "reasoning_tokens", 0)
                         usage_data = {
-                            "prompt_tokens": u.prompt_tokens or 0,
-                            "completion_tokens": u.completion_tokens or 0,
-                            "total_tokens": u.total_tokens or 0,
+                            "prompt_tokens": getattr(u, "prompt_tokens", 0) or 0,
+                            "completion_tokens": getattr(u, "completion_tokens", 0) or 0,
+                            "total_tokens": getattr(u, "total_tokens", 0) or 0,
                             "reasoning_tokens": rt or 0,
                         }
                 except Exception as exc:
@@ -410,6 +411,121 @@ class MetaModelClient:
             "mock": False,
             "telemetry": telemetry,
         }
+
+    def chat_completion_with_tools(
+        self,
+        model: str = "muse-wonder-1.0",
+        messages: list[dict[str, Any]] | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float = 0.1,
+    ) -> dict[str, Any]:
+        """Governed chat completion supporting tool calling with muse-wonder-1.0."""
+        if not self.is_configured():
+            return {"content": "", "tool_calls": [], "mock": True}
+        messages = messages or []
+        tools = tools or []
+        if self.client:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto" if tools else None,
+                    temperature=temperature,
+                )
+                choice = response.choices[0]
+                content = getattr(choice.message, "content", "") or ""
+                tool_calls: list[dict[str, Any]] = []
+                raw_tool_calls = getattr(choice.message, "tool_calls", None)
+                if raw_tool_calls:
+                    for tc in raw_tool_calls:
+                        fn = getattr(tc, "function", None)
+                        tool_calls.append({
+                            "id": getattr(tc, "id", f"call_{uuid.uuid4().hex[:6]}"),
+                            "type": getattr(tc, "type", "function"),
+                            "function": {
+                                "name": getattr(fn, "name", "") if fn else "",
+                                "arguments": getattr(fn, "arguments", "{}") if fn else "{}",
+                            },
+                        })
+                return {"content": content, "tool_calls": tool_calls, "mock": False}
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("SDK chat_completion_with_tools failed: %s", exc)
+                return {"content": "", "tool_calls": [], "mock": True, "error": str(exc)}
+        else:
+            url = f"{self.base_url.rstrip('/')}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+            }
+            if tools:
+                payload["tools"] = tools
+                payload["tool_choice"] = "auto"
+            try:
+                with httpx.Client(timeout=45.0) as http_client:
+                    resp = http_client.post(url, headers=headers, json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    choice = data["choices"][0]
+                    content = choice.get("message", {}).get("content") or ""
+                    tool_calls = choice.get("message", {}).get("tool_calls") or []
+                    return {"content": content, "tool_calls": tool_calls, "mock": False}
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("HTTP chat_completion_with_tools failed: %s", exc)
+                return {"content": "", "tool_calls": [], "mock": True, "error": str(exc)}
+
+    def segment_concept(self, base64_image: str, concept_prompt: str = "mechanical equipment boundary") -> dict[str, Any]:
+        """Synchronously invokes SAM 3.1 via the Meta Model API /v1/responses endpoint to segment objects."""
+        if not self.is_configured():
+            return {
+                "concept": concept_prompt,
+                "masks": [],
+                "polygons": [],
+                "confidence": 0.0,
+                "mock": True,
+                "review_required": True,
+            }
+
+        url = f"{self.base_url.rstrip('/')}/responses"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "sam-3.1",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": concept_prompt},
+                        {"type": "input_image", "image_url": f"data:image/png;base64,{base64_image}"}
+                    ]
+                }
+            ],
+            "stream": False
+        }
+        try:
+            with httpx.Client(timeout=30.0) as http_client:
+                resp = http_client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                return resp.json()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("HTTP segment_concept failed: %s", exc)
+            return {
+                "concept": concept_prompt,
+                "masks": [],
+                "polygons": [],
+                "confidence": 0.0,
+                "mock": True,
+                "review_required": True,
+                "error": str(exc),
+            }
 
     async def segment_concept_async(self, base64_image: str, concept_prompt: str = "mechanical equipment boundary") -> dict[str, Any]:
         """Invokes SAM 3.1 via the Meta Model API /v1/responses endpoint to segment objects."""
