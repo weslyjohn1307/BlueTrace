@@ -33,9 +33,13 @@ SCOPE LIMITATIONS (IMPLEMENTATION BASELINE — not production-validated):
 
 from __future__ import annotations
 
+import collections
+import copy
+import hashlib
 import json
 import math
 import re
+import threading
 from dataclasses import asdict
 from pathlib import Path
 
@@ -65,6 +69,49 @@ from src.core_vector.schema import (
     ScaleDecision,
     ScaleStatus,
 )
+
+
+class _ThreadSafeLRUCache:
+    def __init__(self, maxsize: int = 128) -> None:
+        self.maxsize = maxsize
+        self._cache: collections.OrderedDict[tuple, dict] = collections.OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: tuple) -> dict | None:
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                return self._cache[key]
+            return None
+
+    def set(self, key: tuple, value: dict) -> None:
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            self._cache[key] = copy.deepcopy(value)
+            if len(self._cache) > self.maxsize:
+                self._cache.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._cache.clear()
+
+
+_L2_PIPELINE_CACHE = _ThreadSafeLRUCache(maxsize=128)
+
+
+def clear_l2_cache() -> None:
+    """Clear the Level 2 geometry pipeline LRU cache."""
+    _L2_PIPELINE_CACHE.clear()
+
+
+def _compute_file_sha256(path: Path) -> str:
+    hasher = hashlib.sha256()
+    with open(path, "rb") as f:
+        while chunk := f.read(65536):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
 
 # --- Discipline detection (from filename and sheet text) ---
 _DISCIPLINE_MECH_KEYWORDS = re.compile(
@@ -344,6 +391,29 @@ def run_l2_pipeline(
     if not path.exists():
         raise FileNotFoundError(f"PDF not found: {path}")
 
+    # Thread-safe LRU cache keyed by (pdf_hash, page_num, discipline, options_hash)
+    pdf_hash = _compute_file_sha256(path)
+    options_tuple = (
+        scale_override,
+        use_topology,
+        use_centerline,
+        fixture_id,
+        str(representation_config_path),
+        str(topology_config_path),
+        strategy,
+    )
+    options_hash = hashlib.sha256(repr(options_tuple).encode("utf-8")).hexdigest()
+    disc_norm = (
+        discipline.strip().lower()
+        if isinstance(discipline, str) and discipline.strip()
+        else None
+    )
+    cache_key = (pdf_hash, page_num, disc_norm, options_hash)
+
+    cached_result = _L2_PIPELINE_CACHE.get(cache_key)
+    if cached_result is not None:
+        return cached_result
+
     errors: list[str] = []
 
     doc = pymupdf.open(str(path))
@@ -360,7 +430,18 @@ def run_l2_pipeline(
         sheet_id = _extract_sheet_id(page_text, pdf_stem, page_num)
 
         # 2. Discipline
-        disc = discipline or _infer_discipline(path, page_text, sheet_id=sheet_id)
+        disc = disc_norm or _infer_discipline(path, page_text, sheet_id=sheet_id)
+        resolved_disc_key = (
+            pdf_hash,
+            page_num,
+            disc.strip().lower() if isinstance(disc, str) else disc,
+            options_hash,
+        )
+        if resolved_disc_key != cache_key:
+            cached_by_disc = _L2_PIPELINE_CACHE.get(resolved_disc_key)
+            if cached_by_disc is not None:
+                _L2_PIPELINE_CACHE.set(cache_key, cached_by_disc)
+                return cached_by_disc
         source_class, pub_type = _object_type_for_discipline(disc)
 
         # 3. Fail-closed scale gating (ADR-002)
@@ -513,6 +594,7 @@ def run_l2_pipeline(
                     "isolated_fragments": len(rep_res.unresolved_boundaries),
                     "rejected_fragments": len(rep_res.non_route_and_review),
                 }
+            _L2_PIPELINE_CACHE.set(cache_key, out)
             return out
 
         # 5. Vector extraction (ADR-001)
@@ -705,7 +787,7 @@ def run_l2_pipeline(
         total_m = round(sum(measured_lengths), 4) if measured_lengths else None
         total_ft = round(total_m / 0.3048, 2) if total_m is not None else None
 
-        return {
+        pipeline_output = {
             "sheet_id": sheet_id,
             "scale_status": scale.status.value,
             "scale_text": scale.scale_text,
@@ -729,5 +811,9 @@ def run_l2_pipeline(
             "results": public_results,
             "errors": errors,
         }
+        _L2_PIPELINE_CACHE.set(cache_key, pipeline_output)
+        if resolved_disc_key != cache_key:
+            _L2_PIPELINE_CACHE.set(resolved_disc_key, pipeline_output)
+        return pipeline_output
     finally:
         doc.close()

@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 import uuid
 from collections import OrderedDict
@@ -940,17 +941,44 @@ async def extract_page_text(pdf_path: str, page_index: int = 0):
     return {"pdf_path": pdf_path, "page_index": page_index, "blocks": blocks}
 
 
+# LRU cache for hover crop OCR
+_CROP_OCR_CACHE_MAXSIZE = 256
+_crop_ocr_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
+_crop_ocr_lock = threading.Lock()
+
+
+def clear_crop_ocr_cache() -> None:
+    """Clear hover crop OCR LRU cache."""
+    with _crop_ocr_lock:
+        _crop_ocr_cache.clear()
+
+
 @router.post("/crop-ocr", response_model=CursorCropResponse)
 async def extract_cursor_crop(
     request: CursorCropRequest,
     client: MetaClientDep,
 ):
     """Sub-second point-of-need hover dimension extraction from a 300x300 px crop."""
-    start_time = time.time()
+    start_time = time.perf_counter()
 
-    # Process crop with muse-spark-1.3
-    result = client.parse_crop_ocr(request.image_base64)
-    elapsed_ms = int((time.time() - start_time) * 1000)
+    crop_hash = hashlib.sha256(request.image_base64.encode("utf-8")).hexdigest()
+    cached_result: dict[str, Any] | None = None
+    with _crop_ocr_lock:
+        if crop_hash in _crop_ocr_cache:
+            _crop_ocr_cache.move_to_end(crop_hash)
+            cached_result = _crop_ocr_cache[crop_hash]
+
+    if cached_result is not None:
+        result = cached_result
+    else:
+        # Process crop with muse-spark-1.3 via worker threadpool to avoid event loop blocking
+        result = await run_in_threadpool(client.parse_crop_ocr, request.image_base64)
+        with _crop_ocr_lock:
+            _crop_ocr_cache[crop_hash] = result
+            if len(_crop_ocr_cache) > _CROP_OCR_CACHE_MAXSIZE:
+                _crop_ocr_cache.popitem(last=False)
+
+    elapsed_ms = int((time.perf_counter() - start_time) * 1000)
 
     # Fail closed if unparsed or review required
     raw_width = result.get("width")

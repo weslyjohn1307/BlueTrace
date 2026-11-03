@@ -42,7 +42,7 @@ if FRONTEND_DIST.exists() and (FRONTEND_DIST / "index.html").exists():
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         # Pass through API and docs routes
-        if full_path.startswith(("api/", "docs", "openapi.json")):
+        if full_path == "api" or full_path.startswith(("api/", "docs", "openapi.json")):
             raise HTTPException(status_code=404, detail="Not Found")
         file_path = FRONTEND_DIST / full_path
         if file_path.exists() and file_path.is_file():
