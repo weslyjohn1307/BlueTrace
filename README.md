@@ -3,6 +3,7 @@
 **MEP drawing review, grounded in the sheet.** BlueTraceAI is an in-progress takeoff application for MEP estimators that brings model-assisted drawing interpretation together with local PDF geometry and engineer review.
 
 <p align="center">
+  <a href="https://weslyjohn1307.github.io/BlueTrace/">Open the interactive showcase</a> ·
   <a href="#run-locally">Run locally</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#project-status">Project status</a>
@@ -43,7 +44,7 @@ BlueTraceAI uses Meta models for interpretation and reasoning around MEP drawing
 | Model | Role in the project | Current scope |
 |---|---|---|
 | **Muse Spark 1.3** | Vision and OCR for sheet details, schedule content, and legend or symbol context. | Integrated in drawing-reading paths; live inference requires Meta API credentials. |
-| **Muse Wonder 1.0** | Copilot reasoning over takeoff evidence, with a tool-calling path. | Agent implementation is in progress; the complete workflow is not yet accepted end to end. |
+| **Muse Wonder 1.0** | Copilot reasoning over takeoff evidence. | Agent implementation is in progress; the complete workflow is not yet accepted end to end. |
 | **SAM 3.1** | Image segmentation for selected visual regions. | Experimental integration; not presented here as a finished symbol-detection workflow. |
 
 Live model calls require `MODEL_API_KEY` and network access. Without a key, the application can run locally; model-dependent features may return a labeled offline response or be unavailable. Do not treat offline output as live Meta inference.
@@ -87,4 +88,4 @@ The application stores takeoff data in a local SQLite database. When a Meta feat
 
 ## License
 
-No public license is declared in this repository. Reuse and redistribution rights have not been granted here.
+BlueTraceAI is available under the [Apache License 2.0](LICENSE).

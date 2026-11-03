@@ -16,7 +16,7 @@ dist/
 !.env.example
 
 # Local Data & SQLite
-data/
+/data/
 *.db
 *.sqlite3
 *.sqlite3-wal
@@ -108,3 +108,9 @@ docs/specs/VISUAL-DESIGN-PALETTE-STITCH.md
 # ──────────────────────────────────────────────────────────────────────────────
 scripts/download_meta_docs.py
 scripts/fetch_knowledge.py
+
+# Local review screenshots and ephemeral output
+output/
+frontend/.playwright-cli/
+docs/PHASE_4_HANDOVER.md
+uv.lock

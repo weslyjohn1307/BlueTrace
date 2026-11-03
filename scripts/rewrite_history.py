@@ -10,7 +10,6 @@ preserving original trees, authors, and timestamps.
 import argparse
 import os
 import subprocess
-import sys
 
 # Hash prefix -> (subject, body)
 COMMIT_MESSAGES = {
