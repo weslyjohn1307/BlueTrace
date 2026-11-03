@@ -8,9 +8,9 @@
   <a href="#project-status">Project status</a>
 </p>
 
-![BlueTraceAI drawing workspace with a point-of-need reading marked for review because the sheet scale is unverified](docs/assets/demo-hover-badge.png)
+![Five-second motion study: a real BlueTraceAI workspace capture with an animated focus frame, scale warning, and three-stage review sequence](docs/assets/readme-motion-loop.gif)
 
-<p align="center"><sub>A drawing crop can surface a reading for review. When scale is unverified, the interface keeps that uncertainty visible.</sub></p>
+<p align="center"><sub>The focus frame and stage sequence are editorial motion overlays, not live interface behavior. <a href="docs/assets/readme-motion-poster.png">Static poster</a> · <a href="docs/assets/readme-motion-source.html">Editable HTML source</a></sub></p>
 
 BlueTraceAI continues an MEP takeoff project that predates the Meta Global AI Developer Hackathon. This entry is for the **Indie Developer** track and is framed around **Push the Frontier**. The current hackathon work extends the project's hybrid vector and raster foundation toward a multi-agent workflow. It is a prototype in active development; the full agent pipeline is not yet complete.
 
@@ -23,18 +23,6 @@ The goal is to make drawing review more traceable while keeping measurement and 
 3. **Ground the quantity.** Local PDF geometry and scale checks provide the basis for measurement. Unverified scale stays visible as review work.
 4. **Review the evidence.** Inspect suggested items on the drawing, decide what belongs in the takeoff, and export the ledger.
 
-The intended responsibility split is simple:
-
-```mermaid
-flowchart LR
-    PDF["MEP drawing PDF"] --> Vision["Meta models<br/>read drawing context"]
-    PDF --> Geometry["Local PDF geometry<br/>and scale checks"]
-    Vision --> Evidence["Reviewable evidence"]
-    Geometry --> Evidence
-    Evidence --> Engineer["Estimator review"]
-    Engineer --> Ledger["Takeoff ledger"]
-```
-
 Meta models help interpret visual and language content. They do not determine physical lengths. Scale-dependent measurement belongs to local geometry and a validated scale; the estimator decides whether a proposed item is accepted.
 
 ## What is in the current prototype
@@ -44,7 +32,9 @@ Meta models help interpret visual and language content. They do not determine ph
 - **Takeoff review** — inspect suggested and accepted items in a ledger, with review actions and CSV or JSON export paths.
 - **Schedule and copilot flows** — parse schedule content and ask questions about the current drawing or takeoff. Responses may use a clearly labeled offline path when live model access is unavailable.
 
-The visible crop example above is marked for review because its scale is unverified. It does not claim that an uncalibrated reading is a validated physical measurement.
+![BlueTraceAI workspace showing a mechanical sheet, unverified scale status, and the takeoff ledger](docs/assets/demo-workspace.png)
+
+The crop reading is marked for review because the sheet scale is unverified. It is not presented as a validated physical measurement.
 
 ## Meta models
 
