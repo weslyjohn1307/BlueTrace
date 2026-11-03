@@ -2,12 +2,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { fileURLToPath } from 'node:url'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
+      ...(process.env.VITE_GITHUB_PAGES === 'true'
+        ? { input: fileURLToPath(new URL('./showcase.html', import.meta.url)) }
+        : {}),
       output: {
         manualChunks(id) {
           if (id.includes('/node_modules/three/')) return 'three-vendor'

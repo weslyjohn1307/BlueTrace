@@ -42,8 +42,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build the showcase for the repository Pages path
-        run: npm run build -- --base=/BlueTrace/
+      - name: Build the dedicated showcase entry for the repository Pages path
+        run: npx vite build --base=/BlueTrace/
+
+      - name: Publish the showcase at the Pages root
+        run: cp dist/showcase.html dist/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
