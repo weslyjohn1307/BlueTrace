@@ -1,0 +1,21 @@
+{
+  "colors": {
+    "inkNavy": "#0A0F1E",
+    "blueTrace": "#005BFF",
+    "signalCyan": "#37C6FF",
+    "surface": "#E9F4FF",
+    "cloud": "#F5F7FA"
+  },
+  "typography": {
+    "display": "Inter Display",
+    "body": "Inter",
+    "technical": "IBM Plex Mono"
+  },
+  "clearSpace": "25% of symbol height",
+  "minimums": {
+    "symbolDigitalPx": 20,
+    "symbolPrintMm": 8,
+    "horizontalDigitalPx": 150,
+    "horizontalPrintMm": 35
+  }
+}

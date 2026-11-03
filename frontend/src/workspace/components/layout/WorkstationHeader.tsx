@@ -2,10 +2,10 @@ import React from 'react';
 import {
   PanelLeft,
   PanelRight,
-  Filter,
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
+import { BrandIcon } from '../../../components/brand/BrandAssets';
 
 export interface WorkstationHeaderProps {
   sheetNumber: string;
@@ -40,7 +40,7 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
 }) => {
   return (
     <header
-      className="flex items-center justify-between px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 text-[11px] font-mono z-20 backdrop-blur-md"
+      className="flex items-center justify-between px-3 py-1.5 bg-[#0A0F1E]/95 border-b border-slate-800 text-[11px] font-mono z-20 backdrop-blur-md"
       aria-label="Workstation header"
     >
       <div className="flex items-center space-x-2 truncate">
@@ -48,23 +48,24 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
           type="button"
           onClick={onToggleLeftSidebar}
           className={`p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer hidden md:block active:scale-[0.98] ${
-            !leftSidebarOpen ? 'text-cyan-400 bg-cyan-950/60' : ''
+            !leftSidebarOpen ? 'text-[#37C6FF] bg-[#005BFF]/20' : ''
           }`}
           title="Toggle Sheet Directory [[]"
           aria-label="Toggle Sheet Directory"
         >
           <PanelLeft className="w-3.5 h-3.5" />
         </button>
+        <BrandIcon name="project" size={14} className="text-[#37C6FF] shrink-0" />
         <span className="text-slate-200 font-semibold truncate">
           {sheetNumber} — {sheetTitle}
         </span>
-        <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
+        <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700">
           {discipline}
         </span>
 
         {/* Multi-Axis Discipline & Status Filter Bar: Responsive across viewports */}
         <div className="flex items-center space-x-1.5 pl-3 border-l border-slate-800 text-[10px] overflow-x-auto max-w-[50vw]">
-          <Filter className="w-3 h-3 text-slate-500 shrink-0" />
+          <BrandIcon name="layers" size={12} className="text-[#37C6FF] shrink-0" />
           <span className="text-slate-500 shrink-0 hidden sm:inline">Trade:</span>
           {(['ALL', 'Supply', 'Return', 'Exhaust'] as const).map((disc) => (
             <button
@@ -73,7 +74,7 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
               onClick={() => onDisciplineFilterChange(disc)}
               className={`px-1.5 py-0.5 rounded cursor-pointer transition-all duration-100 active:scale-[0.98] shrink-0 ${
                 disciplineFilter === disc
-                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold shadow-xs'
+                  ? 'bg-[#005BFF]/25 text-[#37C6FF] border border-[#005BFF]/50 font-bold shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
               }`}
             >
@@ -81,6 +82,7 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
             </button>
           ))}
           <span className="text-slate-700 shrink-0">|</span>
+          <BrandIcon name="detect" size={12} className="text-[#37C6FF] shrink-0 hidden sm:inline" />
           <span className="text-slate-500 shrink-0 hidden sm:inline">Status:</span>
           {(['ALL', 'MATCHED', 'DISCREPANCIES', 'GHOST'] as const).map((st) => (
             <button
@@ -89,7 +91,7 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
               onClick={() => onStatusFilterChange(st)}
               className={`px-1.5 py-0.5 rounded cursor-pointer transition-all duration-100 active:scale-[0.98] shrink-0 ${
                 statusFilter === st
-                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold shadow-xs'
+                  ? 'bg-[#005BFF]/25 text-[#37C6FF] border border-[#005BFF]/50 font-bold shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
               }`}
             >
@@ -116,7 +118,7 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
           type="button"
           onClick={onToggleRightSidebar}
           className={`p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer hidden lg:block active:scale-[0.98] ${
-            !rightSidebarOpen ? 'text-cyan-400 bg-cyan-950/60' : ''
+            !rightSidebarOpen ? 'text-[#37C6FF] bg-[#005BFF]/20' : ''
           }`}
           title="Toggle Ledger & Schedule []]"
           aria-label="Toggle Ledger & Schedule"

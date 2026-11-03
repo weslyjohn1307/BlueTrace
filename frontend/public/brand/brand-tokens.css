@@ -1,0 +1,10 @@
+:root {
+  --bt-ink-navy: #0A0F1E;
+  --bt-blue: #005BFF;
+  --bt-signal-cyan: #37C6FF;
+  --bt-surface: #E9F4FF;
+  --bt-cloud: #F5F7FA;
+  --bt-font-display: "Inter Display", Inter, sans-serif;
+  --bt-font-body: Inter, sans-serif;
+  --bt-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
