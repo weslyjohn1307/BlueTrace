@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 
 def _utc_now_iso() -> str:
     """Return current UTC timestamp in ISO-8601 format."""
-    return datetime.now(UTC).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 # ---------------------------------------------------------------------------

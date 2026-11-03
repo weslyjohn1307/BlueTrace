@@ -100,6 +100,10 @@ docs/research/
 # INTERNAL — Concept/branding assets & internal design exploration
 # ──────────────────────────────────────────────────────────────────────────────
 docs/stitch_assets/
+docs/presentation/
+docs/assets/readme-motion-source.html
+docs/assets/concept-stitch-audit-ledger.jpg
+frontend/public/stitch/
 docs/specs/WEAVE-AND-AI-TOOLING-DECISION.md
 docs/specs/VISUAL-DESIGN-PALETTE-STITCH.md
 
@@ -108,6 +112,7 @@ docs/specs/VISUAL-DESIGN-PALETTE-STITCH.md
 # ──────────────────────────────────────────────────────────────────────────────
 scripts/download_meta_docs.py
 scripts/fetch_knowledge.py
+tests/test_adversarial_planning_consistency.py
 
 # Local review screenshots and ephemeral output
 output/
