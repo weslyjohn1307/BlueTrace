@@ -17,6 +17,17 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.concurrency import run_in_threadpool
 
+from src.agents import (
+    AgentContext,
+    AgentEventType,
+    AgentRegistry,
+    FinderL1Agent,
+    OrchestratorAgent,
+    ReconAgent,
+    ScheduleReconcilerAgent,
+    TracerL2Agent,
+    WatchdogQAAgent,
+)
 from src.core_vector.pipeline import run_l2_pipeline
 from src.core_vector.scale_validator import ScaleValidator
 from src.meta_services.client import MetaModelClient
@@ -1481,3 +1492,259 @@ async def clear_byok(
     _disabled_sessions.add(session_id)
     return {"configured": False, "cleared": True}
 
+
+# ---------------------------------------------------------------------------
+# M4: Product-agent endpoints (orchestrate / reconcile / watchdog / QA feed)
+# ---------------------------------------------------------------------------
+
+
+class OrchestrateRequest(BaseModel):
+    file_path: str
+    project_id: str | None = None
+    job_id: str | None = None
+
+
+class OrchestrateResponse(BaseModel):
+    job_id: str
+    project_id: str
+    document_map: dict[str, Any]
+    routes: list[dict[str, Any]]
+    flags: list[dict[str, Any]]
+    sheets_processed: int
+
+
+@router.post("/agents/orchestrate", response_model=OrchestrateResponse)
+async def run_agent_orchestration(
+    body: OrchestrateRequest,
+    client: MetaClientDep,
+    store: TakeoffStoreDep,
+):
+    """Runs the full agent pipeline (recon -> route -> perceive -> persist) on one PDF."""
+    clean_path = resolve_contained_pdf(body.file_path)
+    candidate = body.project_id if body.project_id is not None else _default_project_id(body.file_path)
+    try:
+        project_id = validate_project_id(candidate)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid project_id: {e}") from e
+    job_id = body.job_id or uuid.uuid4().hex[:12]
+
+    registry = AgentRegistry()
+    registry.register(ReconAgent())
+    registry.register(FinderL1Agent(client=client))
+    registry.register(TracerL2Agent())
+    registry.register(ScheduleReconcilerAgent(client=client, store=store))
+    orchestrator = OrchestratorAgent(registry=registry, store=store)
+    context = AgentContext(project_id=project_id, job_id=job_id, pdf_path=clean_path)
+    result = await orchestrator.run(context)
+    doc_map: dict[str, Any] = result.document_map.model_dump() if result.document_map else {
+        "job_id": job_id,
+        "pdf_path": str(clean_path),
+        "total_pages": 0,
+        "sheets": [],
+        "routes": [],
+        "evidence_inventory": [],
+    }
+    flags = [
+        e.payload for e in result.events if e.event_type == AgentEventType.FLAG_RAISED
+    ]
+    return OrchestrateResponse(
+        job_id=job_id,
+        project_id=project_id,
+        document_map=doc_map,
+        routes=list(doc_map.get("routes", [])),
+        flags=flags,
+        sheets_processed=result.sheets_processed,
+    )
+
+
+class ReconcileAgentRequest(BaseModel):
+    project_id: str
+    file_path: str
+    page_index: int = 0
+    schedule_title: str | None = None
+    plan_sheet_ids: list[str] | None = None
+    job_id: str | None = None
+
+
+class ReconcileAgentResponse(BaseModel):
+    job_id: str
+    project_id: str
+    schedule_sheet_id: str
+    indexed: bool
+    rows: list[dict[str, Any]]
+    links: list[dict[str, Any]]
+    family_counts: list[dict[str, Any]]
+    report: dict[str, Any] | None
+    flags: list[dict[str, Any]]
+    mock_rows: bool
+    review_required: bool
+
+
+@router.post("/agents/reconcile", response_model=ReconcileAgentResponse)
+async def run_schedule_reconciler(
+    body: ReconcileAgentRequest,
+    client: MetaClientDep,
+    store: TakeoffStoreDep,
+):
+    """Runs Agent 04 schedule reconciliation on one indexed (or standalone) schedule sheet."""
+    clean_path = resolve_contained_pdf(body.file_path)
+    try:
+        project_id = validate_project_id(body.project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid project_id: {e}") from e
+    job_id = body.job_id or uuid.uuid4().hex[:12]
+
+    sheet_rows = await store.list_sheets(project_id)
+    sheet_meta: SheetMetadata | None = None
+    for row in sheet_rows:
+        if row.get("page_index") != body.page_index:
+            continue
+        if str(row.get("pdf_path") or "") != str(clean_path):
+            continue
+        discipline = str(row.get("discipline") or "GENERAL")
+        if discipline not in ("MECHANICAL", "ELECTRICAL", "PLUMBING", "ARCHITECTURAL", "GENERAL"):
+            discipline = "GENERAL"
+        scale_status = str(row.get("scale_status") or "UNVERIFIED")
+        if scale_status not in ("VERIFIED", "UNVERIFIED", "CALIBRATED"):
+            scale_status = "UNVERIFIED"
+        sheet_meta = SheetMetadata(
+            sheet_id=str(row["sheet_id"]),
+            page_index=int(row["page_index"]),
+            sheet_number=str(row.get("sheet_number") or ""),
+            sheet_title=str(row.get("sheet_title") or "Equipment Schedule"),
+            discipline=discipline,  # type: ignore[arg-type]
+            scale_raw=row.get("scale_raw"),
+            scale_ratio=row.get("scale_ratio"),
+            scale_status=scale_status,  # type: ignore[arg-type]
+            width_pt=float(row.get("width_pt") or 0.0),
+            height_pt=float(row.get("height_pt") or 0.0),
+        )
+        break
+
+    if body.plan_sheet_ids is None:
+        plan_items = await store.list_items(project_id=project_id)
+    else:
+        known_ids = {str(r.get("sheet_id")) for r in sheet_rows}
+        unknown = [sid for sid in body.plan_sheet_ids if sid not in known_ids]
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"Unknown plan_sheet_ids: {unknown}")
+        plan_items = []
+        for sid in body.plan_sheet_ids:
+            plan_items.extend(await store.list_items(project_id=project_id, sheet_id=sid))
+
+    agent = ScheduleReconcilerAgent(client=client, store=store)
+    context = AgentContext(project_id=project_id, job_id=job_id, pdf_path=clean_path)
+    result = await agent.run(
+        context,
+        page_index=body.page_index,
+        sheet_metadata=sheet_meta,
+        schedule_title=body.schedule_title,
+        plan_items=plan_items,
+    )
+    return ReconcileAgentResponse(
+        job_id=job_id,
+        project_id=project_id,
+        schedule_sheet_id=result.schedule_sheet_id or "",
+        indexed=sheet_meta is not None,
+        rows=[r.model_dump() for r in result.rows],
+        links=[link.model_dump() for link in result.links],
+        family_counts=[f.model_dump() for f in result.family_counts],
+        report=result.report,
+        flags=result.flags,
+        mock_rows=result.mock_rows,
+        review_required=result.review_required,
+    )
+
+
+class WatchdogRequest(BaseModel):
+    project_id: str
+    job_id: str | None = None
+    sheet_ids: list[str] | None = None
+    reconcile_flags: list[dict[str, Any]] | None = None
+
+
+class WatchdogResponse(BaseModel):
+    job_id: str
+    project_id: str
+    annotations: list[dict[str, Any]]
+    checklist: list[dict[str, Any]]
+    checks_run: list[str]
+    rules_only: bool
+    persisted: bool
+    review_required: bool
+
+
+@router.post("/agents/watchdog", response_model=WatchdogResponse)
+async def run_watchdog_qa(body: WatchdogRequest, store: TakeoffStoreDep):
+    """Runs Agent 05 watchdog QA (RULES_ONLY) over a project's ledger."""
+    try:
+        project_id = validate_project_id(body.project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid project_id: {e}") from e
+    job_id = body.job_id or uuid.uuid4().hex[:12]
+    agent = WatchdogQAAgent(store=store)
+    context = AgentContext(project_id=project_id, job_id=job_id)
+    result = await agent.run(context, sheet_ids=body.sheet_ids, reconcile_flags=body.reconcile_flags)
+    return WatchdogResponse(
+        job_id=job_id,
+        project_id=project_id,
+        annotations=[a.model_dump() for a in result.annotations],
+        checklist=[c.model_dump() for c in result.checklist],
+        checks_run=result.checks_run,
+        rules_only=result.rules_only,
+        persisted=result.persisted,
+        review_required=result.review_required,
+    )
+
+
+class QAAnnotationResponse(BaseModel):
+    annotation_id: str
+    project_id: str
+    sheet_id: str | None = None
+    annotation_type: str
+    reason_code: str
+    severity: str
+    message: str = ""
+    geometry: dict[str, Any] | None = None
+    evidence_ids: list[str] = []
+    source_agent: str = ""
+    status: str
+    resolution_reason: str | None = None
+    created_at: str
+    updated_at: str
+
+
+@router.get("/qa/annotations", response_model=list[QAAnnotationResponse])
+async def list_qa_annotations(
+    store: TakeoffStoreDep,
+    project_id: str,
+    sheet_id: str | None = None,
+    status: str | None = None,
+):
+    """Lists watchdog QA annotation tasks (the human review queue)."""
+    return await store.list_qa_annotations(project_id, sheet_id=sheet_id, status=status)
+
+
+class QAResolveRequest(BaseModel):
+    status: Literal["CONFIRMED", "DISMISSED"]
+    resolution_reason: str | None = None
+
+
+@router.patch("/qa/annotations/{annotation_id}", response_model=QAAnnotationResponse)
+async def resolve_qa_annotation(
+    annotation_id: str,
+    body: QAResolveRequest,
+    store: TakeoffStoreDep,
+):
+    """Confirms or dismisses one QA annotation (the human gate)."""
+    try:
+        updated = await store.update_qa_annotation_status(
+            annotation_id, body.status, body.resolution_reason
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if not updated:
+        raise HTTPException(status_code=404, detail="QA annotation not found.")
+    result = await store.get_qa_annotation(annotation_id)
+    assert result is not None
+    return result
