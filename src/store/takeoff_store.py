@@ -152,6 +152,10 @@ CORRECTION_REASONS = frozenset({
     "OTHER_OVERRIDE",
 })
 
+# M3 slice 2a: Agent 05 QA annotation vocabularies (stored via src/store).
+QA_ANNOTATION_TYPES = frozenset({"FLAG", "NOTE", "CONFLICT"})
+QA_ANNOTATION_SEVERITIES = frozenset({"CRITICAL", "HIGH", "WARNING", "INFO"})
+QA_ANNOTATION_STATUSES = frozenset({"OPEN", "CONFIRMED", "DISMISSED"})
 # Actions whose spelling also triggers the mandatory-reason rule.
 _REASON_REQUIRED_ACTIONS = frozenset({"CORRECT", "REJECT"})
 
@@ -535,6 +539,28 @@ class TakeoffStore:
             await db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_review_events_item ON review_events(item_id);"
             )
+            # M3 slice 2a: Agent 05 QA annotation substrate (HITL task queue).
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS qa_annotations (
+                    annotation_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    sheet_id TEXT,
+                    annotation_type TEXT NOT NULL,
+                    reason_code TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    message TEXT NOT NULL DEFAULT '',
+                    geometry_json TEXT,
+                    evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+                    source_agent TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'OPEN',
+                    resolution_reason TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+            """)
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_qa_annotations_project ON qa_annotations(project_id);")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_qa_annotations_sheet ON qa_annotations(sheet_id);")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_qa_annotations_status ON qa_annotations(status);")
             # Create indexes
             await db.execute("CREATE INDEX IF NOT EXISTS idx_takeoff_project ON takeoff_items(project_id);")
             await db.execute("CREATE INDEX IF NOT EXISTS idx_takeoff_sheet ON takeoff_items(sheet_id);")
@@ -1270,13 +1296,14 @@ class TakeoffStore:
                 if not label:
                     continue
                 try:
-                    confidence = float(det.get("confidence"))
+                    raw_confidence = det.get("confidence")
+                    confidence = float(raw_confidence) if raw_confidence is not None else float("nan")
                 except (TypeError, ValueError):
                     confidence = float("nan")
                 needs_review = record_flag or bool(det.get("review_required", False))
                 if not math.isfinite(confidence):
                     needs_review = True
-                    confidence = None
+                    confidence = float("nan")
                 try:
                     candidate = SymbolCandidate(
                         symbol_label=label,
@@ -1285,7 +1312,7 @@ class TakeoffStore:
                         x_offset_px=int(det["x_offset_px"]),
                         y_offset_px=int(det["y_offset_px"]),
                         tile_bbox=tuple(float(v) for v in det["tile_bbox"]),  # type: ignore[arg-type]
-                        confidence=confidence if confidence is not None else 0.0,
+                        confidence=confidence if math.isfinite(confidence) else 0.0,
                         review_required=needs_review,
                     )
                     bbox_pt = untile_candidate(candidate)
@@ -1503,6 +1530,120 @@ class TakeoffStore:
             async with db.execute(query, params) as cur:
                 return [dict(row) for row in await cur.fetchall()]
 
+    @staticmethod
+    def _qa_row_to_dict(row: Any) -> dict[str, Any]:
+        record = dict(row)
+        record["geometry"] = json.loads(record["geometry_json"]) if record.get("geometry_json") else None
+        record["evidence_ids"] = (
+            json.loads(record["evidence_ids_json"]) if record.get("evidence_ids_json") else []
+        )
+        return record
+
+    async def record_qa_annotation(
+        self,
+        *,
+        project_id: str,
+        annotation_type: str,
+        reason_code: str,
+        severity: str,
+        message: str = "",
+        sheet_id: str | None = None,
+        geometry: dict[str, Any] | None = None,
+        evidence_ids: list[str] | None = None,
+        source_agent: str = "",
+        annotation_id: str | None = None,
+    ) -> str:
+        """Persist one Agent 05 QA annotation task. Returns the annotation_id."""
+        if annotation_type not in QA_ANNOTATION_TYPES:
+            raise ValueError(f"Unknown annotation_type: {annotation_type!r}")
+        if severity not in QA_ANNOTATION_SEVERITIES:
+            raise ValueError(f"Unknown severity: {severity!r}")
+        if not reason_code or not reason_code.strip():
+            raise ValueError("reason_code cannot be empty.")
+        resolved_id = annotation_id or str(uuid.uuid4())
+        now = _utc_now_iso()
+        async with self._session() as db:
+            await db.execute(
+                """
+                INSERT INTO qa_annotations (
+                    annotation_id, project_id, sheet_id, annotation_type,
+                    reason_code, severity, message, geometry_json,
+                    evidence_ids_json, source_agent, status,
+                    resolution_reason, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', NULL, ?, ?)
+                """,
+                (
+                    resolved_id,
+                    project_id,
+                    sheet_id,
+                    annotation_type,
+                    reason_code.strip(),
+                    severity,
+                    message,
+                    json.dumps(geometry) if geometry is not None else None,
+                    json.dumps(list(evidence_ids or [])),
+                    source_agent,
+                    now,
+                    now,
+                ),
+            )
+            await db.commit()
+        return resolved_id
+
+    async def get_qa_annotation(self, annotation_id: str) -> dict[str, Any] | None:
+        """Retrieve one QA annotation by id (read-only)."""
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute(
+                "SELECT * FROM qa_annotations WHERE annotation_id = ?",
+                (annotation_id,),
+            ) as cur:
+                row = await cur.fetchone()
+                if row:
+                    return self._qa_row_to_dict(row)
+        return None
+
+    async def list_qa_annotations(
+        self,
+        project_id: str,
+        *,
+        sheet_id: str | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List QA annotations for a project, optionally filtered."""
+        query = "SELECT * FROM qa_annotations WHERE project_id = ?"
+        params: list[Any] = [project_id]
+        if sheet_id is not None:
+            query += " AND sheet_id = ?"
+            params.append(sheet_id)
+        if status is not None:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY created_at ASC, rowid ASC"
+        async with self._session() as db:
+            db.row_factory = sqlite3.Row
+            async with db.execute(query, params) as cur:
+                return [self._qa_row_to_dict(row) for row in await cur.fetchall()]
+
+    async def update_qa_annotation_status(
+        self,
+        annotation_id: str,
+        status: str,
+        resolution_reason: str | None = None,
+    ) -> bool:
+        """Transition one annotation (OPEN/CONFIRMED/DISMISSED). Dismissal needs a reason."""
+        if status not in QA_ANNOTATION_STATUSES:
+            raise ValueError(f"Unknown qa status: {status!r}")
+        if status == "DISMISSED" and not (resolution_reason or "").strip():
+            raise ValueError("DISMISSED requires a resolution_reason (dismiss with reason).")
+        async with self._session() as db:
+            cur = await db.execute(
+                "UPDATE qa_annotations SET status = ?, resolution_reason = ?, updated_at = ?"
+                " WHERE annotation_id = ?",
+                (status, resolution_reason, _utc_now_iso(), annotation_id),
+            )
+            await db.commit()
+            return cur.rowcount > 0
     async def get_item_history(self, item_id: str) -> list[dict[str, Any]]:
         """Return the append-only audit trail for one item, oldest first."""
         async with self._session() as db:

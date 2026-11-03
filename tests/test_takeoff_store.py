@@ -1200,3 +1200,88 @@ async def test_dataset_curation_export(tmp_path: Path, monkeypatch: pytest.Monke
     manifest = _json.loads((tmp_path / "curated" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["train_count"] == len(train_rows)
     assert manifest["eval_count"] == len(eval_rows)
+@pytest.mark.asyncio
+async def test_qa_annotation_roundtrip(tmp_path: Path):
+    store = TakeoffStore(db_path=tmp_path / "qa.sqlite3")
+    await store.initialize()
+    ann_id = await store.record_qa_annotation(
+        project_id="proj_qa",
+        sheet_id="sheet_m22",
+        annotation_type="FLAG",
+        reason_code="SCALE_UNVERIFIED_MEASURED",
+        severity="HIGH",
+        message="Unverified scale with measured items.",
+        geometry={"type": "point", "coordinates": [10.0, 20.0]},
+        evidence_ids=["ev_item_1"],
+        source_agent="agent_05_watchdog",
+    )
+    got = await store.get_qa_annotation(ann_id)
+    assert got is not None
+    assert got["status"] == "OPEN"
+    assert got["annotation_type"] == "FLAG"
+    assert got["geometry"] == {"type": "point", "coordinates": [10.0, 20.0]}
+    assert got["evidence_ids"] == ["ev_item_1"]
+    assert got["project_id"] == "proj_qa"
+
+
+@pytest.mark.asyncio
+async def test_qa_annotation_list_filters(tmp_path: Path):
+    store = TakeoffStore(db_path=tmp_path / "qa_list.sqlite3")
+    await store.initialize()
+    await store.record_qa_annotation(
+        project_id="p1", sheet_id="s1", annotation_type="FLAG",
+        reason_code="R1", severity="HIGH",
+    )
+    await store.record_qa_annotation(
+        project_id="p1", sheet_id="s2", annotation_type="NOTE",
+        reason_code="R2", severity="INFO",
+    )
+    await store.record_qa_annotation(
+        project_id="p2", sheet_id="s1", annotation_type="FLAG",
+        reason_code="R3", severity="WARNING",
+    )
+    assert len(await store.list_qa_annotations("p1")) == 2
+    assert len(await store.list_qa_annotations("p2")) == 1
+    assert len(await store.list_qa_annotations("p1", sheet_id="s2")) == 1
+    assert len(await store.list_qa_annotations("p1", status="OPEN")) == 2
+    assert await store.list_qa_annotations("p1", status="DISMISSED") == []
+
+
+@pytest.mark.asyncio
+async def test_qa_annotation_status_transitions(tmp_path: Path):
+    store = TakeoffStore(db_path=tmp_path / "qa_status.sqlite3")
+    await store.initialize()
+    ann_id = await store.record_qa_annotation(
+        project_id="p1", annotation_type="CONFLICT",
+        reason_code="COUNT_MISMATCH", severity="WARNING",
+    )
+    assert await store.update_qa_annotation_status(ann_id, "CONFIRMED") is True
+    assert (await store.get_qa_annotation(ann_id))["status"] == "CONFIRMED"
+    with pytest.raises(ValueError, match="resolution_reason"):
+        await store.update_qa_annotation_status(ann_id, "DISMISSED")
+    assert await store.update_qa_annotation_status(ann_id, "DISMISSED", "duplicate") is True
+    got = await store.get_qa_annotation(ann_id)
+    assert got["status"] == "DISMISSED"
+    assert got["resolution_reason"] == "duplicate"
+    assert await store.update_qa_annotation_status("nope", "CONFIRMED") is False
+
+
+@pytest.mark.asyncio
+async def test_qa_annotation_rejects_bad_vocab(tmp_path: Path):
+    store = TakeoffStore(db_path=tmp_path / "qa_bad.sqlite3")
+    await store.initialize()
+    with pytest.raises(ValueError, match="annotation_type"):
+        await store.record_qa_annotation(
+            project_id="p1", annotation_type="BOGUS",
+            reason_code="R", severity="HIGH",
+        )
+    with pytest.raises(ValueError, match="severity"):
+        await store.record_qa_annotation(
+            project_id="p1", annotation_type="FLAG",
+            reason_code="R", severity="BOGUS",
+        )
+    with pytest.raises(ValueError, match="reason_code"):
+        await store.record_qa_annotation(
+            project_id="p1", annotation_type="FLAG",
+            reason_code="  ", severity="HIGH",
+        )
