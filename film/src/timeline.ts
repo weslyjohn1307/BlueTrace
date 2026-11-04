@@ -2,7 +2,7 @@ import { s } from './theme';
 
 /**
  * Locked shot timing (seconds). Voiceover lines are the verified 2-minute narration in
- * docs/hackathon/VIDEO_AND_SUBMISSION_CONTENT.md §Demo film — record VO against these windows.
+ * Demo film narration timing — record VO against these windows.
  */
 export const TIMELINE = [
   { id: 'open', start: 0, end: 10, vo: 'For mechanical estimators who need faster takeoffs and zero guesswork: Introducing BlueTraceAI. Built to turn complex construction drawings into verified takeoffs at the speed of thought.' },

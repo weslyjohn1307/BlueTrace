@@ -60,7 +60,7 @@ export const FilmSequence: React.FC = () => {
         <Shot8End />
       </Sequence>
 
-      {/* Master Audio Track: Ambient Bed + Kokoro Narration + Kinetic SFX */}
+      {/* Master Audio Track: Ambient Bed + Kokoro Narration */}
       <AudioTracks />
 
       {/* Optional Voiceover Audio Track (Meta Model API Narration) */}

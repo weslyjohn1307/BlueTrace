@@ -147,19 +147,32 @@ We validated BlueTraceAI against real commercial HVAC drawing sets (`fixtures/me
 
 ---
 
-## 7. Submission Readiness Checklist
+## 7. How to Evaluate & Experience the Deliverables
 
-Use this checklist to verify the submission and repository health:
+Judges and evaluators can experience and verify BlueTraceAI through three primary paths:
 
-- [x] **Core Architecture Documented:** ADR-001, ADR-002, ADR-003 in `docs/adr/`.
-- [x] **Hybrid Division of Labor Enforced:** Deterministic vector geometry separated from Meta model inference.
-- [x] **Fail-Closed Scale Invariant Active:** Unverified scale blocks ledger confirmation.
-- [x] **Standalone Single-Port Launcher Operational:** `python scripts/start_standalone.py`.
-- [x] **Zero Secrets in Repository:** Verified via `.env.example` and git history.
-- [x] **Sanitizer Anti-Leak Audit Passed:** `python scripts/sanitize_import.py --audit`.
-- [x] **Interactive GitHub Pages Showcase Live:** [weslyjohn1307.github.io/BlueTrace](https://weslyjohn1307.github.io/BlueTrace/).
-- [x] **Master Video Film Rendered:** `film/out/bluetrace-film-master.mp4`.
-- [x] **High-Res Visual Assets Embedded:** Official brand SVGs, vector architecture diagram, and 1080p UI screenshots in `README.md` and `docs/assets/`.
+### 1. Interactive Web Showcase (Instant, In-Browser)
+Explore the interactive visual story, layer decomposition, and vector geometry overlays directly in any modern browser without local installation:  
+👉 **[weslyjohn1307.github.io/BlueTrace](https://weslyjohn1307.github.io/BlueTrace/)**
+
+### 2. High-Definition Master Demo Film
+The complete 1080p 60fps walkthrough demonstrates the 150 DPI CAD workstation, QuickDraw point-of-need hover reading, legend reconnaissance, grounded copilot queries, and takeoff export:  
+👉 **`film/out/bluetrace-film-master.mp4`** (included in repository release assets)
+
+### 3. Standalone Local Workstation Verification
+Run the complete FastAPI backend and React 19 workstation locally on a single port:
+```powershell
+# Clone and setup virtual environment
+git clone https://github.com/weslyjohn1307/BlueTrace.git
+cd BlueTrace
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+npm --prefix frontend ci
+
+# Launch single-port workstation (UI + API on http://localhost:8000)
+.\.venv\Scripts\python.exe scripts/start_standalone.py
+```
+Open `http://localhost:8000` to review real mechanical blueprint sets (`fixtures/mechanical/hvac_plan_level2.pdf`) with full offline linework extraction, two-point scale calibration, and SQLite WAL ledger persistence.
 
 ---
 

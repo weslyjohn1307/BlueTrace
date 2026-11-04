@@ -3,7 +3,7 @@
  * Leave a value null until the real asset exists — the film then renders an honest,
  * clearly-labelled placeholder instead of simulated product UI.
  *
- * Footage rules (docs/hackathon/VIDEO_AND_SUBMISSION_CONTENT.md):
+ * Footage capture rules:
  *  - real, legible workspace recordings only; no simulated product behaviour
  *  - public-safe drawing; no customer identifiers or credentials on screen
  *  - 1920×1080 or larger, ≥ the slot duration below

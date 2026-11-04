@@ -6,7 +6,6 @@ import { s } from '../theme';
  * Complete Master Audio Track:
  * 1. Background Ambient Score (120s loop / bed with gentle ducking)
  * 2. Kokoro-82M Studio Voiceover Narration (Shots 1 through 8)
- * 3. Kinetic Precision UI SFX & Foley
  */
 export const AudioTracks: React.FC = () => {
   return (
@@ -65,39 +64,6 @@ export const AudioTracks: React.FC = () => {
       {/* Shot 8: Minimalist Close (VO starts at 115.8s) */}
       <Sequence from={s(115.8)} durationInFrames={s(4.0)}>
         <Audio src={staticFile('audio/vo_shot8.wav')} volume={0.95} />
-      </Sequence>
-
-      {/* ------------------------------------------------------------- */}
-      {/* 3. KINETIC UI SOUND EFFECTS (FOLEY)                           */}
-      {/* ------------------------------------------------------------- */}
-      {/* SFX: 3D Folded Ribbon Assembly (f: 15) */}
-      <Sequence from={15} durationInFrames={55}>
-        <Audio src={staticFile('audio/sfx_brand_assemble.wav')} volume={0.7} />
-      </Sequence>
-
-      {/* SFX: Specular Light Glint Shimmer (f: 45) */}
-      <Sequence from={45} durationInFrames={52}>
-        <Audio src={staticFile('audio/sfx_specular_glint.wav')} volume={0.65} />
-      </Sequence>
-
-      {/* SFX: CAD Workstation Window Swoop & Landing (f: 335) */}
-      <Sequence from={335} durationInFrames={48}>
-        <Audio src={staticFile('audio/sfx_workstation_swoop.wav')} volume={0.6} />
-      </Sequence>
-
-      {/* SFX: Duct Selection Click & Dimension Lock (f: 500) */}
-      <Sequence from={500} durationInFrames={20}>
-        <Audio src={staticFile('audio/sfx_duct_click.wav')} volume={0.85} />
-      </Sequence>
-
-      {/* SFX: Vellum Layer Separation (Shot 2, f: 690 / 11.5s) */}
-      <Sequence from={s(11.5)} durationInFrames={85}>
-        <Audio src={staticFile('audio/sfx_vellum_layer_lift.wav')} volume={0.55} />
-      </Sequence>
-
-      {/* SFX: Authoritative End Resolution Chime (Shot 8, f: 6920 / 115.3s) */}
-      <Sequence from={s(115.3)} durationInFrames={170}>
-        <Audio src={staticFile('audio/sfx_end_chime.wav')} volume={0.75} />
       </Sequence>
     </>
   );

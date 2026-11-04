@@ -1,5 +1,11 @@
 <p align="center">
-  <img src="docs/assets/brand/bluetrace-primary-color.svg" alt="BlueTraceAI Logo" width="380">
+  <a href="https://weslyjohn1307.github.io/BlueTrace/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/bluetrace-logo-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="docs/assets/brand/bluetrace-logo-light.svg">
+      <img alt="BlueTrace — MEP Drawing Intelligence" src="docs/assets/brand/bluetrace-logo-dark.svg" width="420">
+    </picture>
+  </a>
 </p>
 
 <p align="center">
@@ -8,8 +14,15 @@
 </p>
 
 <p align="center">
-  <a href="https://weslyjohn1307.github.io/BlueTrace/"><strong>Open Interactive Showcase</strong></a> &bull;
-  <a href="docs/SUBMISSION.md"><strong>Hackathon Submission Story</strong></a> &bull;
+  <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="https://img.shields.io/badge/Live_Showcase-Interactive_Demo-005BFF?style=flat-square" alt="Live Showcase"></a>
+  <a href="docs/SUBMISSION.md"><img src="https://img.shields.io/badge/Hackathon-Submission_Story-37C6FF?style=flat-square" alt="Submission Story"></a>
+  <a href="#run-locally"><img src="https://img.shields.io/badge/Run_Locally-FastAPI_%2B_React_19-10B981?style=flat-square" alt="Run Locally"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-64748B?style=flat-square" alt="License"></a>
+</p>
+
+<p align="center">
+  <a href="https://weslyjohn1307.github.io/BlueTrace/"><strong>Live Showcase</strong></a> &bull;
+  <a href="docs/SUBMISSION.md"><strong>Submission Story</strong></a> &bull;
   <a href="#run-locally"><strong>Run Locally</strong></a> &bull;
   <a href="#how-it-works"><strong>Architecture</strong></a> &bull;
   <a href="#multi-agent-workflow"><strong>Agent Workflow</strong></a> &bull;
@@ -21,9 +34,9 @@
 
 ---
 
-![Five-second motion study: a real BlueTraceAI workspace capture with an animated focus frame, scale warning, and three-stage review sequence](docs/assets/readme-motion-loop.gif)
-
-<p align="center"><sub>The focus frame and stage sequence are editorial motion overlays on a real workspace capture, not live interface behavior. <a href="docs/assets/readme-motion-poster.png">Static poster</a></sub></p>
+<p align="center">
+  <img src="docs/assets/demo-workspace.png" alt="BlueTraceAI — Hardware-Accelerated 150 DPI Engineering CAD Workstation" width="100%">
+</p>
 
 BlueTraceAI is an AI-native takeoff workstation for mechanical, electrical, and plumbing (MEP) estimators. This entry is submitted to the **Meta Global AI Developer Hackathon** for the **Indie Developer** track (**Push the Frontier**). 
 
@@ -57,8 +70,8 @@ BlueTraceAI separates visual interpretation from physical measurement so that ev
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/assets/demo-workspace.png" alt="150 DPI Engineering Workstation" width="100%">
-      <p><strong>150 DPI CAD Workstation.</strong> Hardware-accelerated canvas with 2D affine navigation, multi-sheet filmstrip, layer toggling, and interactive two-point scale calibration.</p>
+      <img src="docs/assets/demo-visual-hud.png" alt="Point-of-Need Visual HUD & Coordinate Inspection" width="100%">
+      <p><strong>Point-of-Need Visual HUD.</strong> Real-time coordinate inspection, sub-pixel vector alignment, and contextual toolbars across complex mechanical drawing sets.</p>
     </td>
     <td width="50%" valign="top">
       <img src="docs/assets/demo-hover-badge.png" alt="Point-of-Need QuickDraw Hover Badge" width="100%">

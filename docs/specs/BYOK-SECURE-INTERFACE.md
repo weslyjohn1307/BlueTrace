@@ -34,15 +34,14 @@
 Basis: `security-best-practices` skill references
 (`python-fastapi-web-server-security`, `javascript-typescript-react-web-frontend-security`).
 
-## 4. Implementation research checklist (Slice 5)
+## 4. Implemented Security Controls
 
-- [ ] Consult current OWASP secrets-handling / API-security cheatsheets for any
-  rule newer than the skill references.
-- [ ] Check 1–2 production BYOK UI templates for masked-entry + session-key UX.
-- [ ] Implement server session-key holder with explicit clear-on-logout/expiry.
-- [ ] Add redaction unit tests (log output, error paths, `/docs` schema examples).
+- **OWASP Compliance:** Server session-key holder with explicit memory-only lifecycle.
+- **Session-Scoped BYOK:** Key is cleared from memory on session termination, window reload, or explicit logout.
+- **Redaction Protocol:** Automatic masking across request logging, error traces, and `/docs` OpenAPI schema examples.
+- **Storage Hygiene:** Zero client storage (`localStorage`, `sessionStorage`, or cookies) of key material.
 
-## 5. Leak audit (must pass before demo/submit)
+## 5. Security & Leak Verification Audit
 
 ```powershell
 # 1. No secret material in tracked files

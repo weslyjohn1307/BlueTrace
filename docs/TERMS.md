@@ -20,7 +20,7 @@ If you do not agree to all terms and conditions herein, do not install or use th
 ## 2. Open-Source License & Intellectual Property
 
 ### 2.1 Software License
-The Software is licensed under the **Apache License, Version 2.0** (the "License"). You may obtain a copy of the License in the [LICENSE](file:///d:/bluetrace-ai/LICENSE) file in the root of the repository or at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0).
+The Software is licensed under the **Apache License, Version 2.0** (the "License"). You may obtain a copy of the License in the [LICENSE](../LICENSE) file in the root of the repository or at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
 Subject to the terms of the License, you are granted a perpetual, worldwide, non-exclusive, no-charge, royalty-free copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, sublicense, and distribute the Software and such derivative works in Source or Object form.
 
@@ -28,7 +28,7 @@ Subject to the terms of the License, you are granted a perpetual, worldwide, non
 **You retain 100% ownership, copyright, and title to all blueprints, drawings, CAD exports, PDF files, schedules, takeoffs, cost data, and proprietary project documents uploaded to or processed by the Software.** BlueTraceAI claims zero ownership or intellectual property rights over your project drawings or generated takeoff quantities.
 
 ### 2.3 Trademarks
-"BlueTrace", "BlueTraceAI", the BlueTrace logo, and associated brand assets are trademarks of Wesly John. The Apache 2.0 License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for reasonable and customary use in describing the origin of the Software.
+"BlueTrace", "BlueTraceAI", the BlueTrace logo, and associated brand assets are trademarks of the BlueTraceAI project maintainers. The Apache 2.0 License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for reasonable and customary use in describing the origin of the Software.
 
 ---
 

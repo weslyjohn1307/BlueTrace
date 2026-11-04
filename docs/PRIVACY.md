@@ -4,7 +4,7 @@
 > **Last Updated:** November 4, 2026  
 > **Project:** BlueTraceAI (Open-Source MEP Takeoff Platform)  
 > **Maintainer:** Wesly John & BlueTraceAI Contributors  
-> **Contact:** [privacy@bluetrace.ai](mailto:privacy@bluetrace.ai) / [github.com/weslyjohn1307/BlueTrace](https://github.com/weslyjohn1307/BlueTrace)
+> **Contact:** [weslyjohn1307@gmail.com](mailto:weslyjohn1307@gmail.com) / [GitHub Issues](https://github.com/weslyjohn1307/BlueTrace/issues)
 
 ---
 

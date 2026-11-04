@@ -64,11 +64,10 @@ the estimator's click is what turns AI output into a priced takeoff.
 - Fully autonomous bidding (no black-box lump sums; the human prices).
 - Consumer/mobile-first (desktop Windows is the job; web companion later).
 
-## From demo to v1 (the honest gap list)
+## Completed Milestone & Roadmap to v1
 
-Done in the demo slice: single-sheet upload/scan, hover dimensioning, ledger
-review, schedule linking, grounded copilot, BYOK, CSV/JSON export. Still to
-build: multi-sheet batch SheetScan, run tracing with fitting inference,
-revision diff, legend symbol extraction (DOC-04), SAM canvas trigger, gauge/
-labor mapping tables, estimating-tool integrations, packaged installer with
-auto-update (RES-06), and the 3-minute video + submission itself.
+**Delivered in the Hackathon Release:**
+Multi-sheet batch sheet intake, 150 DPI drawing canvas with hardware acceleration, point-of-need QuickDraw hover OCR with `muse-spark-1.3`, legend exemplar parsing with spatial tiling, deterministic vector centerline extraction, fail-closed scale validation, schedule reconciliation with ghost pin candidates, watchdog QA anomaly checks, grounded copilot reasoning with `muse-wonder-1.0`, single-port standalone server, and 1080p demo film.
+
+**Future v1 Roadmap:**
+Revision overlay diff, SAM automated canvas segmentation trigger, commercial estimating software integrations (CSI format), and multi-user cloud workspace synchronization.

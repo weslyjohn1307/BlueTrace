@@ -108,6 +108,12 @@ docs/research/
 docs/stitch_assets/
 docs/presentation/
 docs/assets/readme-motion-source.html
+docs/assets/readme-motion-loop.gif
+docs/assets/readme-motion-poster.png
+docs/assets/concept-stitch-audit-ledger.jpg
+frontend/public/brand/preview/
+scripts/generate_audio_assets.py
+scripts/setup_kokoro.py
 docs/assets/concept-stitch-telemetry.jpg
 frontend/public/stitch/
 docs/specs/WEAVE-AND-AI-TOOLING-DECISION.md
