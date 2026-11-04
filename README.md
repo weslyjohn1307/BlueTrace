@@ -15,7 +15,8 @@
   <a href="#multi-agent-workflow"><strong>Agent Workflow</strong></a> &bull;
   <a href="#meta-models"><strong>Meta Models</strong></a> &bull;
   <a href="#evaluation-and-verification"><strong>Evaluation</strong></a> &bull;
-  <a href="docs/API_REFERENCE.md"><strong>API Reference</strong></a>
+  <a href="docs/PRIVACY.md"><strong>Privacy</strong></a> &bull;
+  <a href="docs/TERMS.md"><strong>Terms</strong></a>
 </p>
 
 ---
@@ -233,6 +234,8 @@ When a live Meta feature is invoked with `MODEL_API_KEY` configured, the submitt
 ## Documentation
 
 - [Hackathon Submission Story](docs/SUBMISSION.md)
+- [Privacy Policy](docs/PRIVACY.md)
+- [Terms & Conditions](docs/TERMS.md)
 - [Product Vision](docs/PRODUCT-VISION.md)
 - [Implemented UI Flows](docs/specs/UI-UX-FLOWS.md)
 - [Fixture Evaluation Report](docs/EVAL_REPORT.md)
