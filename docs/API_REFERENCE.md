@@ -11,6 +11,12 @@
 
 | Method | Path | Summary | Operation ID |
 |---|---|---|---|
+| `POST` | `/api/agent-jobs/preview` | Read PDF Page Locally | `preview_package_page_api_agent_jobs_preview_post` |
+| `POST` | `/api/agent-jobs` | Start Agent Job | `start_agent_job_api_agent_jobs_post` |
+| `GET` | `/api/agent-jobs/{job_id}` | Get Agent Job Snapshot | `get_agent_job_api_agent_jobs__job_id__get` |
+| `GET` | `/api/agent-jobs/{job_id}/events` | Stream Agent Job Events | `stream_agent_job_events_api_agent_jobs__job_id__events_get` |
+| `POST` | `/api/agent-jobs/{job_id}/cancel` | Pause Agent Job | `cancel_agent_job_api_agent_jobs__job_id__cancel_post` |
+| `POST` | `/api/agent-jobs/{job_id}/resume` | Resume Agent Job | `resume_agent_job_api_agent_jobs__job_id__resume_post` |
 | `POST` | `/api/agents/orchestrate` | Run Agent Orchestration | `run_agent_orchestration_api_agents_orchestrate_post` |
 | `POST` | `/api/agents/reconcile` | Run Schedule Reconciler | `run_schedule_reconciler_api_agents_reconcile_post` |
 | `POST` | `/api/agents/watchdog` | Run Watchdog Qa | `run_watchdog_qa_api_agents_watchdog_post` |
@@ -53,6 +59,37 @@
 ---
 
 ## 2. Detailed Endpoint Specifications
+
+### `POST /api/agent-jobs/preview`
+
+- **Summary**: Read one page and total page count using local PDF text/geometry only; no Meta request is made.
+- **Request Body**: `{ "file_path": string, "project_id"?: string, "page_index"?: number }`
+- **Response**: `{ "sheet": SheetMetadata, "total_pages": number }`
+
+### `POST /api/agent-jobs`
+
+- **Summary**: Start asynchronous multi-page analysis and return a job ID.
+- **Request Body**: `{ "file_path": string, "project_id"?: string, "meta_consent": boolean, "analysis_scope": "all" | "vision" }`
+- **Consent**: `analysis_scope="vision"` requires `meta_consent=true`; local analysis can run without Meta access.
+- **Response**: `{ "job_id": string, "project_id": string, "status": "running" }`
+
+### `GET /api/agent-jobs/{job_id}`
+
+- **Summary**: Return persisted job status, Meta consent, analysis scope, and event history.
+- **Recovery**: A job left running when the server exits is returned as `interrupted` and can be resumed.
+
+### `GET /api/agent-jobs/{job_id}/events`
+
+- **Summary**: Stream persisted and live agent events as Server-Sent Events.
+- **Parameters**: `last_event_id` query parameter resumes the event cursor.
+
+### `POST /api/agent-jobs/{job_id}/cancel`
+
+- **Summary**: Pause a running job at its latest completed sheet checkpoint.
+
+### `POST /api/agent-jobs/{job_id}/resume`
+
+- **Summary**: Resume a cancelled, interrupted, or failed job after its latest completed sheet checkpoint.
 
 ### `POST /api/agents/orchestrate`
 

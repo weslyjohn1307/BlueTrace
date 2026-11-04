@@ -87,6 +87,7 @@ IGNORED_DIRS = {
     # gitignored, and must never be committed (see internal-research/README.md).
     'internal-research', '.scrape-cache', 'teamwork',
     '.agents', '.opencode', '.ai', 'agent-os',
+    '.playwright-cli', 'local_real_testing', 'tmp', 'audio_models',
 }
 IGNORED_FILES = {
     'AUDIT-2026-10-30-antigravity-slices-0-5.md',

@@ -89,7 +89,10 @@ docs/COMPLIANCE-*.md
 docs/CONTINUATION-PLAN.md
 docs/PLAN-STATUS.md
 docs/OPENCODE-HANDOFF-*.md
-docs/SUBMISSION.md
+# Audio models & large binary model weights
+film/audio_models/
+*.onnx
+*.bin
 docs/hackathon/
 docs/meta_api/SESSION_*.md
 
@@ -119,5 +122,7 @@ tests/test_adversarial_planning_consistency.py
 # Local review screenshots and ephemeral output
 output/
 frontend/.playwright-cli/
+.playwright-cli/
+tmp/
 docs/PHASE_4_HANDOVER.md
 uv.lock
