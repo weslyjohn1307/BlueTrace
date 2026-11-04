@@ -4,7 +4,7 @@ Matches scheduled equipment items extracted from drawing schedule tables against
 spatial symbol instances detected on CAD floor plan sheets. Flags count variances,
 generates Ghost Pins for unplaced equipment, and rolls up multi-discipline ledgers.
 
-Conforms to AGENTS.md, ADR-003, and TASK-004 specifications.
+Conforms to ADR-003 specifications.
 """
 
 from __future__ import annotations

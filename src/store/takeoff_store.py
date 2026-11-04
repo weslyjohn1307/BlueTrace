@@ -128,7 +128,7 @@ _SESSION_DEFAULTS: dict[str, Any] = {
 _SESSION_TOOL_MODES = frozenset({"select", "pan", "quickdraw", "segment", "calibrate"})
 
 
-# TASK-REV-001: validated 4-state (+SUGGESTED origin) review transition matrix.
+#validated 4-state (+SUGGESTED origin) review transition matrix.
 # Missing keys are terminal: only the listed outgoing edges are legal.
 REVIEW_TRANSITIONS: dict[str, frozenset[str]] = {
     "SUGGESTED": frozenset({"ACCEPTED", "CORRECTED", "REJECTED", "CANNOT_DETERMINE"}),
@@ -138,7 +138,7 @@ REVIEW_TRANSITIONS: dict[str, frozenset[str]] = {
     "CANNOT_DETERMINE": frozenset({"SUGGESTED", "ACCEPTED", "CORRECTED", "REJECTED"}),
 }
 
-# TASK-REV-003: standard AEC override reason taxonomy (mirrors
+#standard AEC override reason taxonomy (mirrors
 # src/models/schemas.py::CorrectionReasonEnum; stored as plain TEXT).
 CORRECTION_REASONS = frozenset({
     "OCR_MISREAD_DIGIT",
@@ -159,7 +159,7 @@ QA_ANNOTATION_STATUSES = frozenset({"OPEN", "CONFIRMED", "DISMISSED"})
 # Actions whose spelling also triggers the mandatory-reason rule.
 _REASON_REQUIRED_ACTIONS = frozenset({"CORRECT", "REJECT"})
 
-# TASK-SYM-005: legend label -> canvas system mapping for symbol pins.
+#legend label -> canvas system mapping for symbol pins.
 # Labels arrive from the exemplar vocabulary (legend_scanner); anything
 # unrecognized stays "General" so no discipline is ever fabricated.
 _SYMBOL_LABEL_SYSTEMS: dict[str, str] = {
@@ -482,7 +482,7 @@ class TakeoffStore:
             ):
                 if _col not in columns:
                     await db.execute(_ddl)
-            # TASK-REV-004: review_events is an append-only audit log that
+            #review_events is an append-only audit log that
             # intentionally outlives the items it references (sheet cleanup
             # removes item rows but retains audit rows). It therefore carries
             # no foreign key to takeoff_items; a FK would forbid the
@@ -1167,7 +1167,7 @@ class TakeoffStore:
     async def delete_vector_items_for_sheet(self, project_id: str, sheet_id: str) -> int:
         """Remove prior VECTOR_ENGINE rows for one sheet so re-scans stay idempotent.
 
-        Review events are append-only (TASK-REV-004) and are never deleted:
+        Review events are append-only and are never deleted:
         audit rows referencing removed items are retained as immutable
         history. Manual and hover-sourced rows on the same sheet are never
         touched.
@@ -1185,7 +1185,7 @@ class TakeoffStore:
     ) -> int:
         """Atomically replace one sheet's VECTOR_ENGINE rows in one transaction.
 
-        Review events are append-only (TASK-REV-004): prior audit rows are
+        Review events are append-only: prior audit rows are
         retained even though the replaced item rows are removed.
         """
         async with self._session() as db:
@@ -1358,9 +1358,8 @@ class TakeoffStore:
     ) -> bool:
         """Update review status of an item and log the review audit event.
 
-        Enforces the TASK-REV-001 transition matrix (``REVIEW_TRANSITIONS``):
-        anything outside the listed outgoing edges raises ``ValueError``.
-        TASK-REV-003: transitions into ``CORRECTED``/``REJECTED`` (or actions
+        Enforces thetransition matrix (``REVIEW_TRANSITIONS``):
+        anything outside the listed outgoing edges raises ``ValueError``.transitions into ``CORRECTED``/``REJECTED`` (or actions
         ``CORRECT``/``REJECT``) require a ``CorrectionReasonEnum`` code.
         Fail-closed scale gate: ``ACCEPTED`` is allowed ONLY when the parent
         sheet's ``scale_status`` is ``VERIFIED`` or ``CALIBRATED``

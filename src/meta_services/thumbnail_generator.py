@@ -1,4 +1,4 @@
-"""Background sheet thumbnail pipeline (TASK-INTK-002).
+"""Background sheet thumbnail pipeline.
 
 Renders one low-DPI thumbnail per drawing-set page into
 ``data/cache/thumbnails/{project_id}/p{i}.webp`` using

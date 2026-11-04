@@ -26,7 +26,7 @@ from src.models.schemas import SheetMetadata
 
 logger = logging.getLogger(__name__)
 
-# Fast reconnaissance sheet-number pattern (TASK-INTK-001): strict
+# Fast reconnaissance sheet-number pattern: strict
 # ``[MAEP]-<3 digits>`` token (e.g. ``M-101``, ``P-104``). Anything else falls
 # back to the PDF stem so the index is complete but never fabricated.
 _FAST_SHEET_NUMBER_RE = re.compile(r"\b([MAEP])-(\d{3})\b")

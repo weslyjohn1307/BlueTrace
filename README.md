@@ -14,28 +14,31 @@
 </p>
 
 <p align="center">
-  <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="https://img.shields.io/badge/Live_Showcase-Interactive_Demo-005BFF?style=flat-square" alt="Live Showcase"></a>
+  <a href="https://github.com/weslyjohn1307/BlueTrace/raw/master/docs/assets/BlueTraceAI_Demo.mp4"><img src="https://img.shields.io/badge/Demo_Video-2_Min_Master_Film-E11D48?style=flat-square" alt="Master Demo Video"></a>
+  <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="https://img.shields.io/badge/Showcase-Interactive_Concept-005BFF?style=flat-square" alt="Interactive Concept Showcase"></a>
   <a href="docs/SUBMISSION.md"><img src="https://img.shields.io/badge/Hackathon-Submission_Story-37C6FF?style=flat-square" alt="Submission Story"></a>
   <a href="#run-locally"><img src="https://img.shields.io/badge/Run_Locally-FastAPI_%2B_React_19-10B981?style=flat-square" alt="Run Locally"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-64748B?style=flat-square" alt="License"></a>
 </p>
 
 <p align="center">
-  <a href="https://weslyjohn1307.github.io/BlueTrace/"><strong>Live Showcase</strong></a> &bull;
+  <a href="https://github.com/weslyjohn1307/BlueTrace/raw/master/docs/assets/BlueTraceAI_Demo.mp4"><strong>Watch Master Demo Video (2 min)</strong></a> &bull;
+  <a href="https://weslyjohn1307.github.io/BlueTrace/"><strong>Interactive Concept Walkthrough</strong></a> &bull;
   <a href="docs/SUBMISSION.md"><strong>Submission Story</strong></a> &bull;
   <a href="#run-locally"><strong>Run Locally</strong></a> &bull;
   <a href="#how-it-works"><strong>Architecture</strong></a> &bull;
-  <a href="#multi-agent-workflow"><strong>Agent Workflow</strong></a> &bull;
-  <a href="#meta-models"><strong>Meta Models</strong></a> &bull;
-  <a href="#evaluation-and-verification"><strong>Evaluation</strong></a> &bull;
-  <a href="docs/PRIVACY.md"><strong>Privacy</strong></a> &bull;
-  <a href="docs/TERMS.md"><strong>Terms</strong></a>
+  <a href="#evaluation-and-verification"><strong>Evaluation</strong></a>
 </p>
 
 ---
 
 <p align="center">
-  <img src="docs/assets/demo-workspace.png" alt="BlueTraceAI — Hardware-Accelerated 150 DPI Engineering CAD Workstation" width="100%">
+  <a href="https://github.com/weslyjohn1307/BlueTrace/raw/master/docs/assets/BlueTraceAI_Demo.mp4">
+    <img src="docs/assets/demo-workspace.png" alt="BlueTraceAI — Hardware-Accelerated 150 DPI Engineering CAD Workstation (Click to Watch Demo Film)" width="100%">
+  </a>
+</p>
+<p align="center">
+  ▶️ <strong><a href="https://github.com/weslyjohn1307/BlueTrace/raw/master/docs/assets/BlueTraceAI_Demo.mp4">Click to Watch Master Demonstration Film (2:00 min • 1080p • Voiceover Narration)</a></strong>
 </p>
 
 BlueTraceAI is an AI-native takeoff workstation built for mechanical, electrical, and plumbing (MEP) estimators. Submitted to the **Meta Global AI Developer Hackathon** (**Indie Developer Track: Push the Frontier**). 
@@ -73,22 +76,22 @@ BlueTraceAI separates visual interpretation from mathematical measurement so eve
 <table>
   <tr>
     <td width="50%" valign="top">
-      <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="docs/assets/showcase-layers.png" alt="Multi-Discipline Layer Decomposition" width="100%"></a>
-      <p><strong>Multi-Discipline Layer Filtering.</strong> Decompose complex drawing sheets into distinct trade layers: HVAC (Division 23), Electrical (26), Plumbing (22), and Architectural background.</p>
+      <a href="https://github.com/weslyjohn1307/BlueTrace/raw/master/docs/assets/BlueTraceAI_Demo.mp4"><img src="docs/assets/film-layers.png" alt="Multi-Discipline Layer Decomposition in 3D Space" width="100%"></a>
+      <p><strong>Multi-Discipline Layer Decomposition.</strong> Lifts overlapping engineering schematics onto separated transparent planes: HVAC ductwork (Division 23), Electrical (26), Plumbing (22), and Architectural background.</p>
     </td>
     <td width="50%" valign="top">
-      <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="docs/assets/showcase-scale.png" alt="Two-Point Scale Calibration" width="100%"></a>
-      <p><strong>Fail-Closed Scale Calibration.</strong> Interactive two-point calibration with real-time ratio validation. Unverified scales are flagged immediately to prevent costly estimating errors.</p>
+      <a href="https://github.com/weslyjohn1307/BlueTrace/raw/master/docs/assets/BlueTraceAI_Demo.mp4"><img src="docs/assets/film-quickdraw.png" alt="Point-of-Need QuickDraw Hover Measurement" width="100%"></a>
+      <p><strong>Point-of-Need QuickDraw.</strong> Drag along a duct corridor; Meta <code>muse-spark-1.3</code> extracts dimensions (<code>30x16 SA-A</code>) from 150 DPI crops in &lt;350ms, while vector geometry computes true physical footage.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="docs/assets/showcase-reconciliation.png" alt="Schedule vs Plan Reconciliation" width="100%"></a>
-      <p><strong>Schedule-to-Plan Reconciliation.</strong> Automatically cross-references mechanical equipment schedules against floor plan tags, identifying unplaced units with ghost pin callouts.</p>
+      <a href="https://github.com/weslyjohn1307/BlueTrace/raw/master/docs/assets/BlueTraceAI_Demo.mp4"><img src="docs/assets/film-copilot.png" alt="Evidence-Grounded Copilot-Judge" width="100%"></a>
+      <p><strong>Evidence-Grounded Copilot-Judge.</strong> Ask natural-language estimating questions; Meta <code>muse-wonder-1.0</code> queries the local SQLite ledger and cites exact drawing coordinates (<code>ev:M-201:duct:1420:850</code>) that pan the sheet.</p>
     </td>
     <td width="50%" valign="top">
-      <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="docs/assets/showcase-ledger.png" alt="Human-in-the-Loop Takeoff Ledger" width="100%"></a>
-      <p><strong>Estimator Takeoff Ledger & Export.</strong> Single-keystroke review workflow with immutable SQLite audit events, SMACNA-aligned pressure classes, and verified CSV exports.</p>
+      <a href="https://github.com/weslyjohn1307/BlueTrace/raw/master/docs/assets/BlueTraceAI_Demo.mp4"><img src="docs/assets/film-ledger.png" alt="Human-in-the-Loop Takeoff Ledger" width="100%"></a>
+      <p><strong>Estimator Takeoff Ledger & Export.</strong> Single-keystroke review hotkeys (<code>A</code> to accept, <code>R</code> to reject, <code>C</code> to correct) with immutable SQLite audit events, SMACNA pressure class grouping, and verified CSV exports.</p>
     </td>
   </tr>
 </table>

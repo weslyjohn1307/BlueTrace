@@ -1,4 +1,4 @@
-"""Engineer-feedback crop extraction (TASK-FDBK-002).
+"""Engineer-feedback crop extraction.
 
 Renders the 150 DPI context crop around a corrected/relocated pin bbox so a
 later curation slice can assemble supervised examples. This module only

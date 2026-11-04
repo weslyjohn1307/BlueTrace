@@ -298,7 +298,7 @@ class CopilotJudgeAgent(BaseAgent):
         if not final_text and messages:
             final_text = messages[-1].get("content") or ""
 
-        # Apply Citation Validator (TASK-COP-002)
+        # Apply Citation Validator
         sanitized_text, coords, item_ids, _ = self.validate_citations(
             text=final_text,
             items=all_items,
@@ -307,7 +307,7 @@ class CopilotJudgeAgent(BaseAgent):
         if not coords and not item_ids:
             coords, item_ids = self._citations(selected, sheet_meta)
 
-        # Apply Missing Data Disclosure (TASK-COP-004)
+        # Apply Missing Data Disclosure
         disclosed_text = self.apply_missing_data_disclosure(
             text=sanitized_text,
             sheet_id=sheet_id,
@@ -391,7 +391,7 @@ class CopilotJudgeAgent(BaseAgent):
         )
 
     # -----------------------------------------------------------------------
-    # Citation Validation Engine (TASK-COP-002)
+    # Citation Validation Engine
     # -----------------------------------------------------------------------
     def validate_citations(
         self,
@@ -428,7 +428,7 @@ class CopilotJudgeAgent(BaseAgent):
         return sanitized_text, cited_coords, referenced_ids, warnings
 
     # -----------------------------------------------------------------------
-    # Missing-Data Disclosure Engine (TASK-COP-004)
+    # Missing-Data Disclosure Engine
     # -----------------------------------------------------------------------
     def apply_missing_data_disclosure(
         self,

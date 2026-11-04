@@ -1,4 +1,4 @@
-"""Active-learning dataset curation with drawing-package holdout splits (TASK-FDBK-004).
+"""Active-learning dataset curation with drawing-package holdout splits.
 
 Builds versioned JSONL training datasets from ``engineer_feedback_events``
 with strict consent and leakage gates:

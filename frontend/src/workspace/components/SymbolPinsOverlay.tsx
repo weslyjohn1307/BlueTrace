@@ -2,7 +2,7 @@ import React from 'react';
 import { getOverlayColor, OVERLAY_COLORS } from '../utils/disciplineColors';
 
 /**
- * Symbol detection pin overlay for the CAD sheet canvas (TASK-SYM-005).
+ * Symbol detection pin overlay for the CAD sheet canvas.
  *
  * Renders one SVG glyph per symbol detection persisted as a `SYMBOL_SWARM`
  * ledger item. Fill, bounds, and review markers use the shared semantic

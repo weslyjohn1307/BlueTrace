@@ -1,7 +1,7 @@
 """Tool Calling Registry and Database Query Engine for Product Agent 06 (Copilot-Judge).
 
 Provides parameterized SQL aggregations, takeoff store queries, and proposal writes
-governed by BlueTrace-AI fail-closed invariants (TASK-COP-001).
+governed by BlueTrace-AI fail-closed invariants.
 """
 
 from __future__ import annotations
@@ -220,7 +220,7 @@ class ToolRegistry:
         return await self.execute(tool_name, arguments)
 
     def _register_default_tools(self) -> None:
-        # Tool 1: execute_takeoff_query (TASK-COP-001)
+        # Tool 1: execute_takeoff_query
         self.register_tool(
             ToolDefinition(
                 name="execute_takeoff_query",

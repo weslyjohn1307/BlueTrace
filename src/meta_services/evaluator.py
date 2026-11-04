@@ -1,4 +1,4 @@
-"""Task-specific precision/recall evaluation harness (TASK-EVAL-002).
+"""Task-specific precision/recall evaluation harness.
 
 Deterministic metric computation for OCR, symbol detection, and schedule
 row extraction benchmarks. Models never run here: this module scores

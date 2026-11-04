@@ -244,7 +244,7 @@ async def _auto_populate_takeoff(
 class StatusUpdateRequest(BaseModel):
     status: Literal["SUGGESTED", "ACCEPTED", "CORRECTED", "REJECTED", "CANNOT_DETERMINE"]
     action: str = "USER_REVIEW"
-    # TASK-REV-003: mandatory structured override reason for CORRECT/REJECT.
+    #mandatory structured override reason for CORRECT/REJECT.
     reason: str | None = None
 
     @model_validator(mode="after")

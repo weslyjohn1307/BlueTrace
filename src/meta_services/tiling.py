@@ -1,7 +1,7 @@
 """Vector-aware sliding-window tiling engine for full-sheet symbol detection.
 
-Implements TASK-SYM-001 (MICRO_TASK_SCHEDULE §6) and the coordinate
-un-tiling + NMS stage of TASK-SYM-003.
+Implements(MICRO_TASK_SCHEDULE §6) and the coordinate
+un-tiling + NMS stage of.
 
 Pipeline role (AGENTS.md §1 — vectors measure, models interpret):
   - Deterministic geometry only: grid math plus PyMuPDF text/vector queries.
@@ -21,7 +21,7 @@ Vector prefilter: tile pixel bounds are converted to PDF points
 filtered by rect intersection. A tile with 0 words and < 3 vector
 segments is marked ``EMPTY`` and bypasses model inference.
 
-Coordinate un-tiling (TASK-SYM-003): tile detections arrive as
+Coordinate un-tiling: tile detections arrive as
 normalized ``[u1, v1, u2, v2]`` boxes in [0, 1000] relative to the
 1024 px tile image, so::
 

@@ -1,5 +1,5 @@
 /**
- * Review interaction telemetry dispatcher (TASK-FDBK-003).
+ * Review interaction telemetry dispatcher.
  *
  * Pin actions in the ledger and on the canvas fire structured feedback
  * events to `POST /api/feedback/events` so later curation can assemble

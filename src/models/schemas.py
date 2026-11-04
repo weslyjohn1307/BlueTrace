@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class ReviewActionEnum(str, Enum):
-    """Human review actions on a takeoff item (TASK-REV-001)."""
+    """Human review actions on a takeoff item."""
 
     ACCEPT = "ACCEPT"
     CORRECT = "CORRECT"
@@ -14,7 +14,7 @@ class ReviewActionEnum(str, Enum):
 
 
 class CorrectionReasonEnum(str, Enum):
-    """Standard AEC override reason taxonomy (TASK-REV-003)."""
+    """Standard AEC override reason taxonomy."""
 
     OCR_MISREAD_DIGIT = "OCR_MISREAD_DIGIT"
     OCR_MISREAD_SHAPE = "OCR_MISREAD_SHAPE"

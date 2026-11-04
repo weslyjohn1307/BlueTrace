@@ -133,3 +133,4 @@ frontend/.playwright-cli/
 tmp/
 docs/PHASE_4_HANDOVER.md
 uv.lock
+fixtures/**/*_detected_*.json
