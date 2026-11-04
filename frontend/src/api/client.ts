@@ -1,4 +1,6 @@
 import type {
+  AgentJobEvent,
+  AgentJobStarted,
   CopilotQueryResponse,
   CursorCropResponse,
   FeedbackEventPayload,
@@ -67,7 +69,7 @@ export function createApiClient(config: ApiClientConfig = {}) {
   // Every endpoint below is an absolute `/api/...` path served by FastAPI.
   // baseUrl exists only to point at a non-default origin in dev/test.
   const baseUrl = (config.baseUrl || import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
-  const defaultTimeoutMs = config.timeoutMs ?? 30000;
+  const defaultTimeoutMs = config.timeoutMs ?? 120000;
   const sessionId = newSessionId();
 
   async function request<T>(
@@ -77,17 +79,19 @@ export function createApiClient(config: ApiClientConfig = {}) {
       body?: unknown;
       rawBody?: BodyInit;
       signal?: AbortSignal;
+      timeoutMs?: number | null;
     }
   ): Promise<T> {
     const url = endpoint.startsWith('/') ? endpoint : `${baseUrl}/${endpoint.replace(/^\/+/, '')}`;
     const method = options?.method ?? 'GET';
+    const timeoutMs = options?.timeoutMs === undefined ? defaultTimeoutMs : options.timeoutMs;
     const signal = options?.signal;
     let timerId: ReturnType<typeof setTimeout> | undefined;
     let effectiveSignal = signal;
 
-    if (!signal) {
+    if (!signal && timeoutMs !== null) {
       const controller = new AbortController();
-      timerId = setTimeout(() => controller.abort(), defaultTimeoutMs);
+      timerId = setTimeout(() => controller.abort(), timeoutMs);
       effectiveSignal = controller.signal;
     }
 
@@ -133,7 +137,9 @@ export function createApiClient(config: ApiClientConfig = {}) {
         throw err;
       }
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new ApiError(0, `Request to ${url} timed out after ${defaultTimeoutMs}ms`);
+        throw new ApiError(0, timeoutMs === null
+          ? `Request to ${url} was aborted`
+          : `Request to ${url} timed out after ${timeoutMs}ms`);
       }
       throw err;
     } finally {
@@ -165,7 +171,9 @@ export function createApiClient(config: ApiClientConfig = {}) {
       // Backend accepts raw PDF bytes (no python-multipart dependency by design);
       // filename travels as a query param. See src/api/routes.py:upload_drawing.
       const endpoint = `/api/upload?filename=${encodeURIComponent(file.name)}`;
-      return request<UploadResponse>(endpoint, { method: 'POST', rawBody: file, signal });
+      // Large multi-page plan sets may take longer than the generic JSON
+      // request timeout to transfer. Processing itself runs as a separate job.
+      return request<UploadResponse>(endpoint, { method: 'POST', rawBody: file, signal, timeoutMs: null });
     },
 
     async scanSheet(
@@ -601,6 +609,55 @@ export function createApiClient(config: ApiClientConfig = {}) {
         body: payload,
         signal,
       });
+    },
+
+    async startAgentJob(
+      payload: OrchestrateAgentRequest,
+      signal?: AbortSignal
+    ): Promise<AgentJobStarted> {
+      return request<AgentJobStarted>('/api/agent-jobs', {
+        method: 'POST', body: payload, signal,
+      });
+    },
+
+    async streamAgentJobEvents(
+      jobId: string,
+      onEvent: (event: AgentJobEvent) => void,
+      signal?: AbortSignal
+    ): Promise<AgentJobEvent | null> {
+      const res = await fetch(`/api/agent-jobs/${encodeURIComponent(jobId)}/events`, {
+        method: 'GET',
+        headers: { Accept: 'text/event-stream', 'X-Session-ID': sessionId },
+        signal,
+      });
+      if (!res.ok || !res.body) {
+        throw new ApiError(res.status, `Agent job stream failed: ${res.statusText}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let terminal: AgentJobEvent | null = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() ?? '';
+        for (const frame of frames) {
+          for (const line of frame.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            try {
+              const event = JSON.parse(trimmed.slice(5).trim()) as AgentJobEvent;
+              onEvent(event);
+              if (event.job_terminal) terminal = event;
+            } catch {
+              // Ignore malformed frames; the stream remains usable.
+            }
+          }
+        }
+      }
+      return terminal;
     },
 
     async runScheduleReconciler(

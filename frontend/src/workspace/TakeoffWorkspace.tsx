@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Sparkles } from 'lucide-react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { GlobalTopNav } from '../app/GlobalTopNav';
-import { ModeBanner } from '../components/ModeBanner';
 import { useTakeoffSession } from './hooks/useTakeoffSession';
 import { UploadCard } from './components/UploadCard';
+import { PackageIntake } from './components/PackageIntake';
+import { ActivityTray } from './components/ActivityTray';
 import { SheetCanvas, type CalibrationResult, type CanvasPin, type VectorRun } from './components/SheetCanvas';
 import { CalibrationModal } from './components/CalibrationModal';
 import { HoverBadge } from './components/HoverBadge';
@@ -14,7 +14,6 @@ import { RejectionModal } from './components/modals/RejectionModal';
 import { SchedulePanel } from './components/SchedulePanel';
 import { QAPanel } from './components/QAPanel';
 import { CopilotDrawer } from './components/CopilotDrawer';
-import { ByokDialog } from './components/ByokDialog';
 import {
   WorkstationHeader,
   SidebarLeft,
@@ -33,7 +32,9 @@ import type {
   TakeoffRecord,
 } from '../api/contracts';
 import { mapReconcileGhostPins, pinFocusCoords } from './utils/reconcilePins';
+import { agentDisplayName, progressDisplayMessage } from './utils/agentDisplay';
 import { debugSkipUnknownItem, logAcceptTelemetry, logRejectTelemetry, logReviewTelemetry } from './utils/reviewTelemetry';
+import { displaySheetNumber } from './utils/sheetLabels';
 
 type RightTab = 'ledger' | 'schedule' | 'qa';
 type SheetPanelMode = 'tree' | 'filmstrip';
@@ -53,15 +54,31 @@ export const TakeoffWorkspace: React.FC = () => {
   const [discrepancies, setDiscrepancies] = useState<DiscrepancyItem[]>([]);
   const [reconcileError, setReconcileError] = useState<string | null>(null);
   const [copilotOpen, setCopilotOpen] = useState(false);
-  const [byokOpen, setByokOpen] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('ledger');
   const [qaAnnotations, setQaAnnotations] = useState<QAAnnotation[]>([]);
   const [qaChecklist, setQaChecklist] = useState<QAChecklist[]>([]);
   const [qaLoading, setQaLoading] = useState(false);
   const [qaError, setQaError] = useState<string | null>(null);
   const qaOpenCount = qaAnnotations.filter((a) => a.status === 'OPEN').length;
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
-  const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  // Keep both side panels open on wide workstations. At smaller sizes they
+  // become drawers so the drawing retains the full work area by default.
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(() => window.innerWidth >= 1280);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(() => window.innerWidth >= 1280);
+  const wideViewportRef = useRef(window.innerWidth >= 1280);
+
+  useEffect(() => {
+    const syncPanelLayout = () => {
+      const nextWide = window.innerWidth >= 1280;
+      if (nextWide === wideViewportRef.current) return;
+
+      wideViewportRef.current = nextWide;
+      setLeftSidebarOpen(nextWide);
+      setRightSidebarOpen(nextWide);
+    };
+
+    window.addEventListener('resize', syncPanelLayout);
+    return () => window.removeEventListener('resize', syncPanelLayout);
+  }, []);
   // Sheets panel view: hierarchical tree (default) or thumbnail filmstrip.
   const [sheetPanelMode, setSheetPanelMode] = useState<SheetPanelMode>('tree');
   // Two-point calibration session state: points from the canvas, modal
@@ -176,6 +193,7 @@ export const TakeoffWorkspace: React.FC = () => {
     scale_ratio: s.meta.scale_ratio,
     scale_status: s.meta.scale_status,
     page_index: s.meta.page_index,
+    sheet_type: s.meta.sheet_type,
   }));
 
   const vectorRuns: VectorRun[] = effectiveItems.flatMap((item) => {
@@ -205,36 +223,68 @@ export const TakeoffWorkspace: React.FC = () => {
         points,
         system: item.system,
         status: item.status,
+        reviewRequired: item.review_required ?? false,
         label: item.dimension_label,
         length_ft: item.total_length_ft,
       },
     ];
   });
 
-  const itemPins: CanvasPin[] = effectiveItems
-    .filter((item) => {
-      const geometry = item.geometry as { coordinates?: unknown };
-      return (
-        geometry !== null &&
-        typeof geometry === 'object' &&
-        Array.isArray(geometry.coordinates) &&
-        geometry.coordinates.length >= 2
-      );
-    })
-    .map((item) => {
-      const coords = (item.geometry as { coordinates: number[] }).coordinates;
-      return {
+  const itemPins: CanvasPin[] = effectiveItems.flatMap<CanvasPin>((item) => {
+    const geometry = item.geometry as { type?: unknown; coordinates?: unknown; bbox?: unknown };
+    if (geometry === null || typeof geometry !== 'object' || Array.isArray(geometry)) return [];
+
+    if (
+      Array.isArray(geometry.coordinates) &&
+      geometry.coordinates.length >= 2 &&
+      typeof geometry.coordinates[0] === 'number' &&
+      typeof geometry.coordinates[1] === 'number' &&
+      Number.isFinite(geometry.coordinates[0]) &&
+      Number.isFinite(geometry.coordinates[1])
+    ) {
+      return [{
         id: item.item_id,
-        x: coords[0],
-        y: coords[1],
+        x: geometry.coordinates[0],
+        y: geometry.coordinates[1],
         kind: 'item' as const,
         label: item.dimension_label,
         tag: item.dimension_label,
         system: item.system,
         status: item.status,
         confidence: item.confidence ?? undefined,
-      };
-    });
+      }];
+    }
+
+    if (
+      geometry.type === 'bbox' &&
+      Array.isArray(geometry.bbox) &&
+      geometry.bbox.length === 4 &&
+      geometry.bbox.every((coordinate) => typeof coordinate === 'number' && Number.isFinite(coordinate))
+    ) {
+      const [x0, y0, x1, y1] = geometry.bbox as [number, number, number, number];
+      const bbox: [number, number, number, number] = [
+        Math.min(x0, x1),
+        Math.min(y0, y1),
+        Math.max(x0, x1),
+        Math.max(y0, y1),
+      ];
+      return [{
+        id: item.item_id,
+        x: (bbox[0] + bbox[2]) / 2,
+        y: (bbox[1] + bbox[3]) / 2,
+        kind: 'symbol' as const,
+        label: item.dimension_label,
+        tag: item.dimension_label,
+        system: item.system,
+        status: item.status,
+        confidence: item.confidence ?? undefined,
+        reviewRequired: item.review_required ?? item.status === 'SUGGESTED',
+        bbox,
+      }];
+    }
+
+    return [];
+  });
 
   const handlePlaceGhostPin = (ghostId: string, pagePoint: [number, number]) => {
     if (state.projectName && state.activeSheetId) {
@@ -426,7 +476,6 @@ export const TakeoffWorkspace: React.FC = () => {
         kind: 'evidence' as const,
         label: `Evidence [${x.toFixed(0)}, ${y.toFixed(0)}]`,
         tag: `EV-${i + 1}`,
-        confidence: 0.99,
         status: 'MATCHED',
       };
     });
@@ -699,35 +748,50 @@ export const TakeoffWorkspace: React.FC = () => {
   };
 
   const showWorkspace = activeSheet !== null;
+  const packageBusy =
+    state.stage === 'uploading' || state.stage === 'scanning' || state.stage === 'orchestrating';
   const scaleOk =
     activeSheet &&
     (activeSheet.meta.scale_status === 'VERIFIED' || activeSheet.meta.scale_status === 'CALIBRATED');
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-200 select-none">
-      <ModeBanner mode="live" />
+    <div className="bt-app workspace-root flex h-screen min-h-0 select-none flex-col overflow-hidden bg-bt-canvas text-bt-text-primary">
       <GlobalTopNav
-        modelReady={state.backendOnline}
+        backendOnline={state.backendOnline}
+        aiConfigured={state.aiConfigured}
+        fileActionsDisabled={packageBusy}
         onLoadSample={() => void openFixture('fixtures/mechanical/hvac_plan_level2.pdf')}
         onNewAnalysis={reset}
         onFileSelect={(file) => void selectFile(file)}
-        aiConfigured={state.aiConfigured}
-        onOpenCopilot={() => setCopilotOpen(true)}
-        onOpenByok={() => setByokOpen(true)}
       />
 
       {!showWorkspace ? (
-        <main className="flex-1 flex items-center justify-center p-4">
-          <UploadCard
-            loading={state.stage === 'uploading' || state.stage === 'scanning'}
-            error={state.error}
-            onFile={(file) => void selectFile(file)}
-            onFixture={(path) => void openFixture(path)}
-          />
+        <main className="flex flex-1 items-center justify-center overflow-y-auto p-4">
+          {state.stage === 'orchestrating' ? (
+            <PackageIntake
+              fileName={state.source?.fileName ?? (state.projectName || 'Drawing package')}
+              imageUrl={
+                state.source ? apiClient.getPageImageUrl(state.source.filePath, 0, 150) : null
+              }
+              progress={state.agentProgress}
+              agentName={agentDisplayName(state.agentProgress?.currentAgent)}
+              message={progressDisplayMessage(state.agentProgress?.currentMessage)}
+            />
+          ) : (
+            <UploadCard
+              loading={packageBusy}
+              loadingStage={
+                state.stage === 'uploading' || state.stage === 'scanning'
+                  ? state.stage
+                  : undefined
+              }
+              error={state.error}
+              onFile={(file) => void selectFile(file)}
+            />
+          )}
         </main>
       ) : (
-        <main className="flex-1 flex overflow-hidden relative" style={{ minHeight: 0 }}>
-          {/* Left Sheet Panel (Progressive Disclosure) */}
+        <main className="relative flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
           <SidebarLeft
             open={leftSidebarOpen}
             sheetPanelMode={sheetPanelMode}
@@ -737,24 +801,34 @@ export const TakeoffWorkspace: React.FC = () => {
             activeSheetId={state.activeSheetId}
             onSelectSheet={selectSheet}
             projectId={state.projectName || null}
+            onClose={() => setLeftSidebarOpen(false)}
           />
 
-          {/* Central CAD Workstation Viewport */}
-          <div className="flex-1 flex flex-col overflow-hidden relative" style={{ minHeight: 0 }}>
+          <div className="relative flex flex-1 flex-col overflow-hidden" style={{ minHeight: 0 }}>
             <WorkstationHeader
-              sheetNumber={activeSheet.meta.sheet_number}
+              sheetNumber={displaySheetNumber(activeSheet.meta.sheet_number, activeSheet.pageIndex)}
               sheetTitle={activeSheet.meta.sheet_title}
               discipline={activeSheet.meta.discipline}
               scaleRaw={activeSheet.meta.scale_raw}
               scaleOk={Boolean(scaleOk)}
+              sheetType={activeSheet.meta.sheet_type}
               leftSidebarOpen={leftSidebarOpen}
-              onToggleLeftSidebar={() => setLeftSidebarOpen((prev) => !prev)}
+              onToggleLeftSidebar={() => {
+                const nextOpen = !leftSidebarOpen;
+                setLeftSidebarOpen(nextOpen);
+                if (nextOpen && window.innerWidth < 1280) setRightSidebarOpen(false);
+              }}
               rightSidebarOpen={rightSidebarOpen}
-              onToggleRightSidebar={() => setRightSidebarOpen((prev) => !prev)}
+              onToggleRightSidebar={() => {
+                const nextOpen = !rightSidebarOpen;
+                setRightSidebarOpen(nextOpen);
+                if (nextOpen && window.innerWidth < 1280) setLeftSidebarOpen(false);
+              }}
               disciplineFilter={disciplineFilter as 'ALL' | 'Supply' | 'Return' | 'Exhaust'}
               onDisciplineFilterChange={setDisciplineFilter}
               statusFilter={statusFilter as 'ALL' | 'MATCHED' | 'DISCREPANCIES' | 'GHOST'}
               onStatusFilterChange={setStatusFilter}
+              onOpenCopilot={() => setCopilotOpen(true)}
             />
 
             <ViewportContainer
@@ -775,7 +849,6 @@ export const TakeoffWorkspace: React.FC = () => {
                 calibrationResult={calibrationResult}
                 onCalibrationPointsSelected={handleCalibrationPointsSelected}
                 onCalibrationCancel={handleCalibrationCancel}
-                discipline={activeSheet.meta.discipline}
                 selectedPinId={selectedPinId}
                 projectId={state.projectName || null}
                 onViewportSave={handleViewportSave}
@@ -814,6 +887,7 @@ export const TakeoffWorkspace: React.FC = () => {
             rightTab={rightTab}
             onTabChange={setRightTab}
             qaOpenCount={qaOpenCount}
+            onClose={() => setRightSidebarOpen(false)}
           >
             {rightTab === 'ledger' && (
               <LedgerPanel
@@ -872,6 +946,14 @@ export const TakeoffWorkspace: React.FC = () => {
             )}
           </SidebarRight>
         </main>
+      )}
+
+      {showWorkspace && (
+        <ActivityTray
+          progress={state.agentProgress}
+          run={state.agentRun}
+          running={state.stage === 'orchestrating'}
+        />
       )}
 
       {/* Two-point scale calibration dialog + session refresh on confirm */}
@@ -959,18 +1041,6 @@ export const TakeoffWorkspace: React.FC = () => {
         />
       )}
 
-      {/* Persistent Bottom-Right Copilot Quick Trigger */}
-      <button
-        type="button"
-        onClick={() => setCopilotOpen(true)}
-        className="fixed bottom-4 right-4 z-40 flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_8px_25px_rgba(8,145,178,0.4)] cursor-pointer transition-all border border-cyan-400/40 font-mono text-xs"
-        aria-label="Open copilot"
-      >
-        <Sparkles className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
-        <span className="font-semibold">Copilot</span>
-        <span className="text-[10px] bg-cyan-700 px-1.5 py-0.2 rounded text-cyan-200">⌘K</span>
-      </button>
-
       {/* Flyout Copilot Drawer */}
       <CopilotDrawer
         open={copilotOpen}
@@ -990,15 +1060,6 @@ export const TakeoffWorkspace: React.FC = () => {
             prev.map((d) => (d.item_id === id ? { ...d, severity: 'INFO' } : d))
           );
         }}
-      />
-
-      {/* BYOK Meta API Key Dialog */}
-      <ByokDialog
-        open={byokOpen}
-        onClose={() => setByokOpen(false)}
-        configured={state.aiConfigured}
-        maskedKey={null}
-        onChanged={() => void checkBackend()}
       />
     </div>
   );

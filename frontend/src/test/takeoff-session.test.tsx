@@ -8,7 +8,8 @@ vi.mock('../api/client', () => ({
     getHealth: vi.fn(),
     uploadDrawing: vi.fn(),
     scanSheet: vi.fn(),
-    scanAllSheets: vi.fn(),
+    startAgentJob: vi.fn(),
+    streamAgentJobEvents: vi.fn(),
     listTakeoffItems: vi.fn(),
     getTakeoffSummary: vi.fn(),
     updateTakeoffStatus: vi.fn(),
@@ -48,11 +49,25 @@ describe('useTakeoffSession', () => {
     return {
       pdf_path: 'data/uploads/plan.pdf',
       project_id: 'plan',
-      total_pages: 1,
-      sheets: [sheetMeta()],
-      takeoff: [{ sheet_id: 'sheet_m22', run_count: 3, items_created: 3, accepted_count: 3, suggested_count: 0 }],
-      errors: [],
+      sheets_processed: 1,
+      document_map: { sheets: [sheetMeta()] },
+      routes: [],
+      flags: [],
     };
+  }
+
+  function useJobResult(result: ReturnType<typeof scanAllResult>) {
+    mocked.startAgentJob.mockResolvedValue({ job_id: 'job-1', project_id: result.project_id, status: 'running' } as never);
+    mocked.streamAgentJobEvents.mockImplementation(async (_jobId, onEvent) => {
+      const sheets = result.document_map.sheets as ReturnType<typeof sheetMeta>[];
+      onEvent({ event_type: 'sheet_discovered', agent_id: '00-orchestrator', message: 'Discovered', payload: { total_pages: sheets.length } } as never);
+      for (const meta of sheets) {
+        onEvent({ event_type: 'sheet_classified', agent_id: '00-orchestrator', message: 'Classified', page_index: meta.page_index, payload: { sheet_metadata: meta } } as never);
+      }
+      const complete = { event_type: 'complete', job_terminal: true, agent_id: 'agent_00_orchestrator', message: 'Complete', payload: { document_map: { ...result.document_map, routes: result.routes } } } as never;
+      onEvent(complete);
+      return complete;
+    });
   }
 
   it('runs upload → scan-all → ledger and lands ready', async () => {
@@ -62,7 +77,7 @@ describe('useTakeoffSession', () => {
       byte_size: 10,
       sha256: 'abc',
     } as never);
-    mocked.scanAllSheets.mockResolvedValue(scanAllResult() as never);
+    useJobResult(scanAllResult());
 
     const { result } = renderHook(() => useTakeoffSession());
     const file = new File(['%PDF-1.4'], 'plan.pdf', { type: 'application/pdf' });
@@ -72,7 +87,7 @@ describe('useTakeoffSession', () => {
     });
 
     expect(mocked.uploadDrawing).toHaveBeenCalledTimes(1);
-    expect(mocked.scanAllSheets).toHaveBeenCalledWith('data/uploads/plan.pdf', { projectId: 'plan' });
+    expect(mocked.startAgentJob).toHaveBeenCalledWith({ file_path: 'data/uploads/plan.pdf', project_id: 'plan' });
     expect(result.current.state.stage).toBe('ready');
     expect(result.current.state.sheets).toHaveLength(1);
     expect(result.current.state.activeSheetId).toBe('sheet_m22');
@@ -88,11 +103,11 @@ describe('useTakeoffSession', () => {
       sha256: 'abc',
     } as never);
     const second = { ...sheetMeta(), sheet_id: 'sheet_p101', page_index: 1, sheet_number: 'P-101' };
-    mocked.scanAllSheets.mockResolvedValue({
+    useJobResult({
       ...scanAllResult(),
-      total_pages: 2,
-      sheets: [sheetMeta(), second],
-    } as never);
+      sheets_processed: 2,
+      document_map: { sheets: [sheetMeta(), second] },
+    });
 
     const { result } = renderHook(() => useTakeoffSession());
     const file = new File(['%PDF-1.4'], 'set.pdf', { type: 'application/pdf' });
@@ -103,6 +118,27 @@ describe('useTakeoffSession', () => {
 
     expect(result.current.state.sheets).toHaveLength(2);
     expect(result.current.state.activeSheetId).toBe('sheet_m22');
+  });
+
+  it('reloads the ledger after the orchestrator confirms items are persisted', async () => {
+    mocked.startAgentJob.mockResolvedValue({ job_id: 'job-1', project_id: 'plan', status: 'running' } as never);
+    mocked.streamAgentJobEvents.mockImplementation(async (_jobId, onEvent) => {
+      const meta = sheetMeta();
+      onEvent({ event_type: 'sheet_classified', agent_id: 'agent_00_orchestrator', message: 'Classified', payload: { sheet_metadata: meta } } as never);
+      onEvent({ event_type: 'items_emitted', agent_id: 'agent_00_orchestrator', message: 'Persisted 12 items', payload: { sheet_id: meta.sheet_id, item_count: 12 } } as never);
+      const complete = { event_type: 'complete', job_terminal: true, agent_id: 'agent_00_orchestrator', message: 'Complete', payload: { document_map: { sheets: [meta], routes: [] } } } as never;
+      onEvent(complete);
+      return complete;
+    });
+    mocked.listTakeoffItems.mockResolvedValue([{ item_id: 'item-1' }] as never);
+
+    const { result } = renderHook(() => useTakeoffSession());
+    await act(async () => {
+      await result.current.openFixture('fixtures/mechanical/hvac_plan_level2.pdf');
+    });
+
+    expect(mocked.listTakeoffItems).toHaveBeenCalledWith({ project_id: 'hvac_plan_level2', sheet_id: 'sheet_m22' });
+    expect(result.current.state.items).toEqual([{ item_id: 'item-1' }]);
   });
 
   it('rejects non-PDF files without touching the backend', async () => {
@@ -119,15 +155,16 @@ describe('useTakeoffSession', () => {
   });
 
   it('opens fixtures straight into scan-all', async () => {
-    mocked.scanAllSheets.mockResolvedValue(scanAllResult() as never);
+    useJobResult(scanAllResult());
     const { result } = renderHook(() => useTakeoffSession());
 
     await act(async () => {
       await result.current.openFixture('fixtures/mechanical/hvac_plan_level2.pdf');
     });
 
-    expect(mocked.scanAllSheets).toHaveBeenCalledWith('fixtures/mechanical/hvac_plan_level2.pdf', {
-      projectId: 'hvac_plan_level2',
+    expect(mocked.startAgentJob).toHaveBeenCalledWith({
+      file_path: 'fixtures/mechanical/hvac_plan_level2.pdf',
+      project_id: 'hvac_plan_level2',
     });
     expect(result.current.state.stage).toBe('ready');
   });

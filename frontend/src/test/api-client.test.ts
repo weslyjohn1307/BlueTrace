@@ -79,6 +79,7 @@ describe('api client', () => {
     // Backend rejects multipart (no python-multipart by design); body must be the file itself.
     expect(init.body).toBe(file);
     expect(init.body).not.toBeInstanceOf(FormData);
+    expect(init.signal).toBeUndefined();
   });
 
   it('builds page-image URLs with query params', () => {

@@ -39,6 +39,8 @@ export interface SheetMetadata {
   width_pt: number;
   height_pt: number;
   dpi: number;
+  pdf_path?: string | null;
+  sheet_type?: string | null;
 }
 
 export interface PageTextBlock {
@@ -515,6 +517,26 @@ export interface OrchestrateAgentResponse {
   routes: Record<string, unknown>[];
   flags: Record<string, unknown>[];
   sheets_processed: number;
+}
+
+export interface AgentJobEvent {
+  event_id: string;
+  job_id: string;
+  agent_id: string;
+  timestamp: string;
+  event_type: string;
+  job_terminal?: boolean;
+  sheet_id?: string | null;
+  page_index?: number | null;
+  progress: number;
+  message: string;
+  payload: Record<string, unknown>;
+}
+
+export interface AgentJobStarted {
+  job_id: string;
+  project_id: string;
+  status: 'running';
 }
 
 export interface ReconcileAgentRequest {

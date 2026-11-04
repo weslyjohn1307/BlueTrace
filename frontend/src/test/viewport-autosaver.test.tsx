@@ -110,6 +110,13 @@ describe('SheetCanvas viewport autosaver', () => {
     );
   }
 
+  it('uses plain loading status while the page image is fetched', () => {
+    renderCanvas();
+
+    expect(screen.getByTestId('sheet-preview-loading')).toHaveTextContent('Loading drawing page…');
+    expect(screen.queryByText(/ZERO OCR DRIFT|RASTERIZING_VECTOR_LAYERS|laser scan/i)).toBeNull();
+  });
+
   it('never saves on mount or fit init', () => {
     const { container } = renderCanvas();
     primeLoadedImage(container);
@@ -288,6 +295,36 @@ describe('TakeoffWorkspace session wiring (production composition)', () => {
     fireEvent.load(img);
   }
 
+  it('keeps the CAD viewport bounded when the takeoff ledger contains many rows', () => {
+    workspaceHook.state = readyWorkspaceState('data/uploads/plan.pdf', null);
+    const { container } = renderWorkspace();
+
+    expect(container.firstElementChild).toHaveClass('h-screen', 'min-h-0', 'overflow-hidden');
+  });
+
+  it('shows a human-readable package progress state before the first sheet is ready', () => {
+    workspaceHook.state = {
+      ...readyWorkspaceState('data/uploads/plan.pdf', null),
+      stage: 'orchestrating',
+      sheets: [],
+      activeSheetId: null,
+      agentProgress: {
+        jobId: 'job-1',
+        totalPages: 25,
+        classifiedPages: 0,
+        currentAgent: 'agent_00_orchestrator',
+        currentMessage: 'Starting sheet classification',
+        detections: 0,
+        reviewFlags: 0,
+      },
+    };
+    renderWorkspace();
+
+    expect(screen.getByTestId('package-processing-state')).toBeInTheDocument();
+    expect(screen.getByText('Sheet Auditor')).toBeInTheDocument();
+    expect(screen.queryByText('agent_00_orchestrator')).not.toBeInTheDocument();
+  });
+
   it('passes projectId + onViewportSave + initialTransform into the canvas', () => {
     workspaceHook.state = readyWorkspaceState('data/uploads/plan.pdf', {
       scale: 1.45,
@@ -328,12 +365,15 @@ describe('TakeoffWorkspace session wiring (production composition)', () => {
 
     // Honest empty state instead of a broken image request (BLOCKER3).
     expect(
-      screen.getByText('Re-open the PDF to restore page images. Ledger, sheets, and viewport state are intact.')
+      screen.getByText('Reopen the PDF to restore the drawing.')
     ).toBeTruthy();
     expect(container.querySelector('[data-testid="sheet-canvas"]')).toBeNull();
   });
 
   it('toggles the sheets panel between tree (default) and filmstrip navigator', () => {
+    // This composition check covers the wide workstation layout. Narrow
+    // viewports start with panels collapsed into drawers to preserve the canvas.
+    window.innerWidth = 1440;
     workspaceHook.state = readyWorkspaceState('data/uploads/plan.pdf', null);
     renderWorkspace();
 

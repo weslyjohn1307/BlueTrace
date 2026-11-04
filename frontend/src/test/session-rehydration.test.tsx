@@ -17,7 +17,8 @@ vi.mock('../api/client', () => ({
     saveProjectSession: vi.fn(),
   },
   ApiError: class ApiError extends Error {
-    status = 0;
+    status: number;
+    constructor(status: number, message: string) { super(message); this.status = status; }
   },
 }));
 
@@ -116,9 +117,23 @@ describe('useTakeoffSession atomic rehydration', () => {
     });
 
     expect(result.current.state.stage).toBe('failed');
-    expect(result.current.state.error).toContain('connection refused');
+    expect(result.current.state.error).toContain('Check the local connection');
     expect(result.current.state.sheets).toHaveLength(0);
     expect(result.current.state.initialTransform).toBeNull();
+  });
+
+  it('clears an expired saved project and shows a recovery action without exposing its ID', async () => {
+    const staleId = 'Phase 1 Combine Document_page_402_detected_hvac';
+    localStorage.setItem(ACTIVE_PROJECT_SLOT, staleId);
+    const { ApiError } = await import('../api/client');
+    mocked.getProjectSession.mockRejectedValue(new ApiError(404, `Unknown project_id '${staleId}'.`));
+    const { result } = renderHook(() => useTakeoffSession());
+
+    await waitFor(() => expect(result.current.state.error).toContain('Open its PDF'));
+
+    expect(result.current.state.stage).toBe('idle');
+    expect(result.current.state.error).not.toContain(staleId);
+    expect(localStorage.getItem(ACTIVE_PROJECT_SLOT)).toBeNull();
   });
 
   it('falls back to fit (null transform) when the restored viewport is invalid', async () => {
