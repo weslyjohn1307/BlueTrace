@@ -1,0 +1,22 @@
+{
+  "name": "bluetrace-film",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BlueTraceAI 2-minute submission film (Remotion). Isolated from the product frontend.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "still": "remotion still src/index.ts BlueTraceFilm",
+    "render": "remotion render src/index.ts BlueTraceFilm out/bluetrace-film.mp4",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.540",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "remotion": "4.0.540"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.2",
+    "typescript": "~5.8.3"
+  }
+}

@@ -1,0 +1,5 @@
+node_modules/
+out/
+# Real product footage and voiceover may contain non-public drawings; keep local.
+public/footage/
+public/audio/
