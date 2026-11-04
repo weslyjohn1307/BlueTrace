@@ -539,7 +539,9 @@ class TestGeometryAndOrchestratorStressHarness:
 
         # Check flags generated for scale unverified
         scale_flags = [f for f in flags if f["type"] == "SCALE_UNVERIFIED_LINEAR_LOCKED"]
-        assert len(scale_flags) == 2
+        assert len(scale_flags) == 1
+        assert scale_flags[0]["item_count"] == 2
+        assert scale_flags[0]["item_ids"] == ["duct-1", "pipe-1"]
 
     def test_status_gate_coerces_accepted_to_suggested(
         self, orch: OrchestratorAgent, verified_sheet: SheetMetadata
