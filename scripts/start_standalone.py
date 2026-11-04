@@ -14,6 +14,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST_DIR = ROOT / "frontend" / "dist"
+# Running this file directly puts ``scripts/`` at sys.path[0]. Ensure imports
+# such as ``src.api.main`` resolve the same way as ``python -m uvicorn`` from
+# the repository root.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def ensure_frontend_built() -> None:

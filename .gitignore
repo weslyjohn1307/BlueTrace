@@ -67,6 +67,8 @@ docs/HANDOFF_TO_OPENCODE.md
 docs/knowledge/
 scratch/
 fixtures/**/sample_*.pdf
+# Local real-world drawing tests contain proprietary user-provided PDFs.
+/fixtures/local_real_testing/
 
 # ──────────────────────────────────────────────────────────────────────────────
 # INTERNAL — Raw internal specification drafts & design working docs
