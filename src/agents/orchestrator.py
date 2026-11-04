@@ -6,7 +6,9 @@ fail-closed policy gate enforcement, and event stream broadcasting.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -28,6 +30,8 @@ from src.agents.base import (
     ScaleStatus,
     SheetType,
 )
+from src.core_vector.pipeline import infer_discipline
+from src.meta_services.legend_scanner import LegendSymbolEntry
 from src.meta_services.sheet_scanner import SheetScanner
 from src.meta_services.tiling import SheetTilingEngine as SheetTiler
 from src.meta_services.tiling import Tile
@@ -35,6 +39,13 @@ from src.models.schemas import SheetMetadata
 from src.store.takeoff_store import TakeoffRecord, TakeoffStore
 
 logger = logging.getLogger(__name__)
+
+_LEGEND_TEXT = re.compile(
+    r"\b(?:SYMBOLS?\s+LEGEND|LEGEND\s+AND\s+ABBREVIATIONS?|ABBREVIATIONS?|"
+    r"GRAPHICAL\s+SYMBOLS?|EQUIPMENT\s+LEGEND|(?:MECHANICAL|PLUMBING|ELECTRICAL|DUCT|PIPING|PIPE)"
+    r"(?:\s+(?:DUCT|PIPE|PIPING))?\s+SYMBOLS?)\b",
+    re.IGNORECASE,
+)
 
 
 class SheetRoute(BaseModel):
@@ -108,7 +119,9 @@ class OrchestratorAgent(BaseAgent):
         if sheet_type == SheetType.SCHEDULE:
             return [AgentID.AGENT_04_RECONCILER.value]
         if sheet_type == SheetType.LEGEND:
-            return [AgentID.AGENT_02_FINDER.value]
+            # Legend sheets are context for plan detection; running the symbol
+            # finder over the legend page would turn its glyphs into takeoff.
+            return []
         return []
 
     def tile_sheet_for_vlm(self, pdf_path: Path | str, page_index: int, sheet_id: str) -> list[Tile]:
@@ -245,16 +258,106 @@ class OrchestratorAgent(BaseAgent):
             payload={"total_pages": total_pages},
         )
 
-        sheets: list[SheetMetadata] = []
-        routes: list[SheetRoute] = []
+        prior_sheets = context.metadata.get("prior_sheets", [])
+        prior_routes = context.metadata.get("prior_routes", [])
+        sheets: list[SheetMetadata] = [
+            SheetMetadata(**sheet) for sheet in prior_sheets if isinstance(sheet, dict)
+        ] if isinstance(prior_sheets, list) else []
+        routes: list[SheetRoute] = [
+            SheetRoute(**route) for route in prior_routes if isinstance(route, dict)
+        ] if isinstance(prior_routes, list) else []
         unreadable_pages: list[int] = []
+        try:
+            start_page_index = max(0, min(total_pages, int(context.metadata.get("start_page_index", 0))))
+        except (TypeError, ValueError):
+            start_page_index = 0
+
+        # Index native legend headings before specialist dispatch so plan pages
+        # can use evidence from a separate sheet. This scan reads text locally;
+        # raster/model calls are made only through the consent-scoped Finder
+        # client, and mock scans are never admitted as exemplars.
+        legend_context: dict[str, list[LegendSymbolEntry]] = {}
+        finder = self.registry.get(AgentID.AGENT_02_FINDER.value)
+        legend_scanner = getattr(finder, "legend_scanner", None) if finder else None
+        legend_client = getattr(legend_scanner, "client", None)
+        if legend_scanner is not None and legend_client is not None and legend_client.is_configured():
+            try:
+                with self._open_pdf(pdf_path) as legend_doc:
+                    legend_pages: list[tuple[int, str]] = []
+                    for index, page in enumerate(legend_doc):
+                        page_text = page.get_text("text") or ""
+                        if _LEGEND_TEXT.search(page_text):
+                            legend_pages.append((index, page_text))
+                for legend_page_index, page_text in legend_pages:
+                    yield AgentEvent(
+                        job_id=job_id,
+                        agent_id=self.agent_id,
+                        event_type=AgentEventType.PROGRESS,
+                        progress=0.05,
+                        page_index=legend_page_index,
+                        message=f"Reading legend context from page {legend_page_index + 1}",
+                        payload={"phase": "legend_context", "page_index": legend_page_index},
+                    )
+                    legend_result = await asyncio.to_thread(
+                        legend_scanner.scan_sheet, pdf_path, legend_page_index
+                    )
+                    yield AgentEvent(
+                        job_id=job_id,
+                        agent_id=self.agent_id,
+                        event_type=AgentEventType.PROGRESS,
+                        progress=0.07,
+                        page_index=legend_page_index,
+                        message=(
+                            f"Legend scan on page {legend_page_index + 1}: "
+                            f"{len(legend_result.symbols)} symbol exemplars, "
+                            f"{len(legend_result.abbreviations)} abbreviations"
+                        ),
+                        payload={
+                            "phase": "legend_context_result",
+                            "page_index": legend_page_index,
+                            "legend_detected": legend_result.legend_detected,
+                            "symbol_count": len(legend_result.symbols),
+                            "abbreviation_count": len(legend_result.abbreviations),
+                            "legend_bbox_pt": legend_result.legend_bbox_pt,
+                            "confidence": legend_result.confidence,
+                            "review_required": legend_result.review_required,
+                            "mock": legend_result.mock,
+                        },
+                    )
+                    if legend_result.mock or not legend_result.legend_detected or not legend_result.symbols:
+                        continue
+                    raw_discipline = infer_discipline(Path(pdf_path), page_text).upper()
+                    discipline_key = (
+                        "plumbing" if "PLUMB" in raw_discipline else
+                        "electrical" if "ELECT" in raw_discipline else
+                        "mechanical" if "MECH" in raw_discipline else
+                        "general"
+                    )
+                    current = legend_context.setdefault(discipline_key, [])
+                    known = {(entry.label.casefold(), entry.system.casefold(), entry.category.casefold()) for entry in current}
+                    for entry in legend_result.symbols:
+                        key = (entry.label.casefold(), entry.system.casefold(), entry.category.casefold())
+                        if key not in known:
+                            current.append(entry)
+                            known.add(key)
+            except Exception as exc:  # noqa: BLE001
+                # Legend context is optional evidence. A failed reconnaissance
+                # must be reported and must not block local preview or tracing.
+                logger.warning("Legend context reconnaissance failed: %s", exc)
+                yield AgentEvent(
+                    job_id=job_id,
+                    agent_id=self.agent_id,
+                    event_type=AgentEventType.WARNING,
+                    message="Legend context could not be read; symbol review will require manual corroboration.",
+                    payload={"phase": "legend_context", "review_required": True},
+                )
 
         # 2. Process Recon per sheet
         # Use Agent 01 if registered; fallback to native SheetScanner
         recon_agent = self.registry.get(AgentID.AGENT_01_RECON.value)
         scanner = SheetScanner()
 
-        for page_idx in range(total_pages):
+        for page_idx in range(start_page_index, total_pages):
             page_ev_id = ev_gen.mint("page", suffix=f"p{page_idx}")
             try:
                 sheet_meta: SheetMetadata
@@ -290,7 +393,7 @@ class OrchestratorAgent(BaseAgent):
                     elif any(k in title_upper for k in ["PLAN", "FLOOR", "LEVEL"]):
                         sheet_type = SheetType.PLAN
                     else:
-                        sheet_type = SheetType.PLAN
+                        sheet_type = SheetType.OTHER
 
                 sheet_ev_id = ev_gen.mint_sheet_evidence(sheet_meta.sheet_id)
                 tb_ev_id = ev_gen.mint_title_block_evidence(sheet_meta.sheet_id)
@@ -316,6 +419,12 @@ class OrchestratorAgent(BaseAgent):
 
                 # 3. Apply Routing
                 target_agents = self.route_sheet_type(sheet_type)
+                if context.metadata.get("analysis_scope") == "vision":
+                    target_agents = [
+                        agent_id
+                        for agent_id in target_agents
+                        if agent_id != AgentID.AGENT_03_TRACER.value
+                    ]
                 status_val: Literal["routed", "skipped", "unreadable"] = "routed" if target_agents else "skipped"
                 scale_stat = (
                     ScaleStatus(sheet_meta.scale_status)
@@ -387,10 +496,23 @@ class OrchestratorAgent(BaseAgent):
                         # Execute agent and stream events
                         items_collected: list[TakeoffRecord] = []
                         if hasattr(agent, "run_stream"):
+                            agent_kwargs: dict[str, Any] = {}
+                            if target_agent_id == AgentID.AGENT_02_FINDER.value:
+                                discipline_name = sheet_meta.discipline.upper()
+                                discipline_key = (
+                                    "plumbing" if "PLUMB" in discipline_name else
+                                    "electrical" if "ELECT" in discipline_name else
+                                    "mechanical" if "MECH" in discipline_name else
+                                    "general"
+                                )
+                                entries = legend_context.get(discipline_key, [])
+                                if entries:
+                                    agent_kwargs["legend_crops"] = entries
                             async for sub_ev in agent.run_stream(
                                 context,
                                 sheet_metadata=sheet_meta,
                                 page_index=page_idx,
+                                **agent_kwargs,
                             ):
                                 yield sub_ev
                                 if sub_ev.event_type == AgentEventType.ITEMS_EMITTED:
@@ -443,6 +565,7 @@ class OrchestratorAgent(BaseAgent):
                                 "agent_id": agent.agent_id,
                                 "item_count": len(sanitized_items),
                                 "flags_count": len(gate_flags),
+                                "persisted": True,
                             },
                         )
 

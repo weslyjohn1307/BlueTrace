@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import openai
+import pymupdf
 import pytest
 
 from src.meta_services.client import MetaModelClient
@@ -36,6 +37,32 @@ from src.meta_services.tiling import (
 
 FIXTURE_MECH = Path("fixtures/mechanical/hvac_plan_level2.pdf")
 FIXTURE_PLUMB = Path("fixtures/plumbing/plumbing_plan_level4.pdf")
+
+
+def test_legend_tile_prefers_symbol_legend_and_rotates_text_bounds():
+    """Rotated sheets must crop the explicit symbol legend, not nearby abbreviations."""
+    doc = pymupdf.open()
+    try:
+        page = doc.new_page(width=2600, height=2000)
+        page.insert_text((50, 100), "SYSTEM ABBREVIATIONS")
+        page.insert_text((1000, 500), "PLUMBING SYMBOL LEGEND")
+        page.draw_rect(pymupdf.Rect(990, 520, 1800, 1000), color=(0, 0, 0), width=2)
+        page.set_rotation(90)
+
+        blocks = page.get_text("blocks")
+        abbreviation = next(b for b in blocks if "SYSTEM ABBREVIATIONS" in b[4])
+        legend = next(b for b in blocks if "PLUMBING SYMBOL LEGEND" in b[4])
+        abbreviation_center = pymupdf.Rect(abbreviation[:4]) * page.rotation_matrix
+        legend_center = pymupdf.Rect(legend[:4]) * page.rotation_matrix
+        abbreviation_center = pymupdf.Point(abbreviation_center.x0, abbreviation_center.y0)
+        legend_center = pymupdf.Point(legend_center.x0, legend_center.y0)
+
+        tile = LegendScanner._locate_legend_tile(page)
+
+        assert tile.contains(legend_center)
+        assert not tile.contains(abbreviation_center)
+    finally:
+        doc.close()
 
 
 # ---------------------------------------------------------------------------

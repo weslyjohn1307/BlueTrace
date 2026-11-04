@@ -35,7 +35,7 @@ class SheetMetadata(BaseModel):
     discipline: Literal["MECHANICAL", "ELECTRICAL", "PLUMBING", "ARCHITECTURAL", "GENERAL"]
     scale_raw: str | None = None
     scale_ratio: float | None = None
-    scale_status: Literal["VERIFIED", "UNVERIFIED", "CALIBRATED"] = "UNVERIFIED"
+    scale_status: Literal["VERIFIED", "UNVERIFIED", "CALIBRATED", "CONFLICT"] = "UNVERIFIED"
     width_pt: float
     height_pt: float
     dpi: int = 150

@@ -160,9 +160,7 @@ class TestOrchestratorAgent:
         assert orch.route_sheet_type(SheetType.SCHEDULE) == [
             AgentID.AGENT_04_RECONCILER.value,
         ]
-        assert orch.route_sheet_type(SheetType.LEGEND) == [
-            AgentID.AGENT_02_FINDER.value,
-        ]
+        assert orch.route_sheet_type(SheetType.LEGEND) == []
         assert orch.route_sheet_type(SheetType.DETAIL) == []
         assert orch.route_sheet_type(SheetType.RISER) == []
         assert orch.route_sheet_type(SheetType.OTHER) == []

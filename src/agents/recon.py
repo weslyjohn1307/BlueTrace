@@ -61,7 +61,8 @@ _SCHEDULE_KEYWORDS = re.compile(
 )
 
 _LEGEND_KEYWORDS = re.compile(
-    r"\b(SYMBOLS?\s+LEGEND|LEGEND\s+AND\s+ABBREVIATIONS?|GENERAL\s+NOTES?\s+AND\s+LEGEND|ABBREVIATIONS?)\b",
+    r"\b(SYMBOLS?\s+LEGEND|LEGEND\s+AND\s+ABBREVIATIONS?|GENERAL\s+NOTES?\s+AND\s+LEGEND|ABBREVIATIONS?|"
+    r"(?:MECHANICAL|PLUMBING|ELECTRICAL|DUCT|PIPING|PIPE)(?:\s+(?:DUCT|PIPE|PIPING))?\s+SYMBOLS?)\b",
     re.IGNORECASE,
 )
 _LEGEND_SHEET_ID_PATTERN = re.compile(r"^[A-Z]{1,3}-?00\d?$|^[A-Z]{1,3}-?01$", re.IGNORECASE)
@@ -72,7 +73,13 @@ _PLAN_KEYWORDS = re.compile(
 )
 
 _OTHER_KEYWORDS = re.compile(
-    r"\b(COVER\s+SHEET|TITLE\s+SHEET|DRAWING\s+INDEX|SHEET\s+INDEX|CODE\s+COMPLIANCE)\b",
+    r"\b(COVER\s+SHEET|TITLE\s+SHEET|DRAWING\s+INDEX|SHEET\s+INDEX|CODE\s+COMPLIANCE|"
+    r"PLAN\s+REVIEW|ACCEPTANCE|PERMIT\s+REVIEW)\b",
+    re.IGNORECASE,
+)
+
+_NUMBERED_DETAIL_HEADING = re.compile(
+    r"\b(?:SP|SU|P|M|E|H|FP)\s*\d{1,3}\b[^\n]{0,100}\bDETAIL\b",
     re.IGNORECASE,
 )
 
@@ -117,11 +124,13 @@ class SheetReconResult(BaseModel):
 
     def to_metadata(self) -> SheetMetadata:
         """Export to backwards-compatible SheetMetadata for existing consumers."""
-        meta_status: Literal["VERIFIED", "UNVERIFIED", "CALIBRATED"]
+        meta_status: Literal["VERIFIED", "UNVERIFIED", "CALIBRATED", "CONFLICT"]
         if self.scale_status == ScaleStatus.VERIFIED:
             meta_status = "VERIFIED"
         elif self.scale_status == ScaleStatus.CALIBRATED:
             meta_status = "CALIBRATED"
+        elif self.scale_status == ScaleStatus.CONFLICT:
+            meta_status = "CONFLICT"
         else:
             meta_status = "UNVERIFIED"
 
@@ -192,9 +201,17 @@ class ReconAgent(BaseAgent):
             return SheetType.RISER, reasons
 
         # 2. Legend / Abbreviation
-        if _LEGEND_KEYWORDS.search(title) or (
-            _LEGEND_SHEET_ID_PATTERN.match(sheet_number) and "LEGEND" in role_text.upper()
-        ):
+        first_page_heading = " ".join(text.splitlines()[:12])
+        has_legend_role = bool(
+            _LEGEND_KEYWORDS.search(title)
+            or _LEGEND_KEYWORDS.search(first_page_heading)
+            or (
+                _LEGEND_KEYWORDS.search(text)
+                and not _PLAN_KEYWORDS.search(title)
+            )
+            or (_LEGEND_SHEET_ID_PATTERN.match(sheet_number) and "LEGEND" in role_text.upper())
+        )
+        if has_legend_role:
             reasons.append("Matched legend title or sheet ID")
             return SheetType.LEGEND, reasons
 
@@ -204,27 +221,29 @@ class ReconAgent(BaseAgent):
             return SheetType.SCHEDULE, reasons
 
         # 4. Details / Sections
-        if _DETAIL_KEYWORDS.search(title) or _DETAIL_SHEET_ID_PATTERN.match(sheet_number):
+        detail_headings = _NUMBERED_DETAIL_HEADING.findall(text)
+        if (
+            _DETAIL_KEYWORDS.search(title)
+            or _DETAIL_SHEET_ID_PATTERN.match(sheet_number)
+            or (len(detail_headings) >= 2 and not _PLAN_KEYWORDS.search(title))
+        ):
             reasons.append("Matched detail keyword or 500-series sheet ID")
             return SheetType.DETAIL, reasons
+
+        # Information and approval pages can mention "plan" in their title.
+        if _OTHER_KEYWORDS.search(title):
+            reasons.append("Matched title/cover/index keyword")
+            return SheetType.OTHER, reasons
 
         # 5. Plan
         if _PLAN_KEYWORDS.search(title):
             reasons.append("Matched plan keyword in sheet title")
             return SheetType.PLAN, reasons
 
-        # 6. Other (Cover, Index, General)
-        if _OTHER_KEYWORDS.search(title):
-            reasons.append("Matched title/cover/index keyword")
-            return SheetType.OTHER, reasons
-
-        # Do not classify a plan from incidental text like "FIRE RISER" or
-        # "PANEL SCHEDULE" in its notes. With no title-block role, default to
-        # plan routing; scale and downstream evidence gates still fail closed.
-
-        # Default fallback
-        reasons.append("Defaulted based on general linework presence")
-        return SheetType.PLAN, reasons
+        # Missing title evidence is not enough to send a page through plan
+        # takeoff. Keep it browsable and let an engineer classify it.
+        reasons.append("No explicit plan or information-sheet role found; retained without specialist routing")
+        return SheetType.OTHER, reasons
 
     @staticmethod
     def evaluate_scales(

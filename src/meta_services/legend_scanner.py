@@ -199,8 +199,20 @@ class LegendScanner:
             blocks = page.get_text("blocks")
             candidate_blocks = [b for b in blocks if header_pattern.search(b[4])]
             if candidate_blocks:
-                b = candidate_blocks[0]
-                bx0, by0, _bx1, by1 = b[0], b[1], b[2], b[3]
+                # Prefer the actual symbol legend heading over nearby
+                # abbreviations or notes. PDF text blocks are returned in the
+                # page's unrotated coordinate space, while raster clips use
+                # the displayed (rotated) page coordinates.
+                symbol_legend_pattern = re.compile(
+                    r"\b(?:SYMBOLS?\s+LEGEND|GRAPHICAL\s+SYMBOLS?|EQUIPMENT\s+LEGEND)\b",
+                    re.IGNORECASE,
+                )
+                b = next(
+                    (block for block in candidate_blocks if symbol_legend_pattern.search(block[4])),
+                    candidate_blocks[0],
+                )
+                heading_rect = pymupdf.Rect(b[:4]) * page.rotation_matrix
+                bx0, by0, _bx1, by1 = heading_rect
                 tile_rect = pymupdf.Rect(
                     max(0.0, bx0 - 50.0),
                     max(0.0, by0 - 20.0),

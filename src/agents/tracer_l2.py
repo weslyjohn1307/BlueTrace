@@ -849,7 +849,7 @@ class TracerL2Agent(BaseAgent):
             fallback_code = (
                 "TOPOLOGY_DENSITY_FALLBACK" if density_fallback else "TOPOLOGY_EMPTY_FALLBACK"
             )
-            junction_flags = [{
+            junction_flags: list[dict[str, Any]] = [{
                 "flag_id": uuid.uuid4().hex[:12],
                 "type": fallback_code,
                 "severity": "HIGH",
@@ -864,6 +864,44 @@ class TracerL2Agent(BaseAgent):
             }]
         else:
             split_runs, junction_flags = self.resolve_junction_topology(labeled_runs)
+
+        # Intersections are audit details, but emitting one live event per
+        # crossing floods the package review surface on dense CAD sheets.
+        # Keep the count, subtype breakdown, affected path ids, and a few
+        # example coordinates in one review flag per sheet.
+        ambiguous_flags = [
+            flag for flag in junction_flags
+            if flag.get("type") == "AMBIGUOUS_JUNCTION_SPLIT"
+        ]
+        if len(ambiguous_flags) > 1:
+            subtype_counts: dict[str, int] = {}
+            affected_paths: set[int] = set()
+            sample_coordinates: list[list[float]] = []
+            for flag in ambiguous_flags:
+                subtype = str(flag.get("junction_subtype", "CROSSING"))
+                subtype_counts[subtype] = subtype_counts.get(subtype, 0) + 1
+                paths: list[Any] = flag.get("paths", []) if isinstance(flag.get("paths"), list) else []
+                affected_paths.update(path for path in paths if isinstance(path, int))
+                coordinates = flag.get("coordinates")
+                if isinstance(coordinates, list) and len(sample_coordinates) < 8:
+                    sample_coordinates.append(coordinates)
+            junction_flags = [
+                flag for flag in junction_flags
+                if flag.get("type") != "AMBIGUOUS_JUNCTION_SPLIT"
+            ]
+            junction_flags.append({
+                "flag_id": uuid.uuid4().hex[:12],
+                "type": "AMBIGUOUS_JUNCTION_SPLIT",
+                "severity": "WARNING",
+                "message": (
+                    f"{len(ambiguous_flags)} ambiguous junctions were kept split on this sheet. "
+                    "Review the affected linework before accepting connected runs."
+                ),
+                "junction_count": len(ambiguous_flags),
+                "junction_subtypes": subtype_counts,
+                "affected_path_count": len(affected_paths),
+                "sample_coordinates": sample_coordinates,
+            })
 
         # Emit junction flags as AgentEventType.FLAG_RAISED
         for flag in junction_flags:
@@ -902,7 +940,11 @@ class TracerL2Agent(BaseAgent):
         )
 
         # 5. Construct TakeoffRecords with Fail-Closed Scale Rule
-        records = self.to_takeoff_records(split_runs, meta, ev_gen, project_id=context.project_id)
+        records = (
+            []
+            if fallback_review
+            else self.to_takeoff_records(split_runs, meta, ev_gen, project_id=context.project_id)
+        )
 
         yield AgentEvent(
             job_id=job_id,
@@ -911,8 +953,18 @@ class TracerL2Agent(BaseAgent):
             sheet_id=sheet_ident,
             page_index=page_index,
             progress=0.90,
-            message=f"Emitted {len(records)} linear linework takeoff items",
-            payload={"items": [r.model_dump() for r in records], "item_count": len(records)},
+            message=(
+                f"Suppressed {len(split_runs)} fallback linework candidates; topology needs engineer review"
+                if fallback_review
+                else f"Emitted {len(records)} linear linework takeoff items"
+            ),
+            payload={
+                "items": [r.model_dump() for r in records],
+                "item_count": len(records),
+                "candidate_count": len(split_runs),
+                "suppressed_fallback": fallback_review,
+                "review_required": fallback_review,
+            },
         )
 
         elapsed = round(time.monotonic() - start_time, 2)

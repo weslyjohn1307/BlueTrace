@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowDown, ArrowRight, Check, MoveUpRight } from 'lucide-react';
+import { BrandIcon, BrandSymbol } from '../../components/brand/BrandAssets';
 import { ShowcaseSceneCanvas } from './ShowcaseSceneCanvas';
 import type { HoveredSceneItem, ShowcaseBeat, ShowcaseSystem } from './showcaseScene';
 import './showcase.css';
@@ -92,7 +93,7 @@ export function ShowcasePage() {
       <a className="skip-to-main" href="#showcase-intro">Skip to the story</a>
       <header className="showcase-header">
         <a className="showcase-wordmark" href="#showcase-intro" aria-label="BlueTraceAI, back to top">
-          <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
+          <BrandSymbol size={22} variant="color" className="shrink-0" />
           <span>BlueTrace<span className="brand-ai">AI</span></span>
         </a>
         <nav className="showcase-nav" aria-label="Page navigation">
@@ -129,7 +130,7 @@ export function ShowcasePage() {
           </aside>
 
           <section className="story-chapter origin-chapter" id="showcase-origin" aria-labelledby="origin-title">
-            <p className="chapter-index"><span>02</span> Why this project</p>
+            <p className="chapter-index"><BrandIcon name="layers" size={15} className="chapter-brand-icon" /><span>02</span> Why this project</p>
             <h2 id="origin-title">Every quantity<br />starts somewhere.</h2>
             <p>I started BlueTraceAI with a question: can software help read an MEP drawing while keeping every quantity tied to its source and reviewer?</p>
             <div className="answer-note">
@@ -139,7 +140,7 @@ export function ShowcasePage() {
           </section>
 
           <section className="story-chapter demo-chapter" id="showcase-demo" aria-labelledby="demo-title">
-            <p className="chapter-index"><span>03</span> Product demo</p>
+            <p className="chapter-index"><BrandIcon name="measure" size={15} className="chapter-brand-icon" /><span>03</span> Product demo</p>
             <h2 id="demo-title">A drawing has layers.</h2>
             <p>Choose a trade in the model. Hover a route to inspect its label and source context.</p>
             <div className="demo-instruction">
@@ -152,7 +153,7 @@ export function ShowcasePage() {
           </section>
 
           <section className="story-chapter review-chapter" id="showcase-review" aria-labelledby="review-title">
-            <p className="chapter-index"><span>04</span> The trust boundary</p>
+            <p className="chapter-index"><BrandIcon name="review" size={15} className="chapter-brand-icon" /><span>04</span> The trust boundary</p>
             <h2 id="review-title">No scale.<br /><em>No number.</em></h2>
             <p>When scale is unverified, the quantity stays out of the ledger until a person can review it.</p>
             <div className={`review-state${reviewStaged ? ' is-staged' : ''}`}>
@@ -167,7 +168,7 @@ export function ShowcasePage() {
           </section>
 
           <section className="story-chapter pipeline-chapter" id="showcase-pipeline" aria-labelledby="pipeline-title">
-            <p className="chapter-index"><span>05</span> Hackathon pipeline</p>
+            <p className="chapter-index"><BrandIcon name="detect" size={15} className="chapter-brand-icon" /><span>05</span> Hackathon pipeline</p>
             <h2 id="pipeline-title">A careful path<br />through the sheet.</h2>
             <p>The project combines model-assisted reading with local geometry and a human review gate.</p>
             <ol className="pipeline-list">
@@ -180,7 +181,7 @@ export function ShowcasePage() {
           </section>
 
           <section className="story-chapter project-chapter" id="showcase-project" aria-labelledby="project-title">
-            <p className="chapter-index"><span>06</span> Project overview</p>
+            <p className="chapter-index"><BrandIcon name="project" size={15} className="chapter-brand-icon" /><span>06</span> Project overview</p>
             <h2 id="project-title">The work before<br />the hackathon.</h2>
             <p>BlueTraceAI began as an MEP takeoff workspace. The hackathon extends that foundation toward a more coordinated, evidence-led workflow.</p>
             <div className="project-origin-line">
@@ -196,19 +197,25 @@ export function ShowcasePage() {
       </main>
 
       <footer className="showcase-footer" id="showcase-footer">
-        <div className="footer-mark" aria-hidden="true"><i /><i /><i /></div>
+        <div className="footer-mark" aria-hidden="true">
+          <BrandSymbol size={34} variant="dark-surface" />
+        </div>
         <div className="footer-copy">
-          <p className="footer-label">MADE BY</p>
+          <p className="footer-label">
+            <span className="footer-label-dot" aria-hidden="true" />
+            Designed &amp; Developed By
+          </p>
           <h2>Wesly John</h2>
-          <p>Independent developer · BlueTraceAI</p>
+          <p className="footer-role">Independent Developer · <strong>BlueTraceAI</strong></p>
         </div>
         <p className="footer-note">A work in progress, built around one rule:<br /><em>show the evidence.</em></p>
         <div className="footer-links">
-          <a href="https://github.com/weslyjohn1307/BlueTrace" target="_blank" rel="noreferrer">GitHub <MoveUpRight size={13} aria-hidden="true" /></a>
-          <a href="https://github.com/weslyjohn1307/BlueTrace/blob/main/README.md" target="_blank" rel="noreferrer">Project README <MoveUpRight size={13} aria-hidden="true" /></a>
+          <a href="https://github.com/weslyjohn1307/BlueTrace" target="_blank" rel="noreferrer">Repository <MoveUpRight size={13} aria-hidden="true" /></a>
+          <a href="https://github.com/weslyjohn1307" target="_blank" rel="noreferrer">Wesly John (@weslyjohn1307) <MoveUpRight size={13} aria-hidden="true" /></a>
+          <a href="https://github.com/weslyjohn1307/BlueTrace/blob/main/README.md" target="_blank" rel="noreferrer">Project Architecture <MoveUpRight size={13} aria-hidden="true" /></a>
           <a href="#showcase-intro">Back to top <ArrowDown size={13} aria-hidden="true" /></a>
         </div>
-        <div className="footer-colophon"><span>BLUE TRACE / 2026</span><span>ILLUSTRATIVE DEMO · SYNTHETIC LINEWORK</span></div>
+        <div className="footer-colophon"><span>BLUETRACE AI · META DEVELOPER HACKATHON 2026</span><span>GROUNDED MEP DRAWING INTELLIGENCE</span></div>
       </footer>
     </div>
   );
