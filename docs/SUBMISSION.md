@@ -1,53 +1,54 @@
 # BlueTraceAI — Hackathon Submission Story
 
 > **Meta Global AI Developer Hackathon (2026)**  
-> **Track:** Indie Developer & Startup Track — *Push the Frontier*  
+> **Track:** Indie Developer Track — *Push the Frontier*  
 > **Author:** Wesly John  
-> **Interactive Showcase:** [weslyjohn1307.github.io/BlueTrace](https://weslyjohn1307.github.io/BlueTrace/)  
+> **Interactive Concept Showcase:** [weslyjohn1307.github.io/BlueTrace](https://weslyjohn1307.github.io/BlueTrace/)  
 > **Repository:** [github.com/weslyjohn1307/BlueTrace](https://github.com/weslyjohn1307/BlueTrace)  
-> **Demo Film:** `film/out/bluetrace-film-master.mp4` (Included in repository release assets)
+> **Master Demo Film (X Post):** [x.com/Weslyjohn1307/status/2118101699739140558](https://x.com/Weslyjohn1307/status/2118101699739140558)  
+> **Master Demo Film (GitHub Web Player):** [`docs/assets/BlueTraceAI_Demo.mp4`](https://github.com/weslyjohn1307/BlueTrace/blob/master/docs/assets/BlueTraceAI_Demo.mp4) (2:00 min • 1080p • Voiceover Narration)
 
 ---
 
-## 1. The Problem That Kept Us Up
+## 1. The Reality of Commercial Construction Bidding
 
-In commercial building construction, estimating is where projects are won or lost.
+In commercial construction, estimating is where jobs are won or lost.
 
-Every Monday morning, mechanical, electrical, and plumbing (MEP) subcontractors receive massive drawing sets—fifty to two hundred large-format architectural sheets ($36" \times 48"$, Arch E). By Thursday afternoon, they must submit a hard, binding dollar bid.
+Every Monday morning, mechanical, electrical, and plumbing (MEP) subcontractors receive massive drawing sets: fifty to two hundred large-format architectural sheets ($36 \times 48\text{ in}$, Arch E). By Thursday afternoon, they must submit a hard, binding dollar bid.
 
-To calculate that bid, human estimators spend thirty to forty grueling hours hunched over digitizer tablets or clicking point-by-point through desktop viewer software. They trace thousands of linear feet of sheet metal ductwork, count every fire damper and VAV box, and cross-reference tiny schedules tucked into drawing corners.
+To build that bid, an estimator spends thirty to forty hours clicking through desktop viewer software or measuring with digitizer tablets. They trace thousands of feet of sheet metal ductwork, count every fire damper, diffuser, and VAV box, and cross-reference tiny equipment schedules tucked into sheet corners.
 
-The economic reality is unforgiving:
-- Commercial subcontractor net margins hover between **3% and 5%**.
-- A **15% error** in ductwork metal tonnage or linear footage doesn't just cut into profits—it can bankrupt a family-owned trade contractor on a single job.
-- Conversely, overestimating out of fear means bidding too high and losing the job to a competitor.
+The economics are unforgiving:
+- Subcontractor net profit margins typically run between **3% and 5%**.
+- A **15% undercount** in ductwork linear footage or sheet metal weight can wipe out all profit on a commercial job.
+- Overestimating out of caution means pricing too high and losing the award to a competitor.
 
-When we set out to build BlueTraceAI, we asked ourselves: *Why hasn't artificial intelligence solved this yet?*
-
----
-
-## 2. The Trap: Why Generic AI Fails on Blueprints
-
-The standard instinct in modern AI development is simple: take the blueprint PDF, pass it into a multimodal Vision-Language Model (VLM), and ask: *"How many linear feet of supply duct are on this sheet?"*
-
-Every team that tries this approach hits a brick wall. Here is why:
-
-### 1. Resolution Collapse
-Large-format blueprints are dense engineering schematics containing thousands of vector paths and micro-typography annotations ($6\text{ pt}$ labels like `30x16 SA-A`). Downsampling a $5000 \times 3500\text{ px}$ drawing to fit a standard model context window ($1024 \times 1024\text{ px}$) destroys the drawing. Line weights blur together, text callouts turn into illegible noise, and parallel duct walls become solid blobs.
-
-### 2. Probabilistic Geometry
-Foundation models are probabilistic sequence predictors. They are brilliant at semantic understanding, pattern recognition, and synthesis, but they possess **no native Euclidean coordinate space**. When an LLM says a duct is *"approximately 42 feet long,"* it isn't measuring; it is guessing what a plausible duct length sounds like. In construction bidding, an ungrounded guess is worse than useless—it is dangerous.
-
-### 3. Scale Chaos & Multi-Scale Sheets
-Blueprints rarely have one uniform scale. A single mechanical sheet frequently features an overall floor plan at $1/8" = 1'-0"$, an enlarged mechanical room plan at $1/4" = 1'-0"$, and equipment connection details at $1/2" = 1'-0"$. A vision model processing the whole image cannot reliably maintain distinct coordinate transformations across different viewports.
+Commercial estimating demands precision, yet it remains one of the most tedious manual bottlenecks in the entire building industry.
 
 ---
 
-## 3. The Core Breakthrough: The Hybrid Division of Labor
+## 2. Why Feeding Blueprints to Standard Multimodal LLMs Fails
 
-We realized that to solve takeoff, we had to reject the idea of an "all-in-one" black box. Instead, we established an absolute architectural boundary:
+When developers first approach this problem, their first instinct is understandable: take a high-resolution blueprint PDF, send it to a multimodal vision model, and ask: *"How many linear feet of supply duct are on this sheet?"*
 
-> **Vectors measure. Models interpret. Engineers approve.**
+Every team that tests this in production hits three fundamental walls:
+
+### 1. Resolution Loss
+Large-format blueprints are dense technical schematics with thousands of vector lines and tiny $6\text{ pt}$ text callouts (like `30x16 SA-A`). When an image is downscaled to fit standard model resolution limits (e.g. $1024 \times 1024\text{ px}$), the linework turns into noise. Parallel duct walls merge into single dark strokes, and dimensions become unreadable blur.
+
+### 2. Coordinate Prediction vs. Euclidean Geometry
+Foundation models predict plausible token sequences; they do not calculate physical space. When an LLM estimates that a duct is *"around 42 feet long,"* it is generating what a plausible answer sounds like based on training data. In construction bidding, an ungrounded guess is dangerous.
+
+### 3. Mixed Scales Across the Same Page
+Blueprints rarely use a single scale. A standard mechanical sheet often contains an overall floor plan at $1/8" = 1'-0"$, an enlarged mechanical room layout at $1/4" = 1'-0"$, and connection details at $1/2" = 1'-0"$. A vision model inspecting the whole sheet cannot maintain distinct coordinate transformations across different viewports without drifting.
+
+---
+
+## 3. The Architecture: Deterministic Math Meets Foundation Models
+
+To solve blueprint takeoff reliably, we have to divide the work based on what computers and models each do best:
+
+> **Vectors measure. Models read. The estimator approves.**
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -57,112 +58,113 @@ We realized that to solve takeoff, we had to reject the idea of an "all-in-one" 
 │   (Geometry, Math, Persistence)   │   (Perception, Reading, Reasoning) │
 ├───────────────────────────────────┼────────────────────────────────────┤
 │ • PyMuPDF vector path extraction  │ • Muse Spark 1.3: Point-of-need    │
-│ • Shapely parallel wall pairing   │   micro-OCR & legend exemplars     │
-│ • NetworkX centerline & T-junction│ • SAM 3.1: Equipment polygon       │
-│ • Validated scale math conversion │   boundary segmentation            │
+│ • Shapely parallel wall pairing   │   micro-OCR on 150 DPI crops       │
+│ • NetworkX centerline continuity  │ • SAM 3.1: Equipment polygon       │
+│ • Verified scale ratio conversion │   boundary segmentation            │
 │ • SQLite WAL transactional ledger │ • Muse Wonder 1.0: Copilot         │
 │ • Fail-closed scale validator     │   reasoning over SQLite evidence   │
 └───────────────────────────────────┴────────────────────────────────────┘
 ```
 
-### Local Deterministic Engine (The Precision Ruler)
-- **PyMuPDF (`src/core_vector/extractor.py`):** Extracts pristine PDF vector linework directly from the document graphics state without rasterization loss.
-- **Shapely (`src/core_vector/centerline.py`):** Identifies pairs of parallel stroke segments, verifies aspect ratios and duct corridor widths, and computes mathematical medial-axis centerlines.
-- **NetworkX (`src/core_vector/continuity.py`):** Splices continuous runs, resolves elbows and T-junctions, and builds an accurate topological graph of the ventilation network.
-- **Scale Math:** PDF point lengths ($72\text{ pt/in}$, $864\text{ pt/ft}$) convert to physical linear feet only through an explicit, verified scale ratio:
+### Deterministic Local Engine (Geometry & Math)
+- **PyMuPDF (`src/core_vector/extractor.py`):** Extracts raw PDF vector strokes directly from the document graphics state without raster loss.
+- **Shapely (`src/core_vector/centerline.py`):** Identifies pairs of parallel duct strokes, checks aspect ratios and corridor widths, and computes true medial-axis centerlines.
+- **NetworkX (`src/core_vector/continuity.py`):** Connects duct runs through elbows and tees to build a clean topological graph of the network.
+- **Scale Math:** Vector points ($72\text{ pt/in}$, $864\text{ pt/ft}$) convert to physical feet only through an explicit, verified scale ratio:
   $$L_{\text{ft}} = \frac{L_{\text{pt}} \times S_{\text{ratio}}}{864}$$
 
-### Meta Foundation Models (The Intelligent Eyes & Brain)
-- **Muse Spark 1.3 (`src/meta_services/client.py`):** Solves the resolution problem through **point-of-need cropping**. Instead of downsampling the sheet, the frontend sends high-resolution $150\text{ DPI}$ crops ($300 \times 300\text{ px}$) around the cursor. Spark reads duct dimensions (`30x16`), airflow designations (`SA-A`), and CFM callouts with sub-350ms latency.
-- **SAM 3.1 (`src/meta_services/client.py`):** Provides instant boundary segmentation for complex, non-orthogonal mechanical equipment (chillers, air handling units, cooling towers) where raw vector strokes alone do not form closed primitives.
-- **Muse Wonder 1.0 (`src/agents/copilot_judge.py`):** Acts as the **Takeoff Copilot-Judge**. Wonder does not make up facts. When an estimator asks *"What is the total footage of low-pressure supply duct on Level 2?"*, Wonder executes read-only SQL queries against the local SQLite ledger, verifies the data, and returns answers with clickable coordinate citations (`ev:M-201:duct:1420:850`) that smoothly pan and zoom the drawing canvas.
+### Meta Foundation Models (Reading & Reasoning)
+- **Muse Spark 1.3 (`src/meta_services/client.py`):** Solves the resolution issue through **point-of-need cropping**. Rather than compressing the whole sheet, the interface sends small, high-resolution 150 DPI crops ($300 \times 300\text{ px}$) around the cursor. Spark reads duct sizes (`30x16`), airflow tags (`SA-A`), and CFM callouts in under 350 milliseconds.
+- **SAM 3.1 (`src/meta_services/client.py`):** Isolates boundaries for non-rectangular mechanical equipment (such as chillers, pumps, and air handling units) where raw CAD strokes do not form closed geometric shapes.
+- **Muse Wonder 1.0 (`src/agents/copilot_judge.py`):** Serves as the **Takeoff Copilot**. Wonder does not guess quantities from memory. When an estimator asks *"What is the total footage of low-pressure supply duct on Level 2?"*, Wonder queries the local SQLite database, calculates the total from verified items, and returns answers with clickable coordinate citations (`ev:M-201:duct:1420:850`) that smoothly pan the drawing canvas to the exact run.
 
 ---
 
-## 4. Architectural Invariants: The Guardrails
+## 4. Engineering Guardrails for Estimator Trust
 
-To build trust with seasoned construction estimators, we baked strict engineering invariants into the system core:
+Experienced estimators will not trust a black box that asks for blind faith. We built three core safeguards into the foundation:
 
-### 1. Fail-Closed Scale Invariant
-If a drawing has no detected scale, an uncalibrated scale bar, or conflicting scale notes between details, the system flags `scale_ratio = 0.0` and `review_required = True`.
-- Detected linework is drawn on the canvas so the estimator can see the geometry.
-- But **linear footage remains 0.00 ft**.
-- The API returns `HTTP 409 Conflict` if anyone attempts to accept uncalibrated items into the ledger before performing two-point calibration (`PATCH /api/sheets/{sheet_id}/calibration`).
-- **We never guess a scale.**
+### 1. Fail-Closed Scale Rule
+If a drawing lacks a scale, has an uncalibrated graphic bar, or contains conflicting scale callouts between details, the system sets `scale_ratio = 0.0` and flags `review_required = True`.
+- Detected duct runs appear on screen so the estimator can see the geometry.
+- But linear footage remains locked at **0.00 ft**.
+- The API blocks item approval (`HTTP 409 Conflict`) until the estimator verifies scale using the interactive two-point calibration tool (`PATCH /api/sheets/{sheet_id}/calibration`).
+- **The system never guesses a scale.**
 
-### 2. Estimator Sovereignty (Human-in-the-Loop)
-AI should accelerate the professional, not replace their judgment.
-- Every proposed measurement enters the SQLite database with status `SUGGESTED`.
+### 2. Estimator Sovereignty
+AI should speed up the estimator's work, not replace their professional judgment.
+- Every detected run lands in the SQLite ledger with status `SUGGESTED`.
 - The estimator reviews items on the canvas with single-keystroke shortcuts (`A` to accept, `R` to reject, `C` to correct).
-- Every decision is recorded immutably in `review_events` with structured reason codes.
-- The commercial bid export contains only verified quantities.
+- Every override is saved in an append-only `review_events` table with structured reason codes.
+- The commercial bid export contains only verified quantities approved by the human.
 
-### 3. Graceful Offline Abstention
-If `MODEL_API_KEY` is not present, the system does not crash or simulate fake responses. The local vector engine, scale calibration, canvas navigation, ledger state machine, and CSV exports continue running 100% locally. Model-backed features return clearly labeled offline states (`mock = True`, `confidence = 0.0`) or abstain fail-closed.
+### 3. Clean Offline Behavior
+If `MODEL_API_KEY` is not present, the workstation does not break or return fake data. The local vector engine, scale calibration, canvas viewer, review state machine, and CSV exports continue operating 100% locally on your machine. Model-backed features return clearly labeled offline notices (`mock = True`, `review_required = True`) or safely abstain.
 
 ---
 
-## 5. What We Built During the Hackathon
+## 5. What Was Built During the Hackathon
 
-Over the course of the hackathon, we built and polished a full-stack, desktop-grade workstation:
+Over the hackathon, we built and polished a full-stack, desktop-grade workstation:
 
-1. **Hardware-Accelerated 150 DPI Drawing Workstation (`frontend/`):**
+1. **Hardware-Accelerated 150 DPI Canvas (`frontend/`):**
    - Built with React 19, TypeScript, and Tailwind CSS.
    - Smooth 2D affine pan, zoom, and rotate navigation across multi-page PDF sets.
-   - Virtualized sheet filmstrip supporting packages up to 100+ pages with an in-memory budget.
-   - Layer decomposition controls to isolate HVAC (Division 23), Electrical (26), Plumbing (22), and Architectural backgrounds.
-   - Interactive two-point scale calibration tool.
+   - Virtualized sheet filmstrip supporting drawing packages of 100+ pages.
+   - Trade layer filters to isolate HVAC (Division 23), Electrical (26), Plumbing (22), and Architectural backgrounds.
+   - Interactive two-point scale calibration tool with live coordinate verification.
 
 2. **Seven-Agent Product Pipeline (`src/agents/`):**
-   - `00 Orchestrator`: Multi-sheet router and trace logger (`src/agents/orchestrator.py`).
-   - `01 Sheet Scanner`: Title block parser and scale validator (`src/meta_services/sheet_scanner.py`).
-   - `02 Symbol Finder (L1)`: Legend exemplar parser and spatial tile scanner (`src/agents/finder_l1.py`).
-   - `03 Vector Tracer (L2)`: Native PDF vector extractor and corridor splicer (`src/agents/tracer_l2.py`).
-   - `04 Schedule Reconciler`: Equipment tag vs. plan count matcher (`src/agents/schedule_reconciler.py`).
-   - `05 Watchdog QA`: Rule-based anomaly checker and persistent QA annotation generator (`src/agents/watchdog_qa.py`).
-   - `06 Copilot Judge`: Evidence-grounded SQLite query engine and citation resolver (`src/agents/copilot_judge.py`).
+   - `00 Orchestrator`: Routes sheets by category and tracks stage execution traces.
+   - `01 Sheet Scanner`: Parses title blocks, tags disciplines, and validates scales.
+   - `02 Symbol Finder (L1)`: Extracts legend symbols first, then scans sheets at 150 DPI using class-aware NMS.
+   - `03 Vector Tracer (L2)`: Pulls PDF vector strokes, pairs parallel duct walls, and resolves tees.
+   - `04 Schedule Reconciler`: Compares schedule equipment counts against plan tags to flag unplaced units with ghost pins.
+   - `05 Watchdog QA`: Checks for uncalibrated scales, count mismatches, and unreviewed runs.
+   - `06 Copilot Judge`: Executes read-only SQL queries against the ledger and cites verified drawing coordinates.
 
-3. **Standalone Single-Port Launcher & Desktop Packaging:**
-   - Single-command launcher (`python scripts/start_standalone.py`) that serves the compiled React 19 frontend and FastAPI backend on one local port (`8000`).
-   - Tauri v2 + PyInstaller desktop sidecar configuration with Windows Job Object process management (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`) for zero-leak process termination.
+3. **Standalone Single-Port Launcher (`scripts/start_standalone.py`):**
+   - Single-command launcher serving both the compiled React 19 UI and the FastAPI backend on one local port (`8000`).
+   - Clean shutdown with Windows Job Object process management.
 
-4. **Master Demo Film & Remotion Suite (`film/`):**
-   - High-fidelity Remotion project capturing the real UI, live hover interactions, legend reconnaissance, copilot queries, and takeoff export at 1080p 60fps.
+4. **Master Demonstration Film (`docs/assets/BlueTraceAI_Demo.mp4`):**
+   - High-definition 1080p walkthrough capturing the live CAD canvas, QuickDraw hover dimensioning, legend reconnaissance, grounded copilot queries, and takeoff export. Available on [X](https://x.com/Weslyjohn1307/status/2118101699739140558) and in the [GitHub web video player](https://github.com/weslyjohn1307/BlueTrace/blob/master/docs/assets/BlueTraceAI_Demo.mp4).
 
 ---
 
-## 6. Real-World Evaluation & Benchmarks
+## 6. Real-World Drawing Benchmarks & Reproducibility
 
-We validated BlueTraceAI against real commercial HVAC drawing sets (`fixtures/mechanical/hvac_plan_level2.pdf`):
+We tested BlueTraceAI against a real commercial mechanical drawing set included directly in the repository (`fixtures/mechanical/hvac_plan_level2.pdf`):
 
-| Evaluation Target | Baseline / Ground Truth | BlueTraceAI Measured | Accuracy / Performance |
+| Evaluation Target | Ground Truth Baseline | BlueTraceAI Measured | Result |
 |---|---|---|---|
 | **Centerline Runs** | 329 ground-truth runs | **329 runs extracted** | **0.00% count error** (100% topological recall) |
 | **Calibrated Length** | 636.62 ft ($1/8" = 1'-0"$) | **636.62 ft** | Exact mathematical match |
-| **Uncalibrated Scale Safety** | Fail-closed expectation | **0.00 ft (Flagged)** | 100% fail-closed compliance |
+| **Uncalibrated Scale Rule** | Fail-closed expectation | **0.00 ft (Flagged)** | 100% fail-closed compliance |
 | **Geometry SHA-256 Cache** | Cold run: 23.47 seconds | **Warm run: 1.35 ms** | Instant repeat-load performance |
 | **Coordinate Tiling Drift** | $\le 0.50\text{ pt}$ tolerance | **0.000000 pt drift** | Zero floating-point drift |
 | **Schedule vs Plan QA** | 4 seeded discrepancies | **100% recall** (1 match, 1 ghost pin, 2 flags) | Zero missed anomalies |
-| **Sanitizer Anti-Leak Audit** | Zero competitor tokens | **[PASS] 0 tokens** | Strict copyright compliance |
+| **Anti-Leak Audit** | Zero competitor tokens | **[PASS] 0 tokens** | Strict copyright compliance |
 
 ---
 
-## 7. How to Evaluate & Experience the Deliverables
+## 7. How to Test and Experience the Project
 
-Judges and evaluators can experience and verify BlueTraceAI through three primary paths:
+You can evaluate BlueTraceAI through three straightforward paths:
 
-### 1. Interactive Web Showcase (Instant, In-Browser)
-Explore the interactive visual story, layer decomposition, and vector geometry overlays directly in any modern browser without local installation:  
+### 1. Watch the 2-Minute Master Demonstration Film
+Watch the high-definition 1080p video showing the 150 DPI CAD workstation, QuickDraw hover reading, legend extraction, copilot questions, and takeoff export:  
+- 🐦 **Watch on X:** [x.com/Weslyjohn1307/status/2118101699739140558](https://x.com/Weslyjohn1307/status/2118101699739140558)  
+- 🎬 **Watch on GitHub (Web Player):** [`docs/assets/BlueTraceAI_Demo.mp4`](https://github.com/weslyjohn1307/BlueTrace/blob/master/docs/assets/BlueTraceAI_Demo.mp4)
+
+### 2. Try the Interactive Web Showcase (In-Browser)
+Explore the visual concepts—layer decomposition, scale calibration, and schedule reconciliation—directly in your browser without local installation:  
 👉 **[weslyjohn1307.github.io/BlueTrace](https://weslyjohn1307.github.io/BlueTrace/)**
 
-### 2. High-Definition Master Demo Film
-The complete 1080p 60fps walkthrough demonstrates the 150 DPI CAD workstation, QuickDraw point-of-need hover reading, legend reconnaissance, grounded copilot queries, and takeoff export:  
-👉 **`film/out/bluetrace-film-master.mp4`** (included in repository release assets)
-
-### 3. Standalone Local Workstation Verification
-Run the complete FastAPI backend and React 19 workstation locally on a single port:
+### 3. Run the Workstation Locally
+Run the complete FastAPI backend and React 19 CAD workstation locally on a single port:
 ```powershell
-# Clone and setup virtual environment
+# Clone and set up virtual environment
 git clone https://github.com/weslyjohn1307/BlueTrace.git
 cd BlueTrace
 py -3 -m venv .venv
@@ -172,14 +174,14 @@ npm --prefix frontend ci
 # Launch single-port workstation (UI + API on http://localhost:8000)
 .\.venv\Scripts\python.exe scripts/start_standalone.py
 ```
-Open `http://localhost:8000` to review real mechanical blueprint sets (`fixtures/mechanical/hvac_plan_level2.pdf`) with full offline linework extraction, two-point scale calibration, and SQLite WAL ledger persistence.
+Open `http://localhost:8000` to inspect real mechanical blueprints (`fixtures/mechanical/hvac_plan_level2.pdf`) with offline vector linework extraction, two-point scale calibration, and SQLite WAL ledger persistence.
 
 ---
 
 ## 8. Closing Reflection
 
-BlueTraceAI was born from a deep respect for the trades and a refusal to settle for generative illusions. 
+BlueTraceAI was built out of respect for how tradespeople actually work.
 
-Artificial intelligence in engineering should not be a black box that asks users for blind faith. It should be a precision instrument: a magnifying glass that reads microscopic notes in a millisecond, a tireless draftsman that traces vector paths with mathematical perfection, and an infallible auditor that checks every number against the ledger.
+In commercial construction, an estimator's signature on a bid is a serious commitment. Software built for this industry cannot afford to be an unpredictable black box that asks users for blind faith. It needs to be a precision tool: reading tiny callouts in milliseconds, tracing vector paths without human fatigue, and checking every number against the ledger before anyone hits submit.
 
-By pairing Meta's frontier models with deterministic vector algorithms and human-in-the-loop oversight, BlueTraceAI gives estimators their time back—without ever gambling their company's bottom line.
+By pairing Meta's newest models with deterministic vector geometry and human oversight, BlueTraceAI gives estimators their time back—without ever putting their company's bid at risk.
