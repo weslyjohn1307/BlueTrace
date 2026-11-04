@@ -1,0 +1,161 @@
+/* BlueTrace Design Tokens v1.0
+   Keep application theme tokens separate from PDF drawing colours.
+   Toggle with <html data-theme="light"> or <html data-theme="dark">.
+*/
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --bt-canvas: #F5F7FA;
+  --bt-surface: #FFFFFF;
+  --bt-surface-raised: #FFFFFF;
+  --bt-surface-inset: #EAF0F6;
+  --bt-panel: #EEF2F6;
+  --bt-border-subtle: #D8E0E9;
+  --bt-border-strong: #AEBBC9;
+  --bt-divider: #E3E8EF;
+  --bt-text-primary: #101923;
+  --bt-text-secondary: #435264;
+  --bt-text-tertiary: #566579;
+  --bt-text-disabled: #8995A4;
+  --bt-brand: #005BFF; /* theme-aware link/active colour */
+  --bt-brand-hover: #004BD1;
+  --bt-brand-active: #003EA8;
+  --bt-brand-solid: #005BFF; /* solid action fill in both themes */
+  --bt-brand-solid-hover: #004BD1;
+  --bt-brand-solid-active: #003EA8;
+  --bt-brand-soft: #E8F0FF;
+  --bt-on-brand: #FFFFFF;
+  --bt-focus: #004FE0;
+  --bt-selection: #DCE8FF;
+  --bt-selection-border: #245DCE;
+
+  --bt-success-fg: #176B4B; --bt-success-bg: #E3F4EC; --bt-success-border: #A8D9C2;
+  --bt-review-fg: #8B5A00; --bt-review-bg: #FFF2D7; --bt-review-border: #EBCB86;
+  --bt-danger-fg: #B42332; --bt-danger-bg: #FCE9EB; --bt-danger-border: #F0B6BC;
+  --bt-info-fg: #235EA8; --bt-info-bg: #E7F0FC; --bt-info-border: #B7CDEB;
+  --bt-offline-fg: #536273; --bt-offline-bg: #EDF1F5; --bt-offline-border: #CBD4DE;
+
+  --bt-shadow-panel: 0 1px 2px rgb(16 25 35 / 5%), 0 6px 18px rgb(16 25 35 / 4%);
+  --bt-shadow-dialog: 0 16px 48px rgb(16 25 35 / 16%);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bt-canvas: #0B1018;
+  --bt-surface: #111A24;
+  --bt-surface-raised: #192532;
+  --bt-surface-inset: #080D14;
+  --bt-panel: #141F2B;
+  --bt-border-subtle: #263544;
+  --bt-border-strong: #425365;
+  --bt-divider: #202D3A;
+  --bt-text-primary: #F2F5F8;
+  --bt-text-secondary: #C0CAD6;
+  --bt-text-tertiary: #A5B1BF;
+  --bt-text-disabled: #778496;
+  --bt-brand: #8BB2FF; /* lighter link/active colour for dark surfaces */
+  --bt-brand-hover: #A7C3FF;
+  --bt-brand-active: #6F9CFA;
+  --bt-brand-solid: #005BFF; /* keep white text contrast on action buttons */
+  --bt-brand-solid-hover: #004BD1;
+  --bt-brand-solid-active: #003EA8;
+  --bt-brand-soft: #182C4D;
+  --bt-on-brand: #FFFFFF;
+  --bt-focus: #91B8FF;
+  --bt-selection: #1B3154;
+  --bt-selection-border: #82AAFF;
+
+  --bt-success-fg: #69D3A8; --bt-success-bg: #13362B; --bt-success-border: #28664F;
+  --bt-review-fg: #F2C36F; --bt-review-bg: #3A2B15; --bt-review-border: #725629;
+  --bt-danger-fg: #FF9299; --bt-danger-bg: #3F1B23; --bt-danger-border: #7D3440;
+  --bt-info-fg: #8BB8F1; --bt-info-bg: #172C47; --bt-info-border: #34577F;
+  --bt-offline-fg: #BAC5D1; --bt-offline-bg: #202B36; --bt-offline-border: #435262;
+
+  --bt-shadow-panel: 0 1px 0 rgb(255 255 255 / 3%), 0 8px 24px rgb(0 0 0 / 16%);
+  --bt-shadow-dialog: 0 20px 56px rgb(0 0 0 / 42%);
+}
+
+:root {
+  /* Brand identity: use sparingly; not a page-wide wash. */
+  --bt-brand-ink: #0A0F1E;
+  --bt-brand-blue: #005BFF;
+  --bt-brand-signal: #37C6FF;
+  --bt-brand-pale: #E9F4FF;
+  --bt-brand-cloud: #F5F7FA;
+
+  /* MEP colours are deliberately theme-invariant on the white PDF sheet. */
+  --mep-mechanical: #2468A8;
+  --mep-electrical: #A45214;
+  --mep-plumbing: #087668;
+  --mep-mechanical-tint: #EAF2FA;
+  --mep-electrical-tint: #F8EEE5;
+  --mep-plumbing-tint: #E7F4F1;
+
+  /* Brighter variants are for dark 3D stages, not PDF overlays. */
+  --stage-mep-mechanical: #7BB7E8;
+  --stage-mep-electrical: #F1AB65;
+  --stage-mep-plumbing: #62C8B5;
+  --stage-mep-mechanical-tint: #13283D;
+  --stage-mep-electrical-tint: #342317;
+  --stage-mep-plumbing-tint: #102E2B;
+
+  /* Additional plan conventions: secondary context, not primary MEP. */
+  --plan-architectural: #66717E;
+  --plan-structural: #454F5B;
+  --plan-fire-protection: #B3313D;
+  --plan-controls-bms: #7654B6;
+  --plan-existing: #8A929D;
+  --plan-demolition: #737D89;
+
+  /* Spacing: 4px base unit. */
+  --bt-space-1: 4px; --bt-space-2: 8px; --bt-space-3: 12px; --bt-space-4: 16px;
+  --bt-space-5: 20px; --bt-space-6: 24px; --bt-space-8: 32px; --bt-space-10: 40px;
+  --bt-space-12: 48px; --bt-space-16: 64px; --bt-space-20: 80px;
+
+  --bt-radius-control: 5px;
+  --bt-radius-card: 8px;
+  --bt-radius-panel: 12px;
+  --bt-radius-dialog: 14px;
+  --bt-radius-pill: 999px;
+
+  --bt-font-ui: "Inter Variable", Inter, system-ui, sans-serif;
+  --bt-font-technical: "Inconsolata", ui-monospace, monospace;
+  --bt-font-editorial: "Lora", Georgia, serif;
+
+  --bt-text-xs: 11px; --bt-text-sm: 12px; --bt-text-base: 14px; --bt-text-lg: 16px;
+  --bt-text-section: 18px; --bt-text-subheading: 20px; --bt-text-heading: 24px;
+  --bt-text-title: 32px; --bt-text-display: 40px;
+
+  --bt-duration-fast: 120ms;
+  --bt-duration-standard: 180ms;
+  --bt-duration-emphasis: 260ms;
+  --bt-duration-scene: 600ms;
+  --bt-ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --bt-ease-enter: cubic-bezier(.16, 1, .3, 1);
+  --bt-ease-exit: cubic-bezier(.4, 0, 1, 1);
+}
+
+/* Suggested semantic application mappings. */
+.bt-app { background: var(--bt-canvas); color: var(--bt-text-primary); font-family: var(--bt-font-ui); }
+.bt-surface { background: var(--bt-surface); border: 1px solid var(--bt-border-subtle); }
+.bt-panel { background: var(--bt-panel); border: 1px solid var(--bt-border-subtle); }
+.bt-heading { color: var(--bt-text-primary); }
+.bt-body-secondary { color: var(--bt-text-secondary); }
+.bt-caption { color: var(--bt-text-tertiary); }
+.bt-technical { font-family: var(--bt-font-technical); font-variant-numeric: tabular-nums; }
+.bt-focus:focus-visible { outline: 2px solid var(--bt-focus); outline-offset: 2px; }
+
+/* PDF page is a document surface, not part of the application theme. */
+.bt-pdf-page { background: #FFFFFF; color: #15191E; }
+.bt-pdf-layer--mechanical { color: var(--mep-mechanical); stroke: var(--mep-mechanical); }
+.bt-pdf-layer--electrical { color: var(--mep-electrical); stroke: var(--mep-electrical); stroke-dasharray: 8 4; }
+.bt-pdf-layer--plumbing { color: var(--mep-plumbing); stroke: var(--mep-plumbing); stroke-dasharray: 10 3 2 3; }
+
+/* Dark 3D scene only. Keep the discipline mapping, change luminance for the stage. */
+[data-scene-theme="dark"] .bt-scene-layer--mechanical { color: var(--stage-mep-mechanical); stroke: var(--stage-mep-mechanical); }
+[data-scene-theme="dark"] .bt-scene-layer--electrical { color: var(--stage-mep-electrical); stroke: var(--stage-mep-electrical); }
+[data-scene-theme="dark"] .bt-scene-layer--plumbing { color: var(--stage-mep-plumbing); stroke: var(--stage-mep-plumbing); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

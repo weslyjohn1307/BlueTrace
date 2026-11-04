@@ -14,7 +14,7 @@
   background: var(--showcase-paper);
   min-height: 100vh;
   overflow: clip;
-  font-family: 'Libre Franklin', sans-serif;
+  font-family: var(--bt-font-ui);
   font-size: 16px;
   line-height: 1.55;
   text-rendering: optimizeLegibility;
@@ -157,7 +157,7 @@
 .story-chapter h2,
 .showcase-footer h2 {
   margin: 0;
-  font-family: 'STIX Two Text', 'Fraunces', Georgia, serif;
+  font-family: var(--bt-font-editorial);
   font-weight: 500;
   letter-spacing: -0.055em;
   line-height: 0.99;
@@ -404,7 +404,7 @@
 .showcase-footer h2 { font-size: 40px; }
 .footer-copy > p:last-child { margin: 6px 0 0; color: #9caaa5; font-size: 13px; }
 .footer-note { margin: 0; color: #c1c9bf; font-size: 16px; line-height: 1.7; }
-.footer-note em { color: #e4bd8c; font-family: 'STIX Two Text', Georgia, serif; font-size: 23px; }
+.footer-note em { color: #e4bd8c; font-family: var(--bt-font-editorial); font-size: 23px; }
 .footer-links { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .footer-links a { display: inline-flex; align-items: center; gap: 9px; min-height: 32px; color: #dce3da; font-size: 12px; transition: color 160ms ease; }
 .footer-links a:hover { color: #86c7ff; }
