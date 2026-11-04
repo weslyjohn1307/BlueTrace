@@ -64,15 +64,62 @@ class SheetScanner:
 
         Page dimensions ride on each SheetMetadata (width_pt/height_pt), so
         callers get the full sheet index plus cached geometry in one pass.
+        For large drawing sets (> 3 pages), page 0 is deep-scanned immediately
+        and pages 1..N-1 are fast-indexed from page geometry so initial upload
+        completes in seconds while individual sheets deep-scan on selection.
         A corrupt page fails closed with ValueError naming that page.
         """
         total = self.get_page_count(pdf_path)
-        sheets: list[SheetMetadata] = []
-        for page_index in range(total):
-            try:
-                sheets.append(self.scan_page(pdf_path, page_index=page_index))
-            except (ValueError, RuntimeError, OSError) as exc:
-                raise ValueError(f"Sheet scan failed on page {page_index}: {exc}") from exc
+        if total <= 3:
+            sheets: list[SheetMetadata] = []
+            for page_index in range(total):
+                try:
+                    sheets.append(self.scan_page(pdf_path, page_index=page_index))
+                except (ValueError, RuntimeError, OSError) as exc:
+                    raise ValueError(f"Sheet scan failed on page {page_index}: {exc}") from exc
+            return sheets
+
+        sheets = []
+        try:
+            sheets.append(self.scan_page(pdf_path, page_index=0))
+        except (ValueError, RuntimeError, OSError) as exc:
+            raise ValueError(f"Sheet scan failed on page 0: {exc}") from exc
+
+        doc = self._open_document(pdf_path)
+        try:
+            stem = Path(pdf_path).stem
+            inferred_disc = infer_discipline(Path(pdf_path), "", sheet_id=stem).upper()
+            disc_literal = cast(
+                Literal["MECHANICAL", "ELECTRICAL", "PLUMBING", "ARCHITECTURAL", "GENERAL"],
+                inferred_disc
+                if inferred_disc in {"MECHANICAL", "ELECTRICAL", "PLUMBING", "ARCHITECTURAL", "GENERAL"}
+                else sheets[0].discipline,
+            )
+            for page_index in range(1, total):
+                try:
+                    page = doc[page_index]
+                    rect = page.rect
+                    sheet_number = f"{stem}_p{page_index + 1}"
+                    sheet_id = f"{sheet_number.lower().replace(' ', '_').replace('.', '_')}_p{page_index}"
+                    sheets.append(
+                        SheetMetadata(
+                            sheet_id=sheet_id,
+                            page_index=page_index,
+                            sheet_number=sheet_number,
+                            sheet_title=f"Sheet {page_index + 1} ({stem})",
+                            discipline=disc_literal,
+                            scale_raw=None,
+                            scale_ratio=None,
+                            scale_status="UNVERIFIED",
+                            width_pt=round(rect.width, 2),
+                            height_pt=round(rect.height, 2),
+                            dpi=150,
+                        )
+                    )
+                except (ValueError, RuntimeError, OSError) as exc:
+                    raise ValueError(f"Sheet scan failed on page {page_index}: {exc}") from exc
+        finally:
+            doc.close()
         return sheets
 
     def scan_package_reconnaissance(
@@ -148,7 +195,9 @@ class SheetScanner:
 
             # Native text extraction from bottom-right quadrant (standard AEC title block location)
             title_block_clip = pymupdf.Rect(width_pt * 0.65, height_pt * 0.65, width_pt, height_pt)
-            tb_text = page.get_text("text", clip=title_block_clip) or page.get_text("text")
+            tp = page.get_textpage()
+            page_full_text = page.get_text("text", textpage=tp)
+            tb_text = page.get_text("text", clip=title_block_clip, textpage=tp) or page_full_text
 
             # Extract scale candidates from page text
             scale_ratio, scale_status = ScaleValidator.parse_scale_string(tb_text)
@@ -222,7 +271,6 @@ class SheetScanner:
                 scale_raw, scale_ratio, scale_status = _native_scale
 
             # Fallback to deterministic extraction if VLM unconfigured or incomplete
-            page_full_text = page.get_text("text")
             if not sheet_number:
                 sheet_number = extract_sheet_id(tb_text or page_full_text, Path(pdf_path).stem, page_index)
 

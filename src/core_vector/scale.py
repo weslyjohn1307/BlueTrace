@@ -35,7 +35,10 @@ from src.core_vector.schema import (
 # --- Schematic detection keywords (EXP-008) ---
 # If any of these are found in the sheet text or filename, the sheet is
 # non-scaled and must fail closed.
-_SCHEMATIC_RISER_KEYWORDS = re.compile(r"\bRISER\b|\bRISER DIAGRAM\b", re.IGNORECASE)
+# A standalone “RISER” mention commonly appears in plan notes (for example,
+# “FIRE RISER”). Require explicit drawing-role wording; P6xx/PP6xx identifiers
+# remain an independent fail-closed signal below.
+_SCHEMATIC_RISER_KEYWORDS = re.compile(r"\bRISER\s+(?:DIAGRAM|SCHEMATIC)\b", re.IGNORECASE)
 _PID_KEYWORDS = re.compile(
     r"\bINSTRUMENTATION\b|P&ID\b|\bPIPING AND INSTRUMENTATION\b", re.IGNORECASE
 )

@@ -111,6 +111,17 @@ class TestScaleDetectionFailClosed:
         dec_id = detect_scale(page_text="FLOOR PLAN", sheet_id="P601", filename="plan.pdf")
         assert dec_id.status == ScaleStatus.SCHEMATIC_RISER
 
+    def test_incidental_fire_riser_note_does_not_suppress_plan_linework(self) -> None:
+        """A note on a plan is not evidence that the drawing is a riser diagram."""
+        decision = detect_scale(
+            page_text="HVAC FLOOR PLAN\nFIRE RISER",
+            sheet_id="M-118",
+            filename="hvac_schedule_plan.pdf",
+        )
+        assert decision.status == ScaleStatus.SCALE_UNREADABLE
+        assert decision.drawing_type.value == "PLAN_VIEW_UNSCALED"
+        assert decision.ft_per_pt is None
+
     def test_filename_never_leaks_as_scale_evidence(self) -> None:
         """A scale string in a filename must NOT validate a sheet lacking text scale (L2-06)."""
         decision = detect_scale(

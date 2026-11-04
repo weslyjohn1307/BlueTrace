@@ -171,26 +171,29 @@ class ReconAgent(BaseAgent):
         text: str = "",
     ) -> tuple[SheetType, list[str]]:
         """Deterministically classify sheet into one of 6 roles (or unreadable)."""
-        combined = f"{sheet_number} {title} {text}".strip()
+        # The title block and sheet number identify the sheet's role. Full-page
+        # notes often mention "fire risers" on ordinary floor plans; they must
+        # not override explicit title-block evidence.
+        role_text = f"{sheet_number} {title}".strip()
         reasons: list[str] = []
 
-        if not combined:
+        if not role_text and not text.strip():
             return SheetType.UNREADABLE, ["Empty page content"]
 
-        # 1. Riser / Schematic / P&ID
-        if _SCHEMATIC_RISER_KEYWORDS.search(combined):
-            reasons.append("Matched riser keyword")
-            return SheetType.RISER, reasons
-        if _PID_KEYWORDS.search(combined):
-            reasons.append("Matched P&ID keyword")
-            return SheetType.RISER, reasons
+        # Explicit role in the sheet number/title outranks incidental page notes.
         if _RISER_SHEET_ID_PATTERN.match(sheet_number):
             reasons.append("Matched 600-series schematic sheet ID")
+            return SheetType.RISER, reasons
+        if _SCHEMATIC_RISER_KEYWORDS.search(role_text):
+            reasons.append("Matched riser keyword in sheet number/title")
+            return SheetType.RISER, reasons
+        if _PID_KEYWORDS.search(role_text):
+            reasons.append("Matched P&ID keyword")
             return SheetType.RISER, reasons
 
         # 2. Legend / Abbreviation
         if _LEGEND_KEYWORDS.search(title) or (
-            _LEGEND_SHEET_ID_PATTERN.match(sheet_number) and "LEGEND" in combined.upper()
+            _LEGEND_SHEET_ID_PATTERN.match(sheet_number) and "LEGEND" in role_text.upper()
         ):
             reasons.append("Matched legend title or sheet ID")
             return SheetType.LEGEND, reasons
@@ -206,14 +209,18 @@ class ReconAgent(BaseAgent):
             return SheetType.DETAIL, reasons
 
         # 5. Plan
-        if _PLAN_KEYWORDS.search(title) or _PLAN_KEYWORDS.search(combined):
-            reasons.append("Matched plan keyword")
+        if _PLAN_KEYWORDS.search(title):
+            reasons.append("Matched plan keyword in sheet title")
             return SheetType.PLAN, reasons
 
         # 6. Other (Cover, Index, General)
         if _OTHER_KEYWORDS.search(title):
             reasons.append("Matched title/cover/index keyword")
             return SheetType.OTHER, reasons
+
+        # Do not classify a plan from incidental text like "FIRE RISER" or
+        # "PANEL SCHEDULE" in its notes. With no title-block role, default to
+        # plan routing; scale and downstream evidence gates still fail closed.
 
         # Default fallback
         reasons.append("Defaulted based on general linework presence")
@@ -376,9 +383,24 @@ class ReconAgent(BaseAgent):
             scale_candidates: list[ScaleCandidate] = []
             is_nts = bool(_NTS_KEYWORDS.search(combined_text))
 
-            # Check title block text (and full text fallback) for scales
+            # Prefer a scale in the title block, but real drawings often place
+            # the printed scale beside the view title at the lower left. When
+            # the title block has no recognized scale, scan the native page
+            # text as well; a VLM-only candidate still cannot self-certify.
             cand_idx = 0
-            text_to_scan = tb_text if tb_text.strip() else full_text
+            titleblock_has_scale = any(
+                re.search(pattern, tb_text, re.IGNORECASE)
+                for pattern, _ in ScaleValidator.SCALE_PATTERNS
+            )
+            text_to_scan = tb_text if titleblock_has_scale else full_text
+            scale_source: Literal["native_titleblock", "native_page", "vlm_crop", "manual_calibration"] = (
+                "native_titleblock" if titleblock_has_scale else "native_page"
+            )
+            scale_bbox = (
+                [float(tb_clip.x0), float(tb_clip.y0), float(tb_clip.x1), float(tb_clip.y1)]
+                if titleblock_has_scale
+                else [0.0, 0.0, float(width_pt), float(height_pt)]
+            )
             for pattern, ratio in ScaleValidator.SCALE_PATTERNS:
                 m = re.search(pattern, text_to_scan, re.IGNORECASE)
                 if m:
@@ -388,9 +410,9 @@ class ReconAgent(BaseAgent):
                         ScaleCandidate(
                             raw_string=cand_str,
                             scale_ratio=ratio,
-                            source="native_titleblock" if tb_text.strip() else "native_page",
+                            source=scale_source,
                             evidence_id=cand_ev,
-                            bbox=[float(tb_clip.x0), float(tb_clip.y0), float(tb_clip.x1), float(tb_clip.y1)],
+                            bbox=scale_bbox,
                             is_valid=True,
                         )
                     )
