@@ -74,6 +74,7 @@ fixtures/**/sample_*.pdf
 # INTERNAL — Raw internal specification drafts & design working docs
 # ──────────────────────────────────────────────────────────────────────────────
 /DESIGN.md
+/design-plans/
 /Data_models.md
 /Overview.md
 /Tech_stack.md

@@ -8,7 +8,7 @@ export interface BrandSymbolProps {
 }
 
 /**
- * Official BlueTrace two-plane folded geometric monogram from BlueTrace_Brand_Pack_v2.
+ * Official BlueTrace two-plane folded geometric monogram.
  */
 export const BrandSymbol: React.FC<BrandSymbolProps> = ({
   size = 48,

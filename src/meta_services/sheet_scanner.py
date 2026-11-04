@@ -214,7 +214,7 @@ class SheetScanner:
             sheet_title = ""
             vlm_discipline: str | None = None
 
-            # Fail-Closed (agent-os/policies/FAIL_CLOSED.md): any VLM failure
+            # Fail-Closed Scale Invariant: any VLM failure
             # (pixmap/OCR/network/JSON) abstains to deterministic extraction
             # below; never fabricate sheet_number/title/scale on this path.
             _native_scale = (scale_raw, scale_ratio, scale_status)

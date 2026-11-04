@@ -17,7 +17,7 @@ export interface BrandIconProps {
 }
 
 /**
- * Official 7 custom product line icons from BlueTrace_Brand_Pack_v2 (24x24 grid, 1.7px stroke).
+ * Official custom product line icons (24x24 grid, 1.7px stroke).
  */
 export const BrandIcon: React.FC<BrandIconProps> = ({
   name,
@@ -93,7 +93,7 @@ export interface BrandSymbolProps {
 }
 
 /**
- * Official BlueTrace two-plane folded geometric monogram from BlueTrace_Brand_Pack_v2.
+ * Official BlueTrace two-plane folded geometric monogram.
  */
 export const BrandSymbol: React.FC<BrandSymbolProps> = ({
   size = 28,
