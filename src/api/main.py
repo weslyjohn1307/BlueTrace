@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from src.api.agent_jobs import router as agent_jobs_router
 from src.api.routes import router
 
 app = FastAPI(
@@ -30,6 +31,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(agent_jobs_router)
 
 # Mount frontend production assets if built (enables standalone single-port execution)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

@@ -115,16 +115,16 @@ def get_meta_client(x_session_id: str | None = Header(default=None, alias="X-Ses
 
 
 def resolve_contained_pdf(pdf_path: str) -> Path:
-    """Resolves a workspace-relative PDF path or raises 403/404.
+    """Resolves a PDF inside the workspace drawing roots or raises 403/404.
 
     Single containment gate for every endpoint that reads a drawing file:
-    fixtures/ and data/ only, .pdf suffix only, must exist.
+    fixtures/ and data/ only, .pdf suffix only, must exist. Absolute paths are
+    accepted only when their resolved target remains inside one of those roots;
+    this keeps legacy Windows sessions working without widening file access.
     """
-    clean_path = Path(pdf_path)
-    if clean_path.is_absolute():
-        raise HTTPException(status_code=403, detail="Access denied: absolute paths are not accepted.")
     workspace_root = Path.cwd().resolve()
-    resolved = (workspace_root / clean_path).resolve()
+    clean_path = Path(pdf_path)
+    resolved = (clean_path if clean_path.is_absolute() else workspace_root / clean_path).resolve()
     allowed_roots = [
         (workspace_root / "fixtures").resolve(),
         (workspace_root / "data").resolve(),
@@ -166,6 +166,10 @@ async def _persist_sheet(
     project_id: str,
     pdf_path: str | None = None,
 ) -> None:
+    stored_pdf_path = pdf_path
+    if pdf_path:
+        resolved_pdf = resolve_contained_pdf(pdf_path)
+        stored_pdf_path = resolved_pdf.relative_to(Path.cwd().resolve()).as_posix()
     await store.insert_project(project_id, project_id)
     await store.insert_sheet(
         sheet_id=meta.sheet_id,
@@ -179,7 +183,7 @@ async def _persist_sheet(
         scale_status=meta.scale_status,
         width_pt=meta.width_pt,
         height_pt=meta.height_pt,
-        pdf_path=pdf_path,
+        pdf_path=stored_pdf_path,
     )
 
 
@@ -637,11 +641,13 @@ async def scan_all_sheets(
     for meta in sheets:
         try:
             await _persist_sheet(store, meta, project_id, pdf_path=request.pdf_path)
-            if request.auto_takeoff:
+            if request.auto_takeoff and (len(sheets) <= 3 or meta.page_index == 0):
                 outcome, error = await _auto_populate_takeoff(store, clean_path, meta, project_id)
                 outcomes.append(outcome)
                 if error:
                     errors.append(error)
+            elif request.auto_takeoff:
+                outcomes.append(SheetTakeoffOutcome(sheet_id=meta.sheet_id, run_count=0, items_created=0, accepted_count=0, suggested_count=0))
         except (OSError, RuntimeError, ValueError) as exc:
             # One bad sheet must not abort ingestion of the remaining set.
             errors.append(f"Ingestion failed for {meta.sheet_id}: {exc}")
@@ -1557,7 +1563,7 @@ async def run_agent_orchestration(
     job_id = body.job_id or uuid.uuid4().hex[:12]
 
     registry = AgentRegistry()
-    registry.register(ReconAgent())
+    registry.register(ReconAgent(client=client))
     registry.register(FinderL1Agent(client=client))
     registry.register(TracerL2Agent())
     registry.register(ScheduleReconcilerAgent(client=client, store=store))

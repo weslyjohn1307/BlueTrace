@@ -110,6 +110,28 @@ def test_sheet_scan_rejects_path_traversal(client: TestClient):
     assert bad.status_code == 403
 
 
+def test_page_image_accepts_legacy_absolute_workspace_pdf_path(client: TestClient):
+    """Windows sessions persisted absolute paths before paths became relative."""
+    absolute_pdf = (Path(__file__).resolve().parents[1] / "fixtures" / "mechanical" / "hvac_plan_level2.pdf").resolve()
+    response = client.get(
+        "/api/page-image",
+        params={"pdf_path": str(absolute_pdf), "page_index": 0, "dpi": 72},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_page_image_rejects_absolute_pdf_outside_workspace_roots(client: TestClient, tmp_path: Path):
+    outside_pdf = tmp_path / "outside.pdf"
+    outside_pdf.write_bytes(b"not a drawing")
+
+    response = client.get("/api/page-image", params={"pdf_path": str(outside_pdf), "page_index": 0})
+
+    assert response.status_code == 403
+
+
 def test_crop_ocr_fails_closed_without_a_key(client: TestClient):
     """Offline stub must never report a verified dimension."""
     res = client.post(
