@@ -13,13 +13,13 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
   primary:
-    'bg-cyan-600 hover:bg-cyan-500 text-white border border-cyan-500/60 shadow-sm focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
+    'bg-cyan-600 hover:bg-cyan-500 text-bt-on-brand border border-cyan-500/60 shadow-sm focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bt-inset',
   secondary:
-    'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-sm focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
+    'bg-bt-panel hover:bg-bt-panel text-bt-text-primary border border-bt-border-strong shadow-sm focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bt-inset',
   ghost:
-    'bg-transparent hover:bg-slate-800/70 text-slate-300 hover:text-white border border-transparent focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
+    'bg-transparent hover:bg-bt-panel/70 text-bt-text-secondary hover:text-bt-on-brand border border-transparent focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bt-inset',
   danger:
-    'bg-rose-600 hover:bg-rose-500 text-white border border-rose-500/60 shadow-sm focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
+    'bg-rose-600 hover:bg-rose-500 text-bt-on-brand border border-rose-500/60 shadow-sm focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bt-inset',
 };
 
 const SIZE_STYLES: Record<ButtonSize, string> = {
@@ -53,7 +53,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {icon && <span className="shrink-0 flex items-center justify-center">{icon}</span>}
         {children && <span>{children}</span>}
         {shortcut && (
-          <kbd className="ml-1 px-1 py-0.5 text-[9px] font-mono rounded bg-slate-950/60 border border-slate-700/80 text-slate-400 leading-none">
+          <kbd className="ml-1 px-1 py-0.5 text-[9px] font-mono rounded bg-bt-inset/60 border border-bt-border-strong/80 text-bt-text-secondary leading-none">
             {shortcut}
           </kbd>
         )}

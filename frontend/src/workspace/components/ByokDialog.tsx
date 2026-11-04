@@ -62,18 +62,18 @@ export const ByokDialog: React.FC<ByokDialogProps> = ({ open, onClose, configure
       open={open}
       onClose={onClose}
       ariaLabel="API key configuration"
-      className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl p-4 text-slate-200 text-xs shadow-2xl"
+      className="w-full max-w-sm bg-bt-surface border border-bt-border-strong rounded-xl p-4 text-bt-text-primary text-xs shadow-2xl"
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-2">
           <KeyRound className="w-4 h-4 text-cyan-400" />
-          <span className="font-semibold text-slate-100 uppercase tracking-wider text-[11px]">Meta API key</span>
+          <span className="font-semibold text-bt-text-primary uppercase tracking-wider text-[11px]">Meta API key</span>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+          className="p-1 rounded hover:bg-bt-panel text-bt-text-secondary hover:text-bt-on-brand cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
@@ -98,7 +98,7 @@ export const ByokDialog: React.FC<ByokDialogProps> = ({ open, onClose, configure
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-slate-400">
+          <p className="text-bt-text-secondary">
             Paste a Meta Model API key to enable SheetScan, hover OCR, schedule parsing, and the reasoning copilot.
             Vectors, ledger, and export work without one.
           </p>
@@ -117,7 +117,7 @@ export const ByokDialog: React.FC<ByokDialogProps> = ({ open, onClose, configure
             aria-invalid={error !== null}
             aria-describedby={error ? 'byok-error' : undefined}
             autoComplete="off"
-            className="w-full px-2.5 py-2 rounded-lg bg-slate-800 border border-slate-700 outline-none focus:border-cyan-500 font-mono text-slate-100"
+            className="w-full px-2.5 py-2 rounded-lg bg-bt-panel border border-bt-border-strong outline-none focus:border-cyan-500 font-mono text-bt-text-primary"
           />
           <Button
             type="button"
@@ -136,7 +136,7 @@ export const ByokDialog: React.FC<ByokDialogProps> = ({ open, onClose, configure
           {error}
         </div>
       )}
-      <p className="mt-2 text-[10px] text-slate-500">
+      <p className="mt-2 text-[10px] text-bt-text-tertiary">
         Memory-only: never written to disk, logs, or browser storage. Discarded on tab close.
       </p>
     </Modal>

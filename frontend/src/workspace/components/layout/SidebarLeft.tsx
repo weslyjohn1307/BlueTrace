@@ -12,6 +12,7 @@ export interface SidebarLeftProps {
   activeSheetId: string | null;
   onSelectSheet: (sheetId: string) => void;
   projectId?: string | null;
+  onClose?: () => void;
 }
 
 export const SidebarLeft: React.FC<SidebarLeftProps> = ({
@@ -23,62 +24,71 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
   activeSheetId,
   onSelectSheet,
   projectId,
+  onClose,
 }) => {
   if (!open) return null;
 
   return (
-    <aside
-      className="w-64 shrink-0 hidden md:flex flex-col border-r border-slate-800 bg-slate-950/40 select-none"
-      aria-label="Sheet directory"
-    >
-      {/* View Switcher: Tree vs Filmstrip Segmented Control */}
+    <>
+      {/* Narrow screens: explicit drawer with a dismissable backdrop. */}
       <div
-        role="group"
-        aria-label="Sheet panel view"
-        className="flex items-center gap-1 px-2 py-1.5 bg-slate-950 border-b border-slate-800"
+        className="fixed inset-x-0 bottom-0 top-14 z-40 bg-bt-inset/60 xl:hidden"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside
+        className="fixed bottom-0 left-0 top-14 z-50 flex w-72 shrink-0 select-none flex-col border-r border-bt-border-subtle bg-bt-inset xl:static xl:inset-auto xl:z-auto xl:w-64"
+        aria-label="Sheet directory"
       >
-        <button
-          type="button"
-          aria-pressed={sheetPanelMode === 'tree'}
-          onClick={() => onSheetPanelModeChange('tree')}
-          className={`flex-1 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-all duration-[180ms] ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-            sheetPanelMode === 'tree'
-              ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold shadow-xs'
-              : 'text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-900/60'
-          }`}
+        {/* View switcher: tree or filmstrip */}
+        <div
+          role="group"
+          aria-label="Sheet panel view"
+          className="flex items-center gap-1 border-b border-bt-border-subtle bg-bt-inset px-2 py-1.5"
         >
-          Tree
-        </button>
-        <button
-          type="button"
-          aria-pressed={sheetPanelMode === 'filmstrip'}
-          onClick={() => onSheetPanelModeChange('filmstrip')}
-          className={`flex-1 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-all duration-[180ms] ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-            sheetPanelMode === 'filmstrip'
-              ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold shadow-xs'
-              : 'text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-900/60'
-          }`}
-        >
-          Filmstrip
-        </button>
-      </div>
+          <button
+            type="button"
+            aria-pressed={sheetPanelMode === 'tree'}
+            onClick={() => onSheetPanelModeChange('tree')}
+            className={`flex-1 rounded px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] ${
+              sheetPanelMode === 'tree'
+                ? 'border border-[#005BFF]/50 bg-[#005BFF]/20 text-[#9BDCFF]'
+                : 'border border-transparent text-bt-text-secondary hover:bg-bt-surface hover:text-bt-text-primary'
+            }`}
+          >
+            Tree
+          </button>
+          <button
+            type="button"
+            aria-pressed={sheetPanelMode === 'filmstrip'}
+            onClick={() => onSheetPanelModeChange('filmstrip')}
+            className={`flex-1 rounded px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] ${
+              sheetPanelMode === 'filmstrip'
+                ? 'border border-[#005BFF]/50 bg-[#005BFF]/20 text-[#9BDCFF]'
+                : 'border border-transparent text-bt-text-secondary hover:bg-bt-surface hover:text-bt-text-primary'
+            }`}
+          >
+            Filmstrip
+          </button>
+        </div>
 
-      <div className="flex-1 flex flex-col min-h-0">
-        {sheetPanelMode === 'tree' ? (
-          <SheetTree
-            sheets={treeSheets}
-            activeSheetId={activeSheetId}
-            onSelectSheet={onSelectSheet}
-          />
-        ) : (
-          <SheetNavigator
-            sheets={sheets}
-            activeSheetId={activeSheetId}
-            onSelectSheet={onSelectSheet}
-            projectId={projectId}
-          />
-        )}
-      </div>
-    </aside>
+        <div className="flex min-h-0 flex-1 flex-col">
+          {sheetPanelMode === 'tree' ? (
+            <SheetTree
+              sheets={treeSheets}
+              activeSheetId={activeSheetId}
+              onSelectSheet={onSelectSheet}
+            />
+          ) : (
+            <SheetNavigator
+              sheets={sheets}
+              activeSheetId={activeSheetId}
+              onSelectSheet={onSelectSheet}
+              projectId={projectId}
+            />
+          )}
+        </div>
+      </aside>
+    </>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Table2, Pin, Sparkles, CheckCircle2, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { Table2, Pin, CheckCircle2, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import type { ScheduledItem } from '../../api/contracts';
 import type { CanvasPin } from './SheetCanvas';
@@ -178,12 +178,12 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 text-slate-200 text-xs p-3 space-y-3" data-testid="schedule-panel">
+    <div className="flex flex-col h-full bg-bt-surface text-bt-text-primary text-xs p-3 space-y-3" data-testid="schedule-panel">
       {/* Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+      <div className="flex items-center justify-between pb-2 border-b border-bt-border-subtle">
         <div className="flex items-center space-x-2">
           <Table2 className="w-4 h-4 text-cyan-400" />
-          <span className="font-semibold text-slate-100 uppercase tracking-wider text-[11px] font-mono">
+          <span className="font-semibold text-bt-text-primary uppercase tracking-wider text-[11px] font-mono">
             Schedule Linking
           </span>
         </div>
@@ -194,13 +194,13 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
       {/* Schedule Meta Config */}
       <div className="space-y-1.5 font-mono">
-        <label className="text-[10px] uppercase text-slate-400">Schedule Name</label>
+        <label className="text-[10px] uppercase text-bt-text-secondary">Schedule Name</label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           aria-label="Schedule title"
-          className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-100 text-xs outline-none focus:border-cyan-500 transition-colors"
+          className="w-full px-2.5 py-1.5 rounded-lg bg-bt-panel/80 border border-bt-border-strong text-bt-text-primary text-base sm:text-xs outline-none focus:border-cyan-500 transition-colors"
         />
       </div>
 
@@ -210,14 +210,14 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
           className={`block p-4 rounded-xl border-2 border-dashed text-center cursor-pointer transition-all duration-200 ${
             busy
               ? 'border-cyan-400 bg-cyan-950/20'
-              : 'border-slate-700 bg-slate-950/50 hover:border-cyan-500/50 hover:bg-slate-900'
+              : 'border-bt-border-strong bg-bt-inset/50 hover:border-cyan-500/50 hover:bg-bt-surface'
           }`}
         >
           <FileSpreadsheet className="w-6 h-6 text-cyan-400 mx-auto mb-1.5" />
-          <div className="font-semibold text-slate-200 text-xs font-mono">
-            {busy ? 'Extracting schedule rows with muse-spark-1.3…' : 'Drop schedule crop or table PNG'}
+          <div className="font-semibold text-bt-text-primary text-xs font-mono">
+            {busy ? 'Reading schedule rows…' : 'Drop schedule crop or table PNG'}
           </div>
-          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+          <div className="text-[10px] text-bt-text-secondary font-mono mt-0.5">
             Auto-extracts Equipment Tags, CFM, and reconciles against plan text
           </div>
           <input
@@ -238,9 +238,9 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
           type="button"
           onClick={loadBenchmarkSchedule}
           disabled={busy || !sheetId}
-          className="w-full flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-500/30 text-cyan-300 font-mono text-xs cursor-pointer transition-all disabled:opacity-50 shadow-xs"
+          className="w-full flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-500/30 text-cyan-300 font-mono text-xs cursor-pointer transition-all duration-150 active:scale-[0.98] disabled:opacity-50 shadow-xs"
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <FileSpreadsheet className="w-4 h-4" />
           <span>Load Benchmark M-201 Equipment Schedule</span>
         </button>
       </div>
@@ -274,16 +274,16 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
             {items.map((item) => (
               <div
                 key={item.tag}
-                className="p-2 rounded-lg border border-slate-800 bg-slate-950/80 hover:border-cyan-500/40 transition-all font-mono flex items-center justify-between"
+                className="p-2 rounded-lg border border-bt-border-subtle bg-bt-inset/80 hover:border-cyan-500/40 transition-all font-mono flex items-center justify-between"
               >
                 <div className="space-y-0.5">
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-cyan-300 text-xs">{item.tag}</span>
-                    <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-bt-panel text-bt-text-secondary border border-bt-border-strong">
                       {item.system}
                     </span>
                   </div>
-                  <div className="text-slate-400 text-[10px] truncate max-w-xs">{item.description}</div>
+                  <div className="text-bt-text-secondary text-[10px] truncate max-w-xs">{item.description}</div>
                 </div>
 
                 <div className="text-right">

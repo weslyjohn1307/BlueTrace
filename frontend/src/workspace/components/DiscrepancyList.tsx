@@ -108,7 +108,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
       case 'UNSCHEDULED':
       default:
         return (
-          <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono text-[10px]">
+          <span className="px-1.5 py-0.5 rounded bg-bt-panel border border-bt-border-strong text-bt-text-secondary font-mono text-[10px]">
             UNSCHEDULED
           </span>
         );
@@ -116,11 +116,11 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-900 text-slate-200">
+    <div className="flex-1 flex flex-col overflow-hidden bg-bt-surface text-bt-text-primary">
       {/* Subheader Filters */}
-      <div className="px-3 py-2 border-b border-slate-800 bg-slate-950 flex flex-wrap gap-2 text-[11px] font-mono items-center justify-between">
+      <div className="px-3 py-2 border-b border-bt-border-subtle bg-bt-inset flex flex-wrap gap-2 text-[11px] font-mono items-center justify-between">
         <div className="flex items-center space-x-1">
-          <span className="text-slate-500 text-[10px]">Severity:</span>
+          <span className="text-bt-text-tertiary text-[10px]">Severity:</span>
           {(['ALL', 'CRITICAL', 'WARNING', 'INFO'] as const).map((sev) => (
             <button
               key={sev}
@@ -129,7 +129,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
               className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors ${
                 severityFilter === sev
                   ? 'bg-cyan-900/80 text-cyan-200 border border-cyan-500/50'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                  : 'bg-bt-surface text-bt-text-secondary hover:text-bt-text-primary border border-bt-border-subtle'
               }`}
             >
               {sev === 'ALL'
@@ -144,7 +144,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
         </div>
 
         <div className="flex items-center space-x-1">
-          <span className="text-slate-500 text-[10px]">Status:</span>
+          <span className="text-bt-text-tertiary text-[10px]">Status:</span>
           {(['ALL', 'UNPLACED_GHOST', 'UNDERCOUNT', 'MATCHED'] as const).map((st) => (
             <button
               key={st}
@@ -153,7 +153,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
               className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors ${
                 statusFilter === st
                   ? 'bg-cyan-900/80 text-cyan-200 border border-cyan-500/50'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                  : 'bg-bt-surface text-bt-text-secondary hover:text-bt-text-primary border border-bt-border-subtle'
               }`}
             >
               {st === 'ALL'
@@ -169,7 +169,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
       </div>
 
       {/* Discrepancies Count & Summary */}
-      <div className="px-3 py-1.5 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between text-[11px] font-mono text-slate-400">
+      <div className="px-3 py-1.5 border-b border-bt-border-subtle bg-bt-surface/60 flex items-center justify-between text-[11px] font-mono text-bt-text-secondary">
         <span>
           Showing <strong className="text-cyan-300">{filteredItems.length}</strong> of{' '}
           {discrepancies.length} reconciliation items
@@ -185,10 +185,10 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
       {/* Scrollable Discrepancy Items List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
         {filteredItems.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 font-mono text-xs space-y-2">
+          <div className="py-12 text-center text-bt-text-tertiary font-mono text-xs space-y-2">
             <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500/70" />
-            <p className="text-slate-300 font-semibold">Zero schedule discrepancies match filter</p>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-bt-text-secondary font-semibold">Zero schedule discrepancies match filter</p>
+            <p className="text-[11px] text-bt-text-tertiary">
               Equipment schedules and plan takeoffs are reconciled.
             </p>
           </div>
@@ -203,22 +203,22 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
                 data-testid="discrepancy-card"
                 className={`p-3 rounded-xl border transition-all ${
                   isVerified
-                    ? 'bg-slate-900/40 border-emerald-500/40'
-                    : 'bg-slate-800/80 border-slate-700/80 hover:border-slate-600 shadow-md'
+                    ? 'bg-bt-surface/40 border-emerald-500/40'
+                    : 'bg-bt-panel/80 border-bt-border-strong/80 hover:border-bt-border-strong shadow-md'
                 }`}
               >
                 {/* Header: Tag + Badges */}
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-700/60">
+                <div className="flex items-center justify-between pb-1.5 border-b border-bt-border-strong/60">
                   <div className="flex items-center space-x-2 truncate">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
                       style={{ backgroundColor: discColor }}
                     />
-                    <span className="font-mono font-bold text-slate-100 text-sm tracking-wide">
+                    <span className="font-mono font-bold text-bt-text-primary text-sm tracking-wide">
                       {item.tag}
                     </span>
                     {item.label && item.label !== item.tag && (
-                      <span className="text-xs text-slate-400 truncate">({item.label})</span>
+                      <span className="text-xs text-bt-text-secondary truncate">({item.label})</span>
                     )}
                   </div>
                   <div className="flex items-center space-x-1.5 shrink-0">
@@ -228,20 +228,20 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
                 </div>
 
                 {/* Variance Readout (Rule 03 Monospace Invariant) */}
-                <div className="my-2 py-1.5 px-2.5 rounded-lg bg-slate-950/90 border border-slate-800 flex items-center justify-between font-mono text-xs tabular-nums select-text">
-                  <div className="flex items-center space-x-3 text-slate-400">
+                <div className="my-2 py-1.5 px-2.5 rounded-lg bg-bt-inset/90 border border-bt-border-subtle flex items-center justify-between font-mono text-xs tabular-nums select-text">
+                  <div className="flex items-center space-x-3 text-bt-text-secondary">
                     <span>
                       Sched:{' '}
-                      <strong className="text-slate-100 font-semibold">{item.schedule_qty}</strong>
+                      <strong className="text-bt-text-primary font-semibold">{item.schedule_qty}</strong>
                     </span>
-                    <span className="text-slate-700">|</span>
+                    <span className="text-bt-text-secondary">|</span>
                     <span>
                       Plan:{' '}
-                      <strong className="text-slate-100 font-semibold">{item.plan_qty}</strong>
+                      <strong className="text-bt-text-primary font-semibold">{item.plan_qty}</strong>
                     </span>
                   </div>
                   <div className="flex items-center space-x-1.5 font-bold">
-                    <span className="text-slate-400 font-normal">Variance:</span>
+                    <span className="text-bt-text-secondary font-normal">Variance:</span>
                     <span
                       className={
                         item.variance === 0
@@ -257,10 +257,10 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
                 </div>
 
                 {/* Trade & System Metadata */}
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1.5">
+                <div className="flex items-center justify-between text-[11px] text-bt-text-secondary pb-1.5">
                   <span className="capitalize">{item.discipline || item.system || 'Mechanical'}</span>
                   {item.schedule_sheet && (
-                    <span className="font-mono text-[10px] text-slate-500">
+                    <span className="font-mono text-[10px] text-bt-text-tertiary">
                       Schedule: {item.schedule_sheet}
                     </span>
                   )}
@@ -268,7 +268,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
 
                 {/* Notes or Suggested Action */}
                 {(item.notes || item.suggested_action) && (
-                  <p className="text-[11px] text-slate-300 leading-snug pb-2 italic">
+                  <p className="text-[11px] text-bt-text-secondary leading-snug pb-2 italic">
                     {item.notes || item.suggested_action}
                   </p>
                 )}
@@ -296,7 +296,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
                 )}
 
                 {/* Action Buttons */}
-                <div className="pt-2 border-t border-slate-700/60 flex items-center gap-1.5">
+                <div className="pt-2 border-t border-bt-border-strong/60 flex items-center gap-1.5">
                   {item.status === 'UNPLACED_GHOST' && onPlaceGhostPin && (
                     <button
                       type="button"
@@ -312,7 +312,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
                     <button
                       type="button"
                       onClick={() => item.location_pt && onLocateItem(item.location_pt)}
-                      className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono font-semibold cursor-pointer transition-colors"
+                      className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 rounded bg-bt-panel hover:bg-bt-panel text-bt-text-secondary border border-bt-border-strong text-[10px] font-mono font-semibold cursor-pointer transition-colors"
                     >
                       <MapPin className="w-3 h-3 text-cyan-400" />
                       <span>Locate on Canvas</span>
@@ -338,7 +338,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
                     <button
                       type="button"
                       onClick={() => handleDismiss(item.item_id)}
-                      className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700 cursor-pointer transition-colors"
+                      className="p-1 rounded bg-bt-panel hover:bg-bt-panel text-bt-text-secondary hover:text-bt-text-primary border border-bt-border-strong cursor-pointer transition-colors"
                       title="Dismiss discrepancy"
                       aria-label="Dismiss"
                     >

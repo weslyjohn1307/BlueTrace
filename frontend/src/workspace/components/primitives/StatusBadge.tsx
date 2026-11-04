@@ -76,7 +76,7 @@ function getBadgeConfig(status: string, size: 'sm' | 'md'): BadgeConfig {
   if (normalized === 'cannot_determine') {
     return {
       label: 'Uncertain',
-      className: 'text-slate-300 bg-slate-900 border-slate-700',
+      className: 'text-bt-text-secondary bg-bt-surface border-bt-border-strong',
       icon: <HelpCircle className={iconClass} />,
     };
   }
@@ -143,7 +143,7 @@ function getBadgeConfig(status: string, size: 'sm' | 'md'): BadgeConfig {
 
   return {
     label: status,
-    className: 'text-slate-300 bg-slate-900 border-slate-700',
+    className: 'text-bt-text-secondary bg-bt-surface border-bt-border-strong',
     icon: <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />,
   };
 }

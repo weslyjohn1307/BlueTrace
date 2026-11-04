@@ -63,7 +63,7 @@ describe('CopilotDrawer & Discrepancy Navigation', () => {
     expect(dialog.getAttribute('aria-label')).toBe('Ask the drawing');
   });
 
-  it('retains drawer in DOM when closed using CSS translation', () => {
+  it('retains drawer state while collapsing its closed viewport footprint', () => {
     const { rerender } = render(
       <CopilotDrawer
         open={true}
@@ -74,7 +74,7 @@ describe('CopilotDrawer & Discrepancy Navigation', () => {
     );
 
     const dialog = screen.getByTestId('copilot-drawer');
-    expect(dialog.className).toContain('translate-x-0');
+    expect(dialog.className).toContain('max-w-lg');
 
     rerender(
       <CopilotDrawer
@@ -85,9 +85,9 @@ describe('CopilotDrawer & Discrepancy Navigation', () => {
       />
     );
 
-    // Still in DOM, but translated off-screen
+    // Still in DOM so copilot state survives, but it no longer expands the page.
     expect(dialog).toBeInTheDocument();
-    expect(dialog.className).toContain('translate-x-full');
+    expect(dialog.className).toContain('max-w-0');
   });
 
   it('calls onClose when close button is clicked', () => {

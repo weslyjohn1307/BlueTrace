@@ -56,6 +56,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
   const suggested = effectiveItems.filter((i) => i.status === 'SUGGESTED');
   const accepted = effectiveItems.filter((i) => i.status === 'ACCEPTED');
   const totalFt = summary.reduce((acc, row) => acc + row.total_length_ft, 0);
+  const measuredLocked = scaleCalibrated === false && totalFt > 0;
 
   const filteredItems = effectiveItems.filter((item) => {
     if (filter === 'suggested') return item.status === 'SUGGESTED';
@@ -69,7 +70,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
     if (s.includes('return')) return 'text-emerald-400 bg-emerald-950/60 border-emerald-500/30';
     if (s.includes('exhaust')) return 'text-amber-400 bg-amber-950/60 border-amber-500/30';
     if (s.includes('fire') || s.includes('life safety')) return 'text-rose-400 bg-rose-950/60 border-rose-500/30';
-    return 'text-slate-400 bg-slate-800 border-slate-700';
+    return 'text-bt-text-secondary bg-bt-panel border-bt-border-strong';
   };
 
   const handleOptimisticAccept = (id: string) => {
@@ -83,44 +84,54 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 text-slate-200 text-xs" data-testid="ledger-panel">
+    <div className="flex flex-col h-full bg-bt-surface text-bt-text-primary text-xs" data-testid="ledger-panel">
       {/* Header & Tremor-Style KPI Summary */}
-      <div className="p-3 border-b border-slate-800 space-y-2.5">
+      <div className="p-3 border-b border-bt-border-subtle space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <ClipboardList className="w-4 h-4 text-cyan-400" />
-            <span className="font-semibold text-slate-100 uppercase tracking-wider text-[11px] font-mono">
+            <span className="font-semibold text-bt-text-primary uppercase tracking-wider text-[11px] font-mono">
               Takeoff Ledger
             </span>
           </div>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 tabular-nums">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-bt-panel text-bt-text-secondary border border-bt-border-strong tabular-nums">
             {effectiveItems.length} records
           </span>
         </div>
 
-        {/* KPI Mini-Cards */}
+        {/* KPI Mini-Cards: footage is measured length, never a claim of accepted takeoff. */}
         <div className="grid grid-cols-3 gap-2 font-mono">
-          <div className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 flex flex-col">
-            <span className="text-[9px] text-slate-500 uppercase">Total LF</span>
-            <span className="text-xs font-bold text-cyan-300 truncate tabular-nums">{totalFt.toFixed(1)} ft</span>
+          <div className="p-2 rounded-lg bg-bt-inset/70 border border-bt-border-subtle flex flex-col">
+            <span className="text-[9px] text-bt-text-tertiary uppercase">Total LF</span>
+            {measuredLocked ? (
+              <span
+                className="text-xs font-bold text-amber-300 tabular-nums"
+                title="Measured length exists but scale is unverified, so footage stays locked until you verify or calibrate this sheet."
+              >
+                Locked
+              </span>
+            ) : (
+              <span className="text-xs font-bold text-cyan-300 truncate tabular-nums">{totalFt.toFixed(1)} ft</span>
+            )}
           </div>
-          <div className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 flex flex-col">
+          <div className="p-2 rounded-lg bg-bt-inset/70 border border-bt-border-subtle flex flex-col">
             <span className="text-[9px] text-emerald-500 uppercase">Accepted</span>
             <span className="text-xs font-bold text-emerald-300 tabular-nums">{accepted.length}</span>
           </div>
-          <div className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 flex flex-col">
+          <div className="p-2 rounded-lg bg-bt-inset/70 border border-bt-border-subtle flex flex-col">
             <span className="text-[9px] text-amber-500 uppercase">Review</span>
             <span className="text-xs font-bold text-amber-300 tabular-nums">{suggested.length}</span>
           </div>
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center space-x-1 pt-1">
+        <div className="flex items-center space-x-1 pt-1" role="group" aria-label="Filter ledger by review state">
           <button
             type="button"
             onClick={() => setFilter('all')}
+            aria-pressed={filter === 'all'}
             className={`px-2 py-1 rounded text-[10px] font-mono transition-all duration-100 active:scale-[0.98] cursor-pointer ${
-              filter === 'all' ? 'bg-cyan-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              filter === 'all' ? 'bg-cyan-600 text-bt-on-brand font-semibold' : 'text-bt-text-secondary hover:text-bt-text-primary hover:bg-bt-panel'
             }`}
           >
             All ({effectiveItems.length})
@@ -128,8 +139,9 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
           <button
             type="button"
             onClick={() => setFilter('suggested')}
+            aria-pressed={filter === 'suggested'}
             className={`px-2 py-1 rounded text-[10px] font-mono transition-all duration-100 active:scale-[0.98] cursor-pointer ${
-              filter === 'suggested' ? 'bg-amber-600 text-white font-semibold' : 'text-amber-400 hover:bg-slate-800'
+              filter === 'suggested' ? 'bg-amber-600 text-bt-on-brand font-semibold' : 'text-amber-400 hover:bg-bt-panel'
             }`}
           >
             Review ({suggested.length})
@@ -137,8 +149,9 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
           <button
             type="button"
             onClick={() => setFilter('accepted')}
+            aria-pressed={filter === 'accepted'}
             className={`px-2 py-1 rounded text-[10px] font-mono transition-all duration-100 active:scale-[0.98] cursor-pointer ${
-              filter === 'accepted' ? 'bg-emerald-600 text-white font-semibold' : 'text-emerald-400 hover:bg-slate-800'
+              filter === 'accepted' ? 'bg-emerald-600 text-bt-on-brand font-semibold' : 'text-emerald-400 hover:bg-bt-panel'
             }`}
           >
             Accepted ({accepted.length})
@@ -148,7 +161,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
 
       {/* Item List (Beautiful UI Diff Table Pattern) */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
-        {loading && <div className="p-4 text-center text-slate-500 font-mono italic">Loading ledger records…</div>}
+        {loading && <div className="p-4 text-center text-bt-text-tertiary font-mono italic">Loading ledger records…</div>}
         {!loading && items.length === 0 && (
           <EmptyPanel
             title="No takeoff items yet"
@@ -158,47 +171,62 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
 
         {filteredItems.map((item) => {
           const isSuggested = item.status === 'SUGGESTED';
+          const needsScale = item.total_length_ft > 0 && scaleCalibrated === false;
           return (
             <div
               key={item.item_id}
-              className={`p-2.5 rounded-lg border transition-all duration-200 flex flex-col space-y-1.5 ${
+              className={`p-2.5 rounded-lg border transition-colors duration-150 flex flex-col space-y-1.5 ${
                 isSuggested
-                  ? 'border-amber-500/50 bg-amber-950/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
-                  : 'border-slate-800 bg-slate-900/80 hover:border-slate-700'
+                  ? 'border-amber-500/50 bg-amber-950/20'
+                  : 'border-bt-border-subtle bg-bt-surface/80 hover:border-bt-border-strong'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="font-mono font-bold text-slate-100 text-xs tracking-tight">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono font-bold text-bt-text-primary text-xs tracking-tight">
                   {item.dimension_label}
                 </span>
-                <span
-                  className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-mono font-semibold border ${getSystemColor(
-                    item.system
-                  )}`}
-                >
-                  {item.system || item.category}
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {isSuggested ? (
+                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded font-mono font-semibold border border-amber-500/40 text-amber-300">
+                      Needs review
+                    </span>
+                  ) : null}
+                  <span
+                    className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-mono font-semibold border ${getSystemColor(
+                      item.system
+                    )}`}
+                  >
+                    {item.system || item.category}
+                  </span>
                 </span>
               </div>
 
-              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+              <div className="flex items-center justify-between text-[10px] font-mono text-bt-text-secondary">
                 <div className="flex items-center space-x-1.5">
-                  <span className="text-slate-500">{item.source}</span>
-                  {item.confidence && (
-                    <span className="text-cyan-400">{(item.confidence * 100).toFixed(0)}%</span>
-                  )}
+                  <span className="text-bt-text-tertiary">{item.source}</span>
                 </div>
-                <span className="font-bold text-slate-200 tabular-nums">
+                <span className="font-bold text-bt-text-primary tabular-nums">
                   {item.total_length_ft > 0 ? `${item.total_length_ft.toFixed(1)} ft` : `Qty: ${item.count || 1}`}
                 </span>
               </div>
+
+              {needsScale && (
+                <p
+                  id={`scale-note-${item.item_id}`}
+                  className="rounded border border-amber-500/30 bg-amber-950/30 px-2 py-1 text-[10px] leading-snug text-amber-200"
+                >
+                  Scale unverified. This measured length stays locked until you calibrate the sheet.
+                </p>
+              )}
 
               {isSuggested && (
                 <div className="flex space-x-2 pt-1">
                   <button
                     type="button"
                     onClick={() => handleOptimisticAccept(item.item_id)}
-                    title={scaleCalibrated === false ? 'Scale calibration required before accepting measurements' : undefined}
-                    className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white font-mono text-[11px] cursor-pointer transition-all duration-100 active:scale-[0.98] shadow-xs"
+                    disabled={needsScale}
+                    aria-describedby={needsScale ? `scale-note-${item.item_id}` : undefined}
+                    className="flex flex-1 items-center justify-center space-x-1 rounded-lg bg-emerald-600/90 px-2.5 py-1.5 font-mono text-[11px] text-bt-on-brand shadow-xs transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-bt-panel disabled:text-bt-text-tertiary active:scale-[0.98]"
                   >
                     <Check className="w-3 h-3" />
                     <span>Accept</span>
@@ -208,7 +236,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
                       type="button"
                       aria-label={`Correct ${item.dimension_label}`}
                       onClick={() => onCorrect(item.item_id)}
-                      className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-white font-mono text-[11px] cursor-pointer transition-all duration-100 active:scale-[0.98] shadow-xs"
+                      className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-bt-on-brand font-mono text-[11px] cursor-pointer transition-all duration-100 active:scale-[0.98] shadow-xs"
                     >
                       <Pencil className="w-3 h-3" />
                       <span>Correct</span>
@@ -217,7 +245,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
                   <button
                     type="button"
                     onClick={() => handleOptimisticReject(item.item_id)}
-                    className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white font-mono text-[11px] cursor-pointer transition-all duration-100 active:scale-[0.98] border border-slate-700"
+                    className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-lg bg-bt-panel hover:bg-rose-600/80 text-bt-text-secondary hover:text-bt-on-brand font-mono text-[11px] cursor-pointer transition-all duration-100 active:scale-[0.98] border border-bt-border-strong"
                   >
                     <X className="w-3 h-3" />
                     <span>Reject</span>
@@ -230,7 +258,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
                     type="button"
                     aria-label={`Correct ${item.dimension_label}`}
                     onClick={() => onCorrect(item.item_id)}
-                    className="flex items-center space-x-1 px-2 py-1 rounded text-[10px] font-mono text-cyan-400 hover:text-cyan-200 hover:bg-slate-800 cursor-pointer transition-colors"
+                    className="flex items-center space-x-1 px-2 py-1 rounded text-[10px] font-mono text-cyan-400 hover:text-cyan-200 hover:bg-bt-panel cursor-pointer transition-colors"
                   >
                     <Pencil className="w-3 h-3" />
                     <span>Correct</span>
@@ -243,12 +271,12 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
       </div>
 
       {/* Export Bar */}
-      <div className="p-2.5 border-t border-slate-800 bg-slate-950/70 flex space-x-2">
+      <div className="p-2.5 border-t border-bt-border-subtle bg-bt-inset/70 flex space-x-2">
         <button
           type="button"
           onClick={onExportCsv}
           disabled={items.length === 0}
-          className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 hover:border-cyan-500/40 border border-slate-700 text-slate-200 font-mono text-xs disabled:opacity-40 cursor-pointer transition-all"
+          className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-bt-panel hover:bg-bt-panel hover:border-cyan-500/40 border border-bt-border-strong text-bt-text-primary font-mono text-xs disabled:opacity-40 cursor-pointer transition-all"
         >
           <Download className="w-3.5 h-3.5 text-cyan-400" />
           <span>Export CSV</span>
@@ -257,7 +285,7 @@ export const LedgerPanel: React.FC<LedgerPanelProps> = ({
           type="button"
           onClick={onExportJson}
           disabled={items.length === 0}
-          className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 hover:border-cyan-500/40 border border-slate-700 text-slate-200 font-mono text-xs disabled:opacity-40 cursor-pointer transition-all"
+          className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-bt-panel hover:bg-bt-panel hover:border-cyan-500/40 border border-bt-border-strong text-bt-text-primary font-mono text-xs disabled:opacity-40 cursor-pointer transition-all"
         >
           <Download className="w-3.5 h-3.5 text-cyan-400" />
           <span>Export JSON</span>

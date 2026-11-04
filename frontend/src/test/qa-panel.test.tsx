@@ -98,4 +98,30 @@ describe('QAPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit dismissal' }));
     expect(onResolve).toHaveBeenCalledWith('ann-1', 'DISMISSED', 'duplicate');
   });
+
+  it('paginates large annotation lists and keeps long identifiers within the card', () => {
+    const annotations = Array.from({ length: 23 }, (_, index) =>
+      annotation({
+        annotation_id: `ann-${index + 1}`,
+        reason_code: `ORPHAN_RUN_${index + 1}`,
+      })
+    );
+    render(
+      <QAPanel
+        annotations={annotations}
+        checklist={[]}
+        loading={false}
+        error={null}
+        onResolve={() => {}}
+        onRefresh={() => {}}
+      />
+    );
+
+    expect(screen.getByText('Page 1 of 2')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Confirm ORPHAN_RUN_20' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Confirm ORPHAN_RUN_21' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Page 2 of 2')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Confirm ORPHAN_RUN_21' })).toBeTruthy();
+  });
 });

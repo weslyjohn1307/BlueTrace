@@ -20,6 +20,10 @@ describe('CalibrationModal', () => {
     expect(screen.getByTestId('cal-confirm')).not.toBeDisabled();
   });
 
+  it('recognizes 1/16-inch scale in the calibration preview', () => {
+    expect(snapScaleString(192)).toBe('1/16" = 1\'-0"');
+  });
+
   it('updates the live preview when the inputs change', () => {
     render(
       <CalibrationModal open {...base} defaultFeet={1} defaultInches={0} onConfirm={() => {}} onCancel={() => {}} />

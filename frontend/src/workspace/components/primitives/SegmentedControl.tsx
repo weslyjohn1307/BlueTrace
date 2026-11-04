@@ -55,7 +55,7 @@ export function SegmentedControl<T extends string = string>({
       ref={listRef}
       role="tablist"
       aria-label={ariaLabel}
-      className={`inline-flex items-center bg-slate-950/80 p-0.5 rounded-lg border border-slate-800 select-none ${className}`}
+      className={`inline-flex items-center bg-bt-inset/80 p-0.5 rounded-lg border border-bt-border-subtle select-none ${className}`}
     >
       {options.map((opt, index) => {
         const isSelected = opt.id === value;
@@ -71,8 +71,8 @@ export function SegmentedControl<T extends string = string>({
             onKeyDown={(e) => handleKeyDown(e, index)}
             className={`relative flex items-center justify-center font-mono font-medium rounded-md transition-all duration-[180ms] ease-out outline-none cursor-pointer ${sizeStyles} ${
               isSelected
-                ? 'bg-slate-800 text-slate-100 shadow-sm border border-slate-700/80'
-                : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                ? 'bg-bt-panel text-bt-text-primary shadow-sm border border-bt-border-strong/80'
+                : 'text-bt-text-secondary hover:text-bt-text-primary border border-transparent'
             }`}
           >
             <span>{opt.label}</span>

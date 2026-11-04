@@ -4,8 +4,9 @@ import {
   PanelRight,
   CheckCircle2,
   AlertTriangle,
+  Info,
+  MessageCircleQuestion,
 } from 'lucide-react';
-import { BrandIcon } from '../../../components/brand/BrandAssets';
 
 export interface WorkstationHeaderProps {
   sheetNumber: string;
@@ -13,6 +14,7 @@ export interface WorkstationHeaderProps {
   discipline: string;
   scaleRaw?: string | null;
   scaleOk: boolean;
+  sheetType?: string | null;
   leftSidebarOpen: boolean;
   onToggleLeftSidebar: () => void;
   rightSidebarOpen: boolean;
@@ -21,7 +23,14 @@ export interface WorkstationHeaderProps {
   onDisciplineFilterChange: (disc: 'ALL' | 'Supply' | 'Return' | 'Exhaust') => void;
   statusFilter: 'ALL' | 'MATCHED' | 'DISCREPANCIES' | 'GHOST';
   onStatusFilterChange: (status: 'ALL' | 'MATCHED' | 'DISCREPANCIES' | 'GHOST') => void;
+  onOpenCopilot?: () => void;
 }
+
+const PANEL_TOGGLE =
+  'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-bt-text-tertiary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface';
+
+const SELECT =
+  'min-h-10 rounded-md border border-bt-border-strong bg-bt-surface px-2 text-sm text-bt-text-primary outline-none focus:border-bt-focus focus-visible:ring-2 focus-visible:ring-bt-focus';
 
 export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
   sheetNumber,
@@ -29,6 +38,7 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
   discipline,
   scaleRaw,
   scaleOk,
+  sheetType,
   leftSidebarOpen,
   onToggleLeftSidebar,
   rightSidebarOpen,
@@ -37,93 +47,143 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
   onDisciplineFilterChange,
   statusFilter,
   onStatusFilterChange,
+  onOpenCopilot,
 }) => {
   return (
     <header
-      className="flex items-center justify-between px-3 py-1.5 bg-[#0A0F1E]/95 border-b border-slate-800 text-[11px] font-mono z-20 backdrop-blur-md"
+      className="z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-bt-border-subtle bg-bt-surface px-4 py-2"
       aria-label="Workstation header"
     >
-      <div className="flex items-center space-x-2 truncate">
+      <div className="flex w-full min-w-0 items-center gap-2 xl:w-auto xl:flex-1">
         <button
           type="button"
           onClick={onToggleLeftSidebar}
-          className={`p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer hidden md:block active:scale-[0.98] ${
-            !leftSidebarOpen ? 'text-[#37C6FF] bg-[#005BFF]/20' : ''
-          }`}
-          title="Toggle Sheet Directory [[]"
-          aria-label="Toggle Sheet Directory"
+          className={`${PANEL_TOGGLE} ${!leftSidebarOpen ? 'bg-bt-brand-soft text-bt-brand' : ''}`}
+          title="Sheets panel (key: [)"
+          aria-label={leftSidebarOpen ? 'Hide sheets panel' : 'Show sheets panel'}
+          aria-pressed={leftSidebarOpen}
+          aria-keyshortcuts="["
         >
-          <PanelLeft className="w-3.5 h-3.5" />
+          <PanelLeft className="h-4 w-4" aria-hidden="true" />
         </button>
-        <BrandIcon name="project" size={14} className="text-[#37C6FF] shrink-0" />
-        <span className="text-slate-200 font-semibold truncate">
-          {sheetNumber} — {sheetTitle}
-        </span>
-        <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700">
-          {discipline}
-        </span>
 
-        {/* Multi-Axis Discipline & Status Filter Bar: Responsive across viewports */}
-        <div className="flex items-center space-x-1.5 pl-3 border-l border-slate-800 text-[10px] overflow-x-auto max-w-[50vw]">
-          <BrandIcon name="layers" size={12} className="text-[#37C6FF] shrink-0" />
-          <span className="text-slate-500 shrink-0 hidden sm:inline">Trade:</span>
-          {(['ALL', 'Supply', 'Return', 'Exhaust'] as const).map((disc) => (
-            <button
-              key={disc}
-              type="button"
-              onClick={() => onDisciplineFilterChange(disc)}
-              className={`px-1.5 py-0.5 rounded cursor-pointer transition-all duration-100 active:scale-[0.98] shrink-0 ${
-                disciplineFilter === disc
-                  ? 'bg-[#005BFF]/25 text-[#37C6FF] border border-[#005BFF]/50 font-bold shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-              }`}
-            >
-              {disc}
-            </button>
-          ))}
-          <span className="text-slate-700 shrink-0">|</span>
-          <BrandIcon name="detect" size={12} className="text-[#37C6FF] shrink-0 hidden sm:inline" />
-          <span className="text-slate-500 shrink-0 hidden sm:inline">Status:</span>
-          {(['ALL', 'MATCHED', 'DISCREPANCIES', 'GHOST'] as const).map((st) => (
-            <button
-              key={st}
-              type="button"
-              onClick={() => onStatusFilterChange(st)}
-              className={`px-1.5 py-0.5 rounded cursor-pointer transition-all duration-100 active:scale-[0.98] shrink-0 ${
-                statusFilter === st
-                  ? 'bg-[#005BFF]/25 text-[#37C6FF] border border-[#005BFF]/50 font-bold shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <h1 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-bt-text-primary" title={`${sheetNumber} ${sheetTitle}`}>
+            <span className="mr-2 inline-block max-w-28 truncate align-bottom">{sheetNumber}</span>
+            <span className="font-normal text-bt-text-secondary">{sheetTitle}</span>
+          </h1>
+          <span className={`max-w-28 shrink-0 truncate rounded border px-1.5 py-0.5 font-sans text-xs font-semibold ${discipline.toLowerCase().includes('plumb') ? 'text-mep-plumbing bg-mep-plumbing-tint border-mep-plumbing/30' : discipline.toLowerCase().includes('elec') ? 'text-mep-electrical bg-mep-electrical-tint border-mep-electrical/30' : discipline.toLowerCase().includes('mech') ? 'text-mep-mechanical bg-mep-mechanical-tint border-mep-mechanical/30' : 'border-bt-border-strong bg-bt-panel text-bt-text-secondary'}`} title={discipline}>
+            {discipline}
+          </span>
         </div>
       </div>
 
-      <div className="flex items-center space-x-2 shrink-0">
-        {scaleOk ? (
-          <span className="flex items-center space-x-1.5 text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-[10px]">
-            <CheckCircle2 className="w-3 h-3" />
-            <span>{scaleRaw}</span>
-          </span>
-        ) : (
-          <span className="flex items-center space-x-1.5 text-amber-400 font-medium px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/30 text-[10px] animate-pulse">
-            <AlertTriangle className="w-3 h-3" />
-            <span>Scale Unverified // Review Required</span>
-          </span>
-        )}
+      <div className="flex w-full flex-wrap items-center justify-end gap-2 xl:ml-auto xl:w-auto">
+        <label className="flex items-center gap-1.5 text-[11px] text-bt-text-tertiary">
+          <span className="sr-only">Filter by trade</span>
+          <select
+            value={disciplineFilter}
+            onChange={(event) =>
+              onDisciplineFilterChange(
+                event.target.value as 'ALL' | 'Supply' | 'Return' | 'Exhaust'
+              )
+            }
+            aria-label="Filter by trade"
+            className={SELECT}
+          >
+            <option value="ALL">All trades</option>
+            <option value="Supply">Supply</option>
+            <option value="Return">Return</option>
+            <option value="Exhaust">Exhaust</option>
+          </select>
+        </label>
+
+        <label className="flex items-center gap-1.5 text-[11px] text-bt-text-tertiary">
+          <span className="sr-only">Filter by review status</span>
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              onStatusFilterChange(
+                event.target.value as 'ALL' | 'MATCHED' | 'DISCREPANCIES' | 'GHOST'
+              )
+            }
+            aria-label="Filter by review status"
+            className={SELECT}
+          >
+            <option value="ALL">All statuses</option>
+            <option value="MATCHED">Matched</option>
+            <option value="DISCREPANCIES">Discrepancies</option>
+            <option value="GHOST">Unplaced</option>
+          </select>
+        </label>
+
+        {(() => {
+          const isNonPlan =
+            sheetType === 'schedule' ||
+            sheetType === 'legend' ||
+            sheetType === 'detail' ||
+            sheetType === 'other' ||
+            /legend|schedule|abbreviation|symbol|detail/i.test(sheetTitle);
+
+          if (scaleOk) {
+            return (
+          <span
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-bt-success-border bg-bt-success-bg px-2 text-xs font-medium text-bt-success"
+                title="The printed or calibrated scale is verified for this sheet."
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Scale {scaleRaw || 'verified'}</span>
+              </span>
+            );
+          }
+
+          if (isNonPlan) {
+            return (
+              <span
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-bt-border-subtle bg-bt-panel px-2 text-xs font-medium text-bt-text-secondary"
+                title="Information, legend, and schedule sheets do not require physical scale."
+              >
+                <Info className="h-3.5 w-3.5 text-bt-text-secondary" aria-hidden="true" />
+                <span>Scale not needed</span>
+              </span>
+            );
+          }
+
+          return (
+            <span
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-bt-review-border bg-bt-review-bg px-2 text-xs font-medium text-bt-review"
+              title="No verified scale yet. Measured lengths stay in review until you verify or calibrate this sheet."
+            >
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Scale unverified</span>
+            </span>
+          );
+        })()}
+
+        {onOpenCopilot ? (
+          <button
+            type="button"
+            onClick={onOpenCopilot}
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-bt-border-strong px-2.5 text-xs text-bt-text-primary transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
+            title="Ask about this sheet (Ctrl+K)"
+            aria-label="Ask about this sheet (Ctrl+K)"
+            aria-keyshortcuts="Control+K"
+          >
+            <MessageCircleQuestion className="h-4 w-4 text-bt-brand" aria-hidden="true" />
+            <span>Ask</span>
+          </button>
+        ) : null}
 
         <button
           type="button"
           onClick={onToggleRightSidebar}
-          className={`p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer hidden lg:block active:scale-[0.98] ${
-            !rightSidebarOpen ? 'text-[#37C6FF] bg-[#005BFF]/20' : ''
-          }`}
-          title="Toggle Ledger & Schedule []]"
-          aria-label="Toggle Ledger & Schedule"
+          className={`${PANEL_TOGGLE} ${!rightSidebarOpen ? 'bg-bt-brand-soft text-bt-brand' : ''}`}
+          title="Review panel (key: ])"
+          aria-label={rightSidebarOpen ? 'Hide review panel' : 'Show review panel'}
+          aria-pressed={rightSidebarOpen}
+          aria-keyshortcuts="]"
         >
-          <PanelRight className="w-3.5 h-3.5" />
+          <PanelRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
     </header>

@@ -112,16 +112,16 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
       onClose={onCancel}
       data-testid="correction-modal"
       ariaLabel={`Correct takeoff item ${itemLabel ?? itemId}`}
-      className="w-[26rem] max-w-[calc(100vw-2rem)] rounded-xl bg-slate-900 border border-cyan-500/40 shadow-2xl p-5"
+      className="w-[26rem] max-w-[calc(100vw-2rem)] rounded-xl bg-bt-surface border border-cyan-500/40 shadow-2xl p-5"
     >
         <h2 className="text-sm font-mono font-bold text-cyan-300">Correct takeoff item</h2>
-        <p className="mt-1 text-[11px] font-mono text-slate-400 truncate">
-          {itemLabel ?? itemId} · original proposal is preserved in the payload
+        <p className="mt-1 text-[11px] font-mono text-bt-text-secondary truncate">
+          {itemLabel ?? itemId} — original proposal is preserved in the payload
         </p>
 
         <div className="mt-4 space-y-3">
           <div>
-            <label htmlFor="correction-dimension" className="block text-[11px] font-mono text-slate-300 mb-1">
+            <label htmlFor="correction-dimension" className="block text-[11px] font-mono text-bt-text-secondary mb-1">
               Dimension (e.g. 12x8 or 10&quot; dia)
             </label>
             <input
@@ -132,12 +132,12 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
               onChange={(e) => setDimensionLabel(e.target.value)}
               aria-invalid={!dimensionLabel.trim()}
               aria-describedby={validationError ? 'correction-error' : undefined}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
+              className="w-full rounded-md bg-bt-inset border border-bt-border-strong px-2.5 py-1.5 text-sm font-mono text-bt-text-primary"
             />
           </div>
 
           <div>
-            <label htmlFor="correction-cfm" className="block text-[11px] font-mono text-slate-300 mb-1">
+            <label htmlFor="correction-cfm" className="block text-[11px] font-mono text-bt-text-secondary mb-1">
               Airflow (CFM, integer)
             </label>
             <input
@@ -151,13 +151,13 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
               onChange={(e) => setCfm(e.target.value)}
               aria-invalid={cfm.trim() !== '' && !/^\d+$/.test(cfm.trim())}
               aria-describedby={validationError ? 'correction-error' : undefined}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
+              className="w-full rounded-md bg-bt-inset border border-bt-border-strong px-2.5 py-1.5 text-sm font-mono text-bt-text-primary"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="correction-system" className="block text-[11px] font-mono text-slate-300 mb-1">
+              <label htmlFor="correction-system" className="block text-[11px] font-mono text-bt-text-secondary mb-1">
                 System
               </label>
               <select
@@ -165,7 +165,7 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
                 data-testid="correction-system-select"
                 value={system}
                 onChange={(e) => setSystem(e.target.value)}
-                className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
+                className="w-full rounded-md bg-bt-inset border border-bt-border-strong px-2.5 py-1.5 text-sm font-mono text-bt-text-primary"
               >
                 {systemOptions.map((s) => (
                   <option key={s} value={s}>
@@ -175,7 +175,7 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
               </select>
             </div>
             <div>
-              <label htmlFor="correction-category" className="block text-[11px] font-mono text-slate-300 mb-1">
+              <label htmlFor="correction-category" className="block text-[11px] font-mono text-bt-text-secondary mb-1">
                 Category
               </label>
               <select
@@ -183,7 +183,7 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
                 data-testid="correction-category-select"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
+                className="w-full rounded-md bg-bt-inset border border-bt-border-strong px-2.5 py-1.5 text-sm font-mono text-bt-text-primary"
               >
                 {categoryOptions.map((c) => (
                   <option key={c} value={c}>
@@ -195,7 +195,7 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
           </div>
 
           <div>
-            <label htmlFor="correction-reason" className="block text-[11px] font-mono text-slate-300 mb-1">
+            <label htmlFor="correction-reason" className="block text-[11px] font-mono text-bt-text-secondary mb-1">
               Reason code (required)
             </label>
             <select
@@ -205,7 +205,7 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
               onChange={(e) => setReason(e.target.value)}
               aria-invalid={!reason}
               aria-describedby={validationError ? 'correction-error' : undefined}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
+              className="w-full rounded-md bg-bt-inset border border-bt-border-strong px-2.5 py-1.5 text-sm font-mono text-bt-text-primary"
             >
               <option value="">Select a reason…</option>
               {reasonOptions.map((r) => (
@@ -228,7 +228,7 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
             type="button"
             data-testid="correction-cancel"
             onClick={onCancel}
-            className="px-3 py-1.5 rounded-md text-xs font-mono text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700 cursor-pointer"
+            className="px-3 py-1.5 rounded-md text-xs font-mono text-bt-text-secondary hover:text-bt-on-brand hover:bg-bt-panel border border-bt-border-strong cursor-pointer"
           >
             Cancel
           </button>
@@ -238,7 +238,7 @@ export const CorrectionModal: React.FC<CorrectionModalProps> = ({
             disabled={invalid}
             aria-disabled={invalid}
             onClick={handleSubmit}
-            className="px-3 py-1.5 rounded-md text-xs font-mono font-semibold bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="px-3 py-1.5 rounded-md text-xs font-mono font-semibold bg-cyan-600 text-bt-on-brand hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {isSubmitting ? 'Submitting…' : 'Submit correction'}
           </button>

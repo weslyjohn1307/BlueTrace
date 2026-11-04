@@ -62,20 +62,20 @@ export const RejectionModal: React.FC<RejectionModalProps> = ({
       onClose={onCancel}
       data-testid="rejection-modal"
       ariaLabel={`Reject item ${itemLabel ?? itemId ?? ''}`}
-      className="w-[26rem] max-w-[calc(100vw-2rem)] rounded-xl bg-slate-900 border border-rose-500/40 shadow-2xl p-5"
+      className="w-[26rem] max-w-[calc(100vw-2rem)] rounded-xl bg-bt-surface border border-rose-500/40 shadow-2xl p-5"
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="flex items-center space-x-2">
           <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
           <h2 className="text-sm font-mono font-bold text-rose-300">Reject takeoff item</h2>
         </div>
-        <p className="mt-1 text-[11px] font-mono text-slate-400 truncate">
-          {itemLabel ?? itemId ?? 'Selected item'} · records rejection reason in audit ledger
+        <p className="mt-1 text-[11px] font-mono text-bt-text-secondary truncate">
+          {itemLabel ?? itemId ?? 'Selected item'} — records rejection reason in audit ledger
         </p>
 
         <div className="mt-4 space-y-3">
           <div>
-            <label htmlFor="rejection-reason" className="block text-[11px] font-mono text-slate-300 mb-1">
+            <label htmlFor="rejection-reason" className="block text-[11px] font-mono text-bt-text-secondary mb-1">
               Reason code (required)
             </label>
             <select
@@ -86,7 +86,7 @@ export const RejectionModal: React.FC<RejectionModalProps> = ({
                 setReasonCode(e.target.value);
                 if (error) setError(null);
               }}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs font-mono text-slate-100 outline-none focus:border-rose-500"
+              className="w-full rounded-md bg-bt-inset border border-bt-border-strong px-2.5 py-1.5 text-xs font-mono text-bt-text-primary outline-none focus:border-rose-500"
             >
               {REJECTION_REASON_OPTIONS.map((opt) => (
                 <option key={opt.code} value={opt.code}>
@@ -97,7 +97,7 @@ export const RejectionModal: React.FC<RejectionModalProps> = ({
           </div>
 
           <div>
-            <label htmlFor="rejection-note" className="block text-[11px] font-mono text-slate-300 mb-1">
+            <label htmlFor="rejection-note" className="block text-[11px] font-mono text-bt-text-secondary mb-1">
               Additional notes {reasonCode === 'OTHER' ? '(required)' : '(optional)'}
             </label>
             <textarea
@@ -116,7 +116,7 @@ export const RejectionModal: React.FC<RejectionModalProps> = ({
               }
               aria-invalid={error != null}
               aria-describedby={error ? 'rejection-error' : undefined}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs font-mono text-slate-100 outline-none focus:border-rose-500 resize-none"
+              className="w-full rounded-md bg-bt-inset border border-bt-border-strong px-2.5 py-1.5 text-xs font-mono text-bt-text-primary outline-none focus:border-rose-500 resize-none"
             />
           </div>
         </div>

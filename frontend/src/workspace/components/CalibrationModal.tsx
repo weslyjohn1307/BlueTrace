@@ -20,6 +20,7 @@ export interface CalibrationModalProps {
 }
 
 const SNAP_TABLE: Array<[number, string]> = [
+  [192, '1/16" = 1\'-0"'],
   [96, '1/8" = 1\'-0"'],
   [64, '3/16" = 1\'-0"'],
   [48, '1/4" = 1\'-0"'],
@@ -104,17 +105,16 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
       onClose={onCancel}
       data-testid="calibration-modal"
       ariaLabel="Scale calibration"
-      className="w-96 max-w-[calc(100vw-2rem)] rounded-xl bg-slate-900 border border-amber-500/40 shadow-2xl p-5"
+      className="w-96 max-w-[calc(100vw-2rem)] rounded-xl bg-bt-surface border border-amber-500/40 shadow-2xl p-5"
     >
       <h2 className="text-sm font-mono font-bold text-amber-300">Calibrate sheet scale</h2>
-      <p className="mt-1 text-[11px] font-mono text-slate-400">
-        P1 [{p1[0].toFixed(1)}, {p1[1].toFixed(1)}] → P2 [{p2[0].toFixed(1)}, {p2[1].toFixed(1)}] ·{' '}
-        {lengthPt.toFixed(1)} pt
+      <p className="mt-1 text-[11px] font-mono text-bt-text-secondary">
+        P1 [{p1[0].toFixed(1)}, {p1[1].toFixed(1)}] → P2 [{p2[0].toFixed(1)}, {p2[1].toFixed(1)}] ({lengthPt.toFixed(1)} pt)
       </p>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="cal-feet" className="block text-[11px] font-mono text-slate-300 mb-1">
+          <label htmlFor="cal-feet" className="block text-[11px] font-mono text-bt-text-secondary mb-1">
             Real length — feet
           </label>
           <input
@@ -127,11 +127,11 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
             onChange={(e) => setFeet(e.target.value)}
             aria-invalid={validationError !== null}
             aria-describedby={validationError ? 'cal-error' : undefined}
-            className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
+            className="w-full rounded-md bg-bt-inset border border-bt-border-strong px-2.5 py-1.5 text-sm font-mono text-bt-text-primary"
           />
         </div>
         <div>
-          <label htmlFor="cal-inches" className="block text-[11px] font-mono text-slate-300 mb-1">
+          <label htmlFor="cal-inches" className="block text-[11px] font-mono text-bt-text-secondary mb-1">
             Real length — inches
           </label>
           <input
@@ -145,18 +145,18 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
             onChange={(e) => setInches(e.target.value)}
             aria-invalid={validationError !== null}
             aria-describedby={validationError ? 'cal-error' : undefined}
-            className="w-full rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-sm font-mono text-slate-100"
+            className="w-full rounded-md bg-bt-inset border border-bt-border-strong px-2.5 py-1.5 text-sm font-mono text-bt-text-primary"
           />
         </div>
       </div>
 
-      <div data-testid="cal-preview" aria-live="polite" className="mt-3 text-[11px] font-mono text-slate-300">
+      <div data-testid="cal-preview" aria-live="polite" className="mt-3 text-[11px] font-mono text-bt-text-secondary">
         {preview ? (
           <span>
             Preview: ratio {preview.ratio.toFixed(2)} → {preview.label}
           </span>
         ) : (
-          <span className="text-slate-500">Preview unavailable — fix the inputs.</span>
+          <span className="text-bt-text-tertiary">Preview unavailable — fix the inputs.</span>
         )}
       </div>
 
@@ -171,7 +171,7 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
           type="button"
           data-testid="cal-cancel"
           onClick={onCancel}
-          className="px-3 py-1.5 rounded-md text-xs font-mono text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700 cursor-pointer"
+          className="px-3 py-1.5 rounded-md text-xs font-mono text-bt-text-secondary hover:text-bt-on-brand hover:bg-bt-panel border border-bt-border-strong cursor-pointer"
         >
           Cancel
         </button>

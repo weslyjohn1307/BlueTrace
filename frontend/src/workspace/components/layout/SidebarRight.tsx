@@ -9,6 +9,7 @@ export interface SidebarRightProps {
   onTabChange: (tab: RightTab) => void;
   qaOpenCount: number;
   children: React.ReactNode;
+  onClose?: () => void;
 }
 
 export const SidebarRight: React.FC<SidebarRightProps> = ({
@@ -17,37 +18,46 @@ export const SidebarRight: React.FC<SidebarRightProps> = ({
   onTabChange,
   qaOpenCount,
   children,
+  onClose,
 }) => {
   if (!open) return null;
 
   const tabOptions: readonly SegmentedControlOption<RightTab>[] = [
-    { id: 'ledger', label: 'Takeoff Ledger' },
-    { id: 'schedule', label: 'Equipment Schedule' },
+    { id: 'ledger', label: 'Takeoff' },
+    { id: 'schedule', label: 'Schedules' },
     {
       id: 'qa',
-      label: qaOpenCount > 0 ? `QA Review (${qaOpenCount})` : 'QA Review',
+      label: qaOpenCount > 0 ? `Issues (${qaOpenCount})` : 'Issues',
     },
   ];
 
   return (
-    <aside
-      className="w-84 shrink-0 hidden lg:flex flex-col border-l border-slate-800 bg-slate-900 select-none"
-      aria-label="Ledger, schedule and QA review"
-    >
-      <div className="p-1.5 bg-slate-950 border-b border-slate-800">
-        <SegmentedControl<RightTab>
-          options={tabOptions}
-          value={rightTab}
-          onChange={onTabChange}
-          size="sm"
-          className="w-full flex"
-          ariaLabel="Workspace panels"
-        />
-      </div>
+    <>
+      {/* Narrow screens: explicit drawer with a dismissable backdrop. */}
+      <div
+        className="fixed inset-x-0 bottom-0 top-14 z-40 bg-bt-inset/60 xl:hidden"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside
+        className="fixed bottom-0 right-0 top-14 z-50 flex w-[21rem] shrink-0 select-none flex-col border-l border-bt-border-subtle bg-bt-surface xl:static xl:inset-auto xl:z-auto"
+        aria-label="Takeoff, schedules and issues"
+      >
+        <div className="border-b border-bt-border-subtle bg-bt-inset p-1.5">
+          <SegmentedControl<RightTab>
+            options={tabOptions}
+            value={rightTab}
+            onChange={onTabChange}
+            size="sm"
+            className="flex w-full"
+            ariaLabel="Workspace panels"
+          />
+        </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
-        {children}
-      </div>
-    </aside>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {children}
+        </div>
+      </aside>
+    </>
   );
 };
