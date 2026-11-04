@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { PanelLeftOpen, ArrowRight } from 'lucide-react';
 import { STORY_ACTS } from '../data/storyContent';
 import { BrandLockup } from '../../../components/brand/BrandAssets';
 
@@ -34,7 +34,7 @@ export const StoryHeader: React.FC<StoryHeaderProps> = ({
               onClick={() => onSelectAct(act.id)}
               className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
                 activeActId === act.id
-                  ? 'bg-[#005BFF]/25 text-[#37C6FF] border border-[#005BFF]/40 font-bold'
+                  ? 'bg-[#005BFF]/25 text-bt-brand border border-[#005BFF]/40 font-bold'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
@@ -48,7 +48,7 @@ export const StoryHeader: React.FC<StoryHeaderProps> = ({
             to="/workspace"
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-[#005BFF] hover:bg-[#004CE0] text-white text-xs font-semibold shadow-xs transition-colors no-underline"
           >
-            <Sparkles className="w-3.5 h-3.5 text-[#37C6FF]" />
+            <PanelLeftOpen className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Launch Workstation</span>
             <ArrowRight className="w-3 h-3 text-white/70" />
           </Link>

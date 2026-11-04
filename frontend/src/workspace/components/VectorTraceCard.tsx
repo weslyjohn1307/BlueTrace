@@ -47,8 +47,8 @@ export const VectorTraceCard: React.FC<VectorTraceCardProps> = ({
           <span
             className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-semibold border ${
               scaleVerified
-                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
-                : 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+                ? 'bg-bt-success-bg text-bt-success border-bt-success-border'
+                : 'bg-bt-review-bg text-bt-review border-bt-review-border'
             }`}
           >
             {scaleStatus === 'VERIFIED' ? 'VERIFIED' : scaleStatus === 'CALIBRATED' ? 'CALIBRATED' : 'REVIEW'}
@@ -103,14 +103,14 @@ export const VectorTraceCard: React.FC<VectorTraceCardProps> = ({
                 {scaleVerified ? (
                   <>
                     <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                    <span className="text-emerald-300 font-semibold">
+                    <span className="text-bt-success font-semibold">
                       {scaleRatio != null ? `${scaleRatio.toFixed(1)}:1` : 'Verified'}
                     </span>
                   </>
                 ) : (
                   <>
                     <AlertTriangle className="w-3 h-3 text-amber-400" />
-                    <span className="text-amber-300 font-semibold">Review Required</span>
+                    <span className="text-bt-review font-semibold">Review Required</span>
                   </>
                 )}
               </div>

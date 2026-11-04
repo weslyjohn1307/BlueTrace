@@ -1,313 +1,344 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame } from 'remotion';
+import { useCurrentFrame } from 'remotion';
 import { EASE_ENTER, EASE_MOVE, FONT, ramp, s } from '../theme';
-import { ConceptTag } from '../components/primitives';
+import { Paper } from '../components/primitives';
 import { Cursor } from '../components/Cursor';
-import { WorkstationWindow } from '../components/WorkstationWindow';
+import { SplitScreenMenu } from '../components/SplitScreenMenu';
 import { Sheet, SHEET_H, SHEET_W } from '../components/Sheet';
 
 export const Shot4SlotA: React.FC = () => {
   const f = useCurrentFrame();
 
-  // 2.5D Camera choreography
-  const enter = ramp(f, [0, s(1.2)], [0, 1], EASE_ENTER);
-  const zoom = ramp(f, [0, s(19)], [0.98, 1.05], EASE_MOVE);
-  const rotX = ramp(f, [0, s(12)], [6.5, 3.0], EASE_MOVE);
-  const rotY = ramp(f, [0, s(12)], [-4.0, -1.0], EASE_MOVE);
+  // Entrance of elements
+  const enter = ramp(f, [0, s(0.8)], [0, 1], EASE_ENTER);
+  const windowShift = (1 - enter) * 24;
 
-  // Sheet drawing reveal after selection
-  const sheetDraw = ramp(f, [s(3.0), s(8.0)], [0, 1], EASE_MOVE);
+  // Tracing progress (dragged from x: 420 to x: 740 across the main supply duct)
+  const traceProgress = ramp(f, [s(3.5), s(7.5)], [0, 1], EASE_MOVE);
 
-  // Laser scan line progress (top to bottom across drawing)
-  const scanProgress = ramp(f, [s(3.5), s(9.0)], [0, 1], EASE_MOVE);
-  const scanY = scanProgress * 700;
+  // QuickDraw Toolbar Controls
+  const liveLength = (traceProgress * 29.1).toFixed(1);
 
-  // Title block recon popover entrance
-  const reconEnter = ramp(f, [s(8.2), s(9.4)], [0, 1], EASE_ENTER);
-
-  // Scale badge state transition: switches from normal to amber at second 10.2
-  const isScaleAmber = f >= s(10.2);
-
-  // Popover tooltip on hover over scale pill
-  const tooltipEnter = ramp(f, [s(13.8), s(14.6)], [0, 1], EASE_ENTER);
-
-  // Cursor coordinates
-  let cursorX = 700;
-  let cursorY = 440;
+  // Cursor coordinates & click
+  let cursorX = 760;
+  let cursorY = 240;
   let clickFrame: number | undefined;
 
-  if (f < s(3.2)) {
-    // Glide to M-201 thumbnail on left sidebar
-    const t = ramp(f, [s(0.8), s(2.8)], [0, 1], EASE_MOVE);
-    cursorX = (1 - t) * 700 + t * 90;
-    cursorY = (1 - t) * 440 + t * 115;
-    if (f >= s(2.8) && f < s(3.2)) {
-      clickFrame = s(2.8);
+  if (f < s(3.5)) {
+    // Glide from toolbar to duct start point (x: 820, y: 520)
+    const t = ramp(f, [s(0.8), s(3.2)], [0, 1], EASE_MOVE);
+    cursorX = (1 - t) * 760 + t * 820;
+    cursorY = (1 - t) * 240 + t * 520;
+    if (f >= s(3.2) && f < s(3.5)) {
+      clickFrame = s(3.2);
     }
-  } else if (f < s(11.2)) {
-    // Idles over canvas observing the scan
-    const t = ramp(f, [s(3.5), s(6.5)], [0, 1], EASE_MOVE);
-    cursorX = (1 - t) * 90 + t * 580;
-    cursorY = (1 - t) * 115 + t * 380;
+  } else if (f < s(7.8)) {
+    // Dragging along duct centerline to the right
+    cursorX = 820 + traceProgress * 320;
+    cursorY = 520;
+    if (f >= s(7.4) && f < s(7.8)) {
+      clickFrame = s(7.4);
+    }
   } else {
-    // Glides up to the amber scale pill in header
-    const t = ramp(f, [s(11.2), s(13.5)], [0, 1], EASE_MOVE);
-    cursorX = (1 - t) * 580 + t * 1140;
-    cursorY = (1 - t) * 380 + t * 24;
+    // Idles over the finished dimension readout
+    const t = ramp(f, [s(8.5), s(11.0)], [0, 1], EASE_MOVE);
+    cursorX = (1 - t) * 1140 + t * 980;
+    cursorY = (1 - t) * 520 + t * 490;
   }
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#070c0f' }}>
-      {/* Background radial atmosphere */}
-      <AbsoluteFill
+    <Paper withDotGrid={true}>
+      {/* Left-Side Category Navigation Menu */}
+      <SplitScreenMenu
+        category="Document Vision"
+        items={[
+          {
+            title: 'QuickDraw',
+            subtitle: 'one click dimension setting',
+            active: true,
+          },
+          {
+            title: 'Symbol Recon',
+            subtitle: 'scheduled object detection',
+          },
+          {
+            title: 'Revisions',
+            subtitle: 'automatic diff detection',
+          },
+        ]}
         style={{
-          background:
-            'radial-gradient(circle at 50% 40%, rgba(30,55,66,0.35) 0%, rgba(7,12,15,1) 75%)',
-          pointerEvents: 'none',
+          opacity: enter,
+          transform: `translateY(${windowShift}px)`,
         }}
       />
 
-      {/* Floating 2.5D Workstation */}
-      <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ position: 'relative', transform: 'translateY(-58px)' }}>
-          <WorkstationWindow
-            width={1440}
-            height={810}
-            scale={zoom * enter}
-            rotateX={rotX}
-            rotateY={rotY}
-            activeSheetId="M-201"
-            scaleBadgeText={
-              isScaleAmber
-                ? 'REVIEW REQUIRED · 0.0 (LOCKED)'
-                : 'ANALYZING SCALE...'
-            }
-            scaleBadgeTone={isScaleAmber ? 'amber' : 'normal'}
-            lift={(1 - enter) * 20}
+      {/* Right-Side Floating Application Window */}
+      <div
+        style={{
+          position: 'absolute',
+          right: 70,
+          top: 120,
+          width: 1360,
+          height: 840,
+          borderRadius: 14,
+          overflow: 'hidden',
+          backgroundColor: '#ffffff',
+          boxShadow:
+            '0 30px 90px rgba(23, 37, 43, 0.12), 0 0 0 1px rgba(23, 37, 43, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          opacity: enter,
+          transform: `translateY(${windowShift}px)`,
+        }}
+      >
+        {/* Workstation Header Bar */}
+        <div
+          style={{
+            height: 48,
+            backgroundColor: '#f8fafc',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 18px',
+            fontFamily: FONT.ui,
+            userSelect: 'none',
+          }}
+        >
+          {/* Window dots & Brand */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ef4444' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#10b981' }} />
+            </div>
+            <div style={{ fontFamily: FONT.mono, fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+              BLUETRACE <span style={{ color: '#64748b', fontWeight: 400 }}>· QUICKDRAW</span>
+            </div>
+          </div>
+
+          {/* QuickDraw Contextual Control Toolbar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              backgroundColor: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              padding: '3px 12px',
+              fontFamily: FONT.mono,
+              fontSize: 11,
+              color: '#334155',
+            }}
           >
-            {/* Viewport Interior */}
+            <span style={{ fontWeight: 700, color: '#0284c7' }}>Linear</span>
+            <span style={{ color: '#cbd5e1' }}>|</span>
+            <span>Elbow: Square 1.5x</span>
+            <span style={{ color: '#cbd5e1' }}>|</span>
+            <span>Branch: Tap</span>
+            <span style={{ color: '#cbd5e1' }}>|</span>
+            <span>Sys: Supply</span>
+            <span style={{ color: '#cbd5e1' }}>|</span>
+            <span>Elev: 10'</span>
+            <span style={{ color: '#cbd5e1' }}>|</span>
+            <span style={{ color: '#059669', fontWeight: 600 }}>Scale: 1/4"=1'0"</span>
+          </div>
+
+          {/* Sheet Indicator */}
+          <div
+            style={{
+              fontFamily: FONT.mono,
+              fontSize: 12,
+              color: '#475569',
+              backgroundColor: '#f1f5f9',
+              padding: '4px 10px',
+              borderRadius: 4,
+            }}
+          >
+            M-201 · HVAC PLAN
+          </div>
+        </div>
+
+        {/* Viewport Interior */}
+        <div
+          style={{
+            flex: 1,
+            position: 'relative',
+            backgroundColor: '#ffffff',
+            overflow: 'hidden',
+          }}
+        >
+          {/* CAD Sheet Viewport Zoomed into Main Duct Corridor */}
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-44%, -46%) scale(1.08)',
+              transformOrigin: 'center center',
+              width: SHEET_W,
+              height: SHEET_H,
+            }}
+          >
+            <Sheet
+              draws={{ arch: 1, mech: 1, plumb: 1, elec: 1 }}
+              tone="color"
+              highlightMain={true}
+            />
+          </div>
+
+          {/* Live QuickDraw Centerline & Live Dimension Overlay */}
+          {f >= s(3.5) && (
             <div
               style={{
-                position: 'relative',
-                width: '100%',
-                height: '100%',
-                backgroundColor: '#0a1013',
-                overflow: 'hidden',
+                position: 'absolute',
+                left: 450,
+                top: 360,
+                width: traceProgress * 420,
+                height: 4,
+                backgroundColor: '#ef4444',
+                boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)',
+                pointerEvents: 'none',
               }}
             >
-              {/* CAD Vector Sheet Container */}
+              {/* Left End Tick */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: -8,
+                  width: 2,
+                  height: 20,
+                  backgroundColor: '#ef4444',
+                }}
+              />
+              {/* Right End Tick */}
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: -8,
+                  width: 2,
+                  height: 20,
+                  backgroundColor: '#ef4444',
+                }}
+              />
+
+              {/* Red Live Dimension Text */}
               <div
                 style={{
                   position: 'absolute',
                   left: '50%',
-                  top: '50%',
-                  transform: 'translate(-50%, -50%) scale(0.68)',
-                  transformOrigin: 'center center',
-                  width: SHEET_W,
-                  height: SHEET_H,
-                  opacity: Math.max(0.1, sheetDraw),
+                  top: -24,
+                  transform: 'translateX(-50%)',
+                  fontFamily: FONT.mono,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: '#ef4444',
+                  backgroundColor: '#ffffff',
+                  padding: '1px 8px',
+                  borderRadius: 3,
+                  border: '1px solid #fecaca',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <Sheet
-                  draws={{
-                    arch: sheetDraw,
-                    mech: sheetDraw,
-                    plumb: sheetDraw,
-                    elec: sheetDraw,
-                  }}
-                  tone="ghost"
-                  highlightMain={true}
-                />
+                {liveLength}'
               </div>
 
-              {/* Laser Scan Sweep Bar */}
-              {f >= s(3.2) && f < s(9.6) && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    top: scanY,
-                    height: 2,
-                    backgroundColor: '#38bdf8',
-                    boxShadow:
-                      '0 0 16px #38bdf8, 0 0 32px rgba(56, 189, 248, 0.6)',
-                  }}
-                >
-                  {/* Upward luminous gradient tail */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      bottom: 2,
-                      height: 90,
-                      background:
-                        'linear-gradient(to top, rgba(56, 189, 248, 0.22), transparent)',
-                    }}
-                  />
-                  {/* Scan Badge */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 28,
-                      top: -14,
-                      backgroundColor: 'rgba(56, 189, 248, 0.95)',
-                      color: '#070c0f',
-                      fontFamily: FONT.mono,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '2px 8px',
-                      borderRadius: 3,
-                      letterSpacing: '0.08em',
-                    }}
-                  >
-                    MUSE-SPARK-1.3 · RECON SCAN
-                  </div>
-                </div>
-              )}
-
-              {/* Reconnaissance Card (Bottom Right Corner) */}
-              {reconEnter > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    right: 24,
-                    bottom: 24,
-                    width: 320,
-                    backgroundColor: 'rgba(15, 26, 32, 0.94)',
-                    backdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(245, 158, 11, 0.4)',
-                    borderRadius: 8,
-                    padding: '14px 16px',
-                    fontFamily: FONT.mono,
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
-                    opacity: reconEnter,
-                    transform: `translateY(${(1 - reconEnter) * 14}px)`,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: '#fbbf24',
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
-                      marginBottom: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <span>⚠</span>
-                    <span>SCALE AMBIGUITY DETECTED</span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: '#cbd5e1',
-                      lineHeight: 1.6,
-                      borderBottom: '1px solid rgba(255,255,255,0.06)',
-                      paddingBottom: 8,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div>• Title Block: 1/4" = 1'-0"</div>
-                    <div>• Graphic Detail: 1/2" = 1'-0"</div>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: '#f87171',
-                      fontWeight: 600,
-                    }}
-                  >
-                    STATUS: FAIL-CLOSED · RATIO 0.0
-                  </div>
-                </div>
-              )}
-
-              {/* Tooltip on hovering Scale Pill */}
-              {tooltipEnter > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    right: 180,
-                    top: 16,
-                    width: 290,
-                    backgroundColor: '#131e24',
-                    border: '1px solid rgba(245, 158, 11, 0.5)',
-                    borderRadius: 8,
-                    padding: '12px 14px',
-                    fontFamily: FONT.mono,
-                    fontSize: 11,
-                    color: '#e2e8f0',
-                    lineHeight: 1.5,
-                    boxShadow: '0 16px 36px rgba(0,0,0,0.6)',
-                    opacity: tooltipEnter,
-                    transform: `translateY(${(1 - tooltipEnter) * 8}px)`,
-                  }}
-                >
-                  <div style={{ color: '#fbbf24', fontWeight: 700, marginBottom: 4 }}>
-                    RULE 01: FAIL-CLOSED SCALE
-                  </div>
-                  <div style={{ color: '#94a3b8', fontSize: 10 }}>
-                    Unverified scales cannot generate quantities. Measurements halted until engineer review.
-                  </div>
-                </div>
-              )}
+              {/* Dimension Text OCR Callout */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  bottom: -28,
+                  transform: 'translateX(-50%)',
+                  fontFamily: FONT.mono,
+                  fontSize: 11,
+                  color: '#475569',
+                  backgroundColor: '#f8fafc',
+                  padding: '2px 8px',
+                  borderRadius: 3,
+                  border: '1px solid #cbd5e1',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                30"×16" SA-A
+              </div>
             </div>
-          </WorkstationWindow>
+          )}
 
-          {/* Animated Cursor */}
-          <Cursor
-            x={cursorX}
-            y={cursorY}
-            clickFrame={clickFrame}
-            currentFrame={f}
-          />
-        </div>
-      </AbsoluteFill>
-
-      {/* Statement at the bottom */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 140,
-          bottom: 46,
-          right: 140,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
-        }}
-      >
-        <div>
+          {/* Bottom Floating Mode Switcher (Duct | Pipe | Distribution | QuickDraw) */}
           <div
             style={{
-              fontFamily: FONT.display,
-              fontSize: 44,
-              fontWeight: 500,
-              color: '#f0ecdf',
-              lineHeight: 1.1,
-              letterSpacing: '-0.015em',
-            }}
-          >
-            A visual guess is not a measurement.
-          </div>
-          <div
-            style={{
+              position: 'absolute',
+              left: '50%',
+              bottom: 64,
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              backgroundColor: '#0f172a',
+              borderRadius: 8,
+              padding: '4px',
+              gap: 4,
+              boxShadow: '0 12px 30px rgba(0,0,0,0.2)',
               fontFamily: FONT.mono,
-              fontSize: 15,
-              color: '#8b9a9b',
-              marginTop: 8,
-              letterSpacing: '0.04em',
+              fontSize: 12,
+              color: '#94a3b8',
+              zIndex: 30,
             }}
           >
-            Fail-closed scale validation · Unverified quantities halt before entering the ledger
+            <div style={{ backgroundColor: '#1e293b', color: '#ffffff', padding: '6px 14px', borderRadius: 6, fontWeight: 700 }}>
+              Duct
+            </div>
+            <div style={{ padding: '6px 14px' }}>Pipe</div>
+            <div style={{ padding: '6px 14px' }}>Distribution</div>
+            <div style={{ backgroundColor: '#0284c7', color: '#ffffff', padding: '6px 14px', borderRadius: 6, fontWeight: 700 }}>
+              ✦ QuickDraw
+            </div>
+          </div>
+
+          {/* Bottom Inspector Bar */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 44,
+              backgroundColor: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0 24px',
+              fontFamily: FONT.mono,
+              fontSize: 11,
+              color: '#475569',
+              zIndex: 20,
+            }}
+          >
+            <div style={{ display: 'flex', gap: 28 }}>
+              <span>TYPE: <strong style={{ color: '#0f172a' }}>DUCT</strong></span>
+              <span>WIDTH: <strong style={{ color: '#0f172a' }}>30"</strong></span>
+              <span>HEIGHT: <strong style={{ color: '#0f172a' }}>16"</strong></span>
+              <span>LENGTH: <strong style={{ color: '#ef4444' }}>{liveLength} LF</strong></span>
+              <span>ELEVATION: <strong style={{ color: '#0f172a' }}>10'-0"</strong></span>
+            </div>
+            <div style={{ color: '#0284c7', fontWeight: 600 }}>
+              ✓ VECTOR CENTERLINE VALIDATED
+            </div>
           </div>
         </div>
 
-        <ConceptTag onDark={true} style={{ position: 'relative', textAlign: 'right' }} />
+        {/* Animated Mouse Cursor */}
+        <Cursor
+          x={cursorX}
+          y={cursorY}
+          clickFrame={clickFrame}
+          currentFrame={f}
+        />
       </div>
-    </AbsoluteFill>
+    </Paper>
   );
 };

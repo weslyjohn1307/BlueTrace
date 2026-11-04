@@ -165,7 +165,7 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
           >
             <RotateCcw className="h-3 w-3" aria-hidden="true" />
             Reset
@@ -175,7 +175,7 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
               type="button"
               onClick={onClose}
               aria-label="Close layers"
-              className="inline-flex h-6 w-6 items-center justify-center rounded text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+              className="inline-flex h-6 w-6 items-center justify-center rounded text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
@@ -194,7 +194,7 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
                 aria-checked={visible}
                 aria-label={`${row.label}${typeof row.count === 'number' ? `, ${row.count} on this sheet` : ''}. ${row.hint}`}
                 onClick={() => onToggle(row.key)}
-                className="flex w-full items-center gap-2 rounded px-1.5 py-1.5 text-left transition-colors hover:bg-bt-panel/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+                className="flex w-full items-center gap-2 rounded px-1.5 py-1.5 text-left transition-colors hover:bg-bt-panel/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
               >
                 <Marker marker={row.marker} color={row.color} />
                 <span className="min-w-0 flex-1 truncate text-xs text-bt-text-primary">{row.label}</span>
@@ -245,7 +245,7 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
 
       <div className="mt-3 border-t border-bt-border-subtle pt-2.5">
         <h3 className="text-[11px] font-medium uppercase tracking-wide text-bt-text-tertiary">Scale evidence</h3>
-        <p className={`mt-1 text-xs font-medium ${scaleVerified ? 'text-emerald-300' : 'text-amber-200'}`}>
+        <p className={`mt-1 text-xs font-medium ${scaleVerified ? 'text-bt-success' : 'text-bt-review'}`}>
           {scaleStatus === 'VERIFIED'
             ? 'Printed scale verified'
             : scaleStatus === 'CALIBRATED'

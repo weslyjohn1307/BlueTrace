@@ -1,7 +1,7 @@
 import React from 'react';
 import { SegmentedControl, type SegmentedControlOption } from '../primitives/SegmentedControl';
 
-export type RightTab = 'ledger' | 'schedule' | 'qa';
+export type RightTab = 'ledger' | 'schedule' | 'qa' | 'copilot';
 
 export interface SidebarRightProps {
   open: boolean;
@@ -29,6 +29,7 @@ export const SidebarRight: React.FC<SidebarRightProps> = ({
       id: 'qa',
       label: qaOpenCount > 0 ? `Issues (${qaOpenCount})` : 'Issues',
     },
+    { id: 'copilot', label: 'Ask' },
   ];
 
   return (

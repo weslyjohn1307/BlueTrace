@@ -5,7 +5,7 @@ import { s } from './theme';
  * docs/hackathon/VIDEO_AND_SUBMISSION_CONTENT.md §Demo film — record VO against these windows.
  */
 export const TIMELINE = [
-  { id: 'open', start: 0, end: 10, vo: 'A construction drawing is more than a picture. It’s a dense set of instructions—written in lines, symbols, schedules, and scale.' },
+  { id: 'open', start: 0, end: 10, vo: 'For mechanical estimators who need faster takeoffs and zero guesswork: Introducing BlueTraceAI. Built to turn complex construction drawings into verified takeoffs at the speed of thought.' },
   { id: 'layers', start: 10, end: 27, vo: 'BlueTraceAI is an ongoing MEP takeoff project. It began before this hackathon, with a simple goal: help estimators move from complex plan sheets to takeoffs they can verify.' },
   { id: 'thesis', start: 27, end: 43, vo: 'For this hackathon, I’m extending that foundation toward a team of specialized agents. Meta models help read drawing content; local geometry keeps measurement grounded.' },
   { id: 'slotA', start: 43, end: 62, vo: 'A visual guess is not a measurement. BlueTraceAI checks scale and drawing geometry, and surfaces uncertainty for review instead of presenting an unverified quantity as fact.' },

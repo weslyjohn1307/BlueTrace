@@ -18,7 +18,7 @@ export interface GlobalTopNavProps {
 }
 
 const NAV_LINK =
-  'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]';
+  'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface';
 
 export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
   backendOnline = null,
@@ -105,7 +105,7 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
             to="/settings"
             aria-label="Open settings"
             aria-describedby="topnav-settings-tooltip"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-bt-text-secondary no-underline transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-bt-text-secondary no-underline transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface"
           >
             <Settings className="h-4 w-4" aria-hidden="true" />
           </Link>
@@ -154,7 +154,7 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
             aria-label="More actions"
             aria-describedby={!menuOpen ? 'topnav-more-tooltip' : undefined}
             onClick={() => setMenuOpen((open) => !open)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface"
           >
             <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -173,7 +173,7 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
                     setMenuOpen(false);
                     onNewAnalysis();
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-bt-text-primary transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-bt-text-primary transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
                 >
                   <RotateCcw className="h-3.5 w-3.5 text-bt-text-secondary" aria-hidden="true" />
                   New analysis
@@ -188,7 +188,7 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
                     setMenuOpen(false);
                     onLoadSample();
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-bt-text-primary transition-colors hover:bg-bt-panel disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-bt-text-primary transition-colors hover:bg-bt-panel disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
                 >
                   <FlaskConical className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" />
                   Load sample sheet
@@ -199,7 +199,7 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
                 aria-current={isShowcaseActive ? 'page' : undefined}
-                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-bt-text-primary no-underline transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-bt-text-primary no-underline transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
               >
                 <BrandIcon name="layers" size={14} />
                 Showcase
@@ -208,7 +208,7 @@ export const GlobalTopNav: React.FC<GlobalTopNavProps> = ({
                 to="/settings"
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
-                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-bt-text-primary no-underline transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-bt-text-primary no-underline transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
               >
                 <Settings className="h-3.5 w-3.5 text-bt-text-secondary" aria-hidden="true" />
                 Settings

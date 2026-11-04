@@ -1,5 +1,6 @@
 import type {
   AgentJobEvent,
+  AgentJobSnapshot,
   AgentJobStarted,
   CopilotQueryResponse,
   CursorCropResponse,
@@ -14,6 +15,7 @@ import type {
   LegendScanResult,
   OrchestrateAgentRequest,
   OrchestrateAgentResponse,
+  PreviewPageResponse,
   PageTextResponse,
   ProjectSessionResponse,
   ProjectSessionState,
@@ -187,6 +189,15 @@ export function createApiClient(config: ApiClientConfig = {}) {
         method: 'POST',
         body,
         signal: options?.signal,
+      });
+    },
+
+    async previewPackagePage(
+      payload: { file_path: string; project_id?: string; page_index?: number },
+      signal?: AbortSignal
+    ): Promise<PreviewPageResponse> {
+      return request<PreviewPageResponse>('/api/agent-jobs/preview', {
+        method: 'POST', body: payload, signal,
       });
     },
 
@@ -618,6 +629,20 @@ export function createApiClient(config: ApiClientConfig = {}) {
       return request<AgentJobStarted>('/api/agent-jobs', {
         method: 'POST', body: payload, signal,
       });
+    },
+
+    async cancelAgentJob(jobId: string): Promise<{ job_id: string; status: string; checkpoint_page: number }> {
+      return request(`/api/agent-jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+    },
+
+    async resumeAgentJob(jobId: string, signal?: AbortSignal): Promise<AgentJobStarted> {
+      return request<AgentJobStarted>(`/api/agent-jobs/${encodeURIComponent(jobId)}/resume`, {
+        method: 'POST', signal,
+      });
+    },
+
+    async getAgentJob(jobId: string, signal?: AbortSignal): Promise<AgentJobSnapshot> {
+      return request<AgentJobSnapshot>(`/api/agent-jobs/${encodeURIComponent(jobId)}`, { signal });
     },
 
     async streamAgentJobEvents(

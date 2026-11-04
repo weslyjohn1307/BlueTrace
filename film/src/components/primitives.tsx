@@ -2,14 +2,51 @@ import React from 'react';
 import { AbsoluteFill, OffthreadVideo, staticFile, useCurrentFrame } from 'remotion';
 import { C, EASE_ENTER, FONT, ramp } from '../theme';
 
-/** Vellum ground with a very quiet paper tooth. */
-export function Paper({ children }: { children?: React.ReactNode }) {
+/** Vellum ground with drafting dot grid and quiet paper tooth. */
+export function Paper({
+  children,
+  withDotGrid = true,
+}: {
+  children?: React.ReactNode;
+  withDotGrid?: boolean;
+}) {
   return (
-    <AbsoluteFill style={{ backgroundColor: C.paper }}>
+    <AbsoluteFill style={{ backgroundColor: '#f5efeb' }}>
+      {withDotGrid && (
+        <AbsoluteFill style={{ pointerEvents: 'none', opacity: 0.65 }}>
+          <svg width="100%" height="100%">
+            <defs>
+              <pattern
+                id="drafting-dots"
+                width="28"
+                height="28"
+                patternUnits="userSpaceOnUse"
+              >
+                <circle cx="2" cy="2" r="1.15" fill="#c7c0b0" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#drafting-dots)" />
+          </svg>
+        </AbsoluteFill>
+      )}
       {children}
-      <AbsoluteFill style={{ pointerEvents: 'none', mixBlendMode: 'multiply', opacity: 0.06 }}>
+      <AbsoluteFill
+        style={{
+          pointerEvents: 'none',
+          mixBlendMode: 'multiply',
+          opacity: 0.04,
+        }}
+      >
         <svg width="100%" height="100%">
-          <filter id="tooth"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves={2} seed={7} /><feColorMatrix type="saturate" values="0" /></filter>
+          <filter id="tooth">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.9"
+              numOctaves={2}
+              seed={7}
+            />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
           <rect width="100%" height="100%" filter="url(#tooth)" />
         </svg>
       </AbsoluteFill>

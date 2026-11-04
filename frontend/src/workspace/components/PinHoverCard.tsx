@@ -28,9 +28,9 @@ export const PinHoverCard: React.FC<PinHoverCardProps> = ({
   const status = pin.status || (pin.kind === 'ghost' ? 'UNPLACED_GHOST' : 'MATCHED');
   let statusBadgeStyle = 'bg-bt-panel text-bt-text-secondary border-bt-border-strong';
   if (status === 'MATCHED') {
-    statusBadgeStyle = 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40';
+    statusBadgeStyle = 'bg-bt-success-bg text-bt-success border-bt-success-border';
   } else if (status === 'UNDERCOUNT') {
-    statusBadgeStyle = 'bg-amber-950/80 text-amber-300 border-amber-500/40';
+    statusBadgeStyle = 'bg-bt-review-bg text-bt-review border-bt-review-border';
   } else if (status === 'OVERCOUNT') {
     statusBadgeStyle = 'bg-orange-950/80 text-orange-300 border-orange-500/40';
   } else if (status === 'UNPLACED_GHOST' || pin.kind === 'ghost') {
@@ -119,7 +119,7 @@ export const PinHoverCard: React.FC<PinHoverCardProps> = ({
             <button
               type="button"
               onClick={() => onPlaceOnCanvas(pin)}
-              className="flex-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-mono font-semibold cursor-pointer transition-colors"
+              className="flex-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-bt-review border border-bt-review-border text-[10px] font-mono font-semibold cursor-pointer transition-colors"
             >
               Place on Canvas
             </button>

@@ -262,7 +262,7 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
             </div>
             {isBenchmark && (
               <span
-                className="px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-500/50 text-amber-300 text-[9px] font-bold tracking-wider"
+                className="px-1.5 py-0.5 rounded bg-bt-review-bg border border-amber-500/50 text-bt-review text-[9px] font-bold tracking-wider"
                 data-testid="benchmark-fixture-badge"
               >
                 BENCHMARK FIXTURE (DEMO)

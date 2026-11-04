@@ -10,6 +10,7 @@ vi.mock('../api/client', () => ({
     getHealth: vi.fn(),
     uploadDrawing: vi.fn(),
     scanSheet: vi.fn(),
+    previewPackagePage: vi.fn(),
     startAgentJob: vi.fn(),
     streamAgentJobEvents: vi.fn(),
     getPageImageUrl: vi.fn(
@@ -42,6 +43,7 @@ function makeSheet(i: number, discipline = 'MECHANICAL'): ScannedSheet {
       page_index: i,
       sheet_number: `M-10${i}`,
       sheet_title: `Plan ${i}`,
+      sheet_type: 'plan',
       discipline,
       scale_raw: verified ? '1/8" = 1\'-0"' : null,
       scale_ratio: verified ? 96.0 : null,
@@ -56,6 +58,8 @@ function makeSheet(i: number, discipline = 'MECHANICAL'): ScannedSheet {
 describe('SheetNavigator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
     mocked.getHealth.mockResolvedValue({ status: 'online', meta_model_api_configured: false } as never);
     mocked.listTakeoffItems.mockResolvedValue([]);
     mocked.getTakeoffSummary.mockResolvedValue([]);
@@ -77,8 +81,8 @@ describe('SheetNavigator', () => {
     );
     expect(screen.getByText('MECHANICAL')).toBeInTheDocument();
     expect(screen.getByText('PLUMBING')).toBeInTheDocument();
-    expect(screen.getByText('Scale unverified')).toBeInTheDocument();
-    expect(screen.getByText('1/8" = 1\'-0"')).toBeInTheDocument();
+    expect(screen.getByText('Scale needs review')).toBeInTheDocument();
+    expect(screen.getByText('Scale verified · 1/8" = 1\'-0"')).toBeInTheDocument();
   });
 
   it('marks the active card and notifies on click', () => {
@@ -126,6 +130,7 @@ describe('SheetNavigator', () => {
       routes: [],
       flags: [],
     };
+    mocked.previewPackagePage.mockResolvedValue({ sheet: sheets[0].meta, total_pages: 2 } as never);
     mocked.startAgentJob.mockResolvedValue({ job_id: 'job-1', project_id: 'set', status: 'running' } as never);
     mocked.streamAgentJobEvents.mockImplementation(async (_jobId, onEvent) => {
       for (const sheet of sheets) {

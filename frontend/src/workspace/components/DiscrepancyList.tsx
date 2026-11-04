@@ -62,7 +62,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
         );
       case 'WARNING':
         return (
-          <span className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-500/40 text-amber-300 font-mono text-[10px] font-bold">
+          <span className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-bt-review-bg border border-bt-review-border text-bt-review font-mono text-[10px] font-bold">
             <AlertTriangle className="w-3 h-3 text-amber-400" />
             <span>WARNING</span>
           </span>
@@ -82,13 +82,13 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
     switch (status) {
       case 'MATCHED':
         return (
-          <span className="px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 font-mono text-[10px]">
+          <span className="px-1.5 py-0.5 rounded bg-bt-success-bg border border-bt-success-border text-bt-success font-mono text-[10px]">
             MATCHED
           </span>
         );
       case 'UNDERCOUNT':
         return (
-          <span className="px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-500/40 text-amber-300 font-mono text-[10px]">
+          <span className="px-1.5 py-0.5 rounded bg-bt-review-bg border border-bt-review-border text-bt-review font-mono text-[10px]">
             UNDERCOUNT
           </span>
         );
@@ -203,7 +203,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
                 data-testid="discrepancy-card"
                 className={`p-3 rounded-xl border transition-all ${
                   isVerified
-                    ? 'bg-bt-surface/40 border-emerald-500/40'
+                    ? 'bg-bt-surface/40 border-bt-success-border'
                     : 'bg-bt-panel/80 border-bt-border-strong/80 hover:border-bt-border-strong shadow-md'
                 }`}
               >
@@ -301,7 +301,7 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
                     <button
                       type="button"
                       onClick={() => onPlaceGhostPin(item.item_id || item.tag)}
-                      className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-mono font-semibold cursor-pointer transition-colors"
+                      className="flex-1 flex items-center justify-center space-x-1 px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-bt-review border border-bt-review-border text-[10px] font-mono font-semibold cursor-pointer transition-colors"
                     >
                       <Ghost className="w-3 h-3 text-amber-400" />
                       <span>Place on Canvas</span>
@@ -325,8 +325,8 @@ export const DiscrepancyList: React.FC<DiscrepancyListProps> = ({
                       onClick={() => handleVerify(item.item_id)}
                       className={`px-2 py-1 rounded border text-[10px] font-mono font-semibold flex items-center space-x-1 cursor-pointer transition-colors ${
                         isVerified
-                          ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
-                          : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                          ? 'bg-emerald-950 text-bt-success border-bt-success-border'
+                          : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-bt-success-border'
                       }`}
                     >
                       <Check className="w-3 h-3" />

@@ -48,14 +48,14 @@ function getBadgeConfig(status: string, size: 'sm' | 'md'): BadgeConfig {
   if (normalized === 'suggested') {
     return {
       label: 'Suggested',
-      className: 'text-amber-300 bg-amber-950/80 border-amber-500/40',
+      className: 'text-bt-review bg-bt-review-bg border-bt-review-border',
       icon: <Clock className={iconClass} />,
     };
   }
   if (normalized === 'accepted') {
     return {
       label: 'Accepted',
-      className: 'text-emerald-300 bg-emerald-950/80 border-emerald-500/40',
+      className: 'text-bt-success bg-bt-success-bg border-bt-success-border',
       icon: <CheckCircle2 className={iconClass} />,
     };
   }
@@ -92,14 +92,14 @@ function getBadgeConfig(status: string, size: 'sm' | 'md'): BadgeConfig {
   if (normalized.includes('return') || normalized === 'r') {
     return {
       label: 'Return Air',
-      className: 'text-emerald-300 bg-emerald-950/80 border-emerald-500/40',
+      className: 'text-bt-success bg-bt-success-bg border-bt-success-border',
       icon: <Wind className={iconClass} />,
     };
   }
   if (normalized.includes('exhaust') || normalized === 'e') {
     return {
       label: 'Exhaust Air',
-      className: 'text-amber-300 bg-amber-950/80 border-amber-500/40',
+      className: 'text-bt-review bg-bt-review-bg border-bt-review-border',
       icon: <Wind className={iconClass} />,
     };
   }
@@ -129,14 +129,14 @@ function getBadgeConfig(status: string, size: 'sm' | 'md'): BadgeConfig {
   if (normalized === 'verified' || normalized === 'calibrated') {
     return {
       label: 'Calibrated',
-      className: 'text-emerald-300 bg-emerald-950/80 border-emerald-500/40',
+      className: 'text-bt-success bg-bt-success-bg border-bt-success-border',
       icon: <CheckCircle2 className={iconClass} />,
     };
   }
   if (normalized === 'review' || normalized === 'review_required') {
     return {
       label: 'Review Required',
-      className: 'text-amber-300 bg-amber-950/80 border-amber-500/40',
+      className: 'text-bt-review bg-bt-review-bg border-bt-review-border',
       icon: <ShieldAlert className={iconClass} />,
     };
   }

@@ -46,7 +46,7 @@ export const StockAIXRay: React.FC = () => {
           onClick={() => setActiveMode('custom')}
           className={`py-2 px-3 text-xs font-medium rounded-md transition-all cursor-pointer ${
             activeMode === 'custom'
-              ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 shadow-xs font-semibold'
+              ? 'bg-bt-success-bg text-bt-success border border-emerald-800/50 shadow-xs font-semibold'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -83,7 +83,7 @@ export const StockAIXRay: React.FC = () => {
               </span>
             )}
             {activeMode === 'custom' && (
-              <span className="flex items-center space-x-1 text-[11px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40 font-bold">
+              <span className="flex items-center space-x-1 text-[11px] text-emerald-400 bg-bt-success-bg px-2 py-0.5 rounded border border-emerald-800/40 font-bold">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Fire Damper 0.94</span>
               </span>
@@ -119,7 +119,7 @@ export const StockAIXRay: React.FC = () => {
           {/* Symbol Row 3: Motor Connection */}
           <div className="flex items-center justify-between p-2 rounded bg-slate-800/40 relative">
             <div className="flex items-center space-x-3">
-              <div className="w-7 h-7 border border-amber-400 rounded-full flex items-center justify-center text-[10px] text-amber-300">
+              <div className="w-7 h-7 border border-amber-400 rounded-full flex items-center justify-center text-[10px] text-bt-review">
                 M
               </div>
               <div>
@@ -166,7 +166,7 @@ export const StockAIXRay: React.FC = () => {
           </div>
         )}
         {activeMode === 'custom' && (
-          <div className="text-emerald-300/90 leading-relaxed">
+          <div className="text-bt-success/90 leading-relaxed">
             <span className="text-emerald-400 font-bold">[GATE G1 PASS]</span> Legend-grounded VLM (`muse-spark-1.3`):<br />
             • Sheet legend read first; symbols detected per-tile with legend context.<br />
             • No per-class training weights; vector layer corroborates every hit.<br />

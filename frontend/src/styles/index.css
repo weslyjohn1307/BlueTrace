@@ -41,12 +41,12 @@
   --color-bt-offline: var(--bt-offline-fg);
   --color-bt-offline-bg: var(--bt-offline-bg);
   --color-bt-offline-border: var(--bt-offline-border);
-  --color-mep-mechanical: var(--mep-mechanical);
-  --color-mep-electrical: var(--mep-electrical);
-  --color-mep-plumbing: var(--mep-plumbing);
-  --color-mep-mechanical-tint: var(--mep-mechanical-tint);
-  --color-mep-electrical-tint: var(--mep-electrical-tint);
-  --color-mep-plumbing-tint: var(--mep-plumbing-tint);
+  --color-mep-mechanical: var(--mep-ui-mechanical);
+  --color-mep-electrical: var(--mep-ui-electrical);
+  --color-mep-plumbing: var(--mep-ui-plumbing);
+  --color-mep-mechanical-tint: var(--mep-ui-mechanical-tint);
+  --color-mep-electrical-tint: var(--mep-ui-electrical-tint);
+  --color-mep-plumbing-tint: var(--mep-ui-plumbing-tint);
 }
 
 @layer base {
@@ -121,6 +121,12 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* Keep dense engineering labels readable in every workspace panel. */
+#root [class~="text-[10px]"],
+#root [class~="text-[11px]"] {
+  font-size: var(--bt-text-sm);
 }
 
 @layer utilities {

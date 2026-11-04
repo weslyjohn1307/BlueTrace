@@ -20,8 +20,8 @@ describe('WorkstationHeader honest scale semantics', () => {
 
   it('shows Scale unverified for plan sheets with unverified scale', () => {
     render(<WorkstationHeader {...baseProps} sheetType="plan" />);
-    expect(screen.getByText('Scale unverified')).toBeInTheDocument();
-    expect(screen.queryByText('Scale not needed')).not.toBeInTheDocument();
+    expect(screen.getByText('Scale needs review')).toBeInTheDocument();
+    expect(screen.queryByText('Not applicable')).not.toBeInTheDocument();
   });
 
   it('shows Scale not needed for legend, schedule and detail sheets', () => {
@@ -33,8 +33,8 @@ describe('WorkstationHeader honest scale semantics', () => {
         sheetType="legend"
       />
     );
-    expect(screen.getByText('Scale not needed')).toBeInTheDocument();
-    expect(screen.queryByText('Scale unverified')).not.toBeInTheDocument();
+    expect(screen.getByText('Not applicable')).toBeInTheDocument();
+    expect(screen.queryByText('Scale needs review')).not.toBeInTheDocument();
 
     rerender(
       <WorkstationHeader
@@ -44,7 +44,7 @@ describe('WorkstationHeader honest scale semantics', () => {
         sheetType="schedule"
       />
     );
-    expect(screen.getByText('Scale not needed')).toBeInTheDocument();
+    expect(screen.getByText('Not applicable')).toBeInTheDocument();
   });
 
   it('shows verified scale raw text when scaleOk is true', () => {
@@ -56,6 +56,6 @@ describe('WorkstationHeader honest scale semantics', () => {
         sheetType="plan"
       />
     );
-    expect(screen.getByText('Scale 1/4" = 1\'-0"')).toBeInTheDocument();
+    expect(screen.getByText('Scale verified · 1/4" = 1\'-0"')).toBeInTheDocument();
   });
 });

@@ -1,396 +1,461 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame } from 'remotion';
+import { useCurrentFrame } from 'remotion';
 import { EASE_ENTER, EASE_MOVE, FONT, ramp, s } from '../theme';
-import { ConceptTag } from '../components/primitives';
+import { Paper } from '../components/primitives';
 import { Cursor } from '../components/Cursor';
-import { WorkstationWindow } from '../components/WorkstationWindow';
+import { SplitScreenMenu } from '../components/SplitScreenMenu';
 import { Sheet, SHEET_H, SHEET_W } from '../components/Sheet';
 
 export const Shot5SlotB: React.FC = () => {
   const f = useCurrentFrame();
 
-  // 2.5D Camera choreography
-  const zoom = ramp(f, [0, s(21)], [1.02, 1.07], EASE_MOVE);
-  const rotX = ramp(f, [0, s(12)], [4.0, 2.0], EASE_MOVE);
-  const rotY = ramp(f, [0, s(12)], [2.5, -0.5], EASE_MOVE);
+  const enter = ramp(f, [0, s(0.8)], [0, 1], EASE_ENTER);
+  const windowShift = (1 - enter) * 24;
 
-  // Hover card entrance at second 3.8
-  const hoverCardEnter = ramp(f, [s(3.8), s(4.6)], [0, 1], EASE_ENTER);
+  // Click action at second 4.5
+  const isApproved = f >= s(4.5);
+  const approvePop = ramp(f, [s(4.5), s(5.0)], [1.15, 1.0], EASE_ENTER);
 
-  // Accepted state triggered at click at second 9.2
-  const isAccepted = f >= s(9.2);
-  const acceptPop = ramp(f, [s(9.2), s(9.8)], [1.2, 1.0], EASE_ENTER);
-
-  // Ledger table slides up at second 11.0
-  const ledgerEnter = ramp(f, [s(11.0), s(12.2)], [0, 1], EASE_ENTER);
-
-  // Cursor coordinates & click
-  let cursorX = 720;
-  let cursorY = 500;
+  // Cursor choreography
+  let cursorX = 780;
+  let cursorY = 400;
   let clickFrame: number | undefined;
 
-  if (f < s(3.5)) {
-    // Glide from lower area to supply duct centerline (x: 620, y: 280)
-    const t = ramp(f, [s(0.5), s(3.2)], [0, 1], EASE_MOVE);
-    cursorX = (1 - t) * 720 + t * 620;
-    cursorY = (1 - t) * 500 + t * 280;
-  } else if (f < s(9.6)) {
-    // Moves from duct centerline to the "ACCEPT TO TAKEOFF" button on hover card (x: 770, y: 395)
-    const t = ramp(f, [s(7.2), s(9.0)], [0, 1], EASE_MOVE);
-    cursorX = (1 - t) * 620 + t * 770;
-    cursorY = (1 - t) * 280 + t * 395;
-    if (f >= s(9.0) && f < s(9.6)) {
-      clickFrame = s(9.0);
+  if (f < s(4.8)) {
+    // Glide to [ Approve (Y) ] button inside the review modal (x: 1060, y: 585)
+    const t = ramp(f, [s(1.2), s(4.3)], [0, 1], EASE_MOVE);
+    cursorX = (1 - t) * 780 + t * 1060;
+    cursorY = (1 - t) * 400 + t * 585;
+    if (f >= s(4.3) && f < s(4.8)) {
+      clickFrame = s(4.3);
     }
   } else {
-    // Idles over the accepted evidence area
-    const t = ramp(f, [s(10.5), s(13.5)], [0, 1], EASE_MOVE);
-    cursorX = (1 - t) * 770 + t * 840;
-    cursorY = (1 - t) * 395 + t * 470;
+    // Moves to the next pending item in right drawer (x: 1280, y: 340)
+    const t = ramp(f, [s(5.5), s(8.5)], [0, 1], EASE_MOVE);
+    cursorX = (1 - t) * 1060 + t * 1280;
+    cursorY = (1 - t) * 585 + t * 340;
   }
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#070c0f' }}>
-      <AbsoluteFill
+    <Paper withDotGrid={true}>
+      {/* Left-Side Category Navigation Menu */}
+      <SplitScreenMenu
+        category="Document Vision"
+        items={[
+          {
+            title: 'QuickDraw',
+            subtitle: 'one click dimension setting',
+          },
+          {
+            title: 'Symbol Recon',
+            subtitle: 'scheduled object detection',
+            active: true,
+          },
+          {
+            title: 'Revisions',
+            subtitle: 'automatic diff detection',
+          },
+        ]}
         style={{
-          background:
-            'radial-gradient(circle at 45% 45%, rgba(30,55,66,0.3) 0%, rgba(7,12,15,1) 75%)',
-          pointerEvents: 'none',
+          opacity: enter,
+          transform: `translateY(${windowShift}px)`,
         }}
       />
 
-      {/* Floating 2.5D Workstation */}
-      <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ position: 'relative', transform: 'translateY(-58px)' }}>
-          <WorkstationWindow
-            width={1440}
-            height={810}
-            scale={zoom}
-            rotateX={rotX}
-            rotateY={rotY}
-            activeSheetId="M-201"
-            scaleBadgeText={
-              isAccepted ? '1/4" = 1\'-0" · VERIFIED' : '1/4" = 1\'-0"'
-            }
-            scaleBadgeTone={isAccepted ? 'verified' : 'normal'}
-          >
-            {/* Viewport Interior with Focal Zoom on Duct */}
-            <div
-              style={{
-                position: 'relative',
-                width: '100%',
-                height: '100%',
-                backgroundColor: '#0a1013',
-                overflow: 'hidden',
-              }}
-            >
-              {/* Sheet Canvas Zoomed onto Corridor */}
-              <div
-                style={{
-                  position: 'absolute',
-                  left: '50%',
-                  top: '50%',
-                  transform: 'translate(-42%, -48%) scale(0.92)',
-                  transformOrigin: 'center center',
-                  width: SHEET_W,
-                  height: SHEET_H,
-                }}
-              >
-                <Sheet
-                  draws={{ arch: 1, mech: 1, plumb: 1, elec: 1 }}
-                  tone="ghost"
-                  highlightMain={true}
-                />
-              </div>
-
-              {/* Vector Snap Crosshair on Supply Duct */}
-              {f >= s(2.5) && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 615,
-                    top: 275,
-                    pointerEvents: 'none',
-                  }}
-                >
-                  {/* Glowing center indicator */}
-                  <div
-                    style={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: '50%',
-                      border: `2px solid ${isAccepted ? '#10b981' : '#38bdf8'}`,
-                      transform: 'translate(-50%, -50%)',
-                      boxShadow: `0 0 16px ${isAccepted ? '#10b981' : '#38bdf8'}`,
-                    }}
-                  />
-                  {/* Dimension coordinate tag */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 14,
-                      top: -18,
-                      fontFamily: FONT.mono,
-                      fontSize: 10,
-                      color: isAccepted ? '#34d399' : '#38bdf8',
-                      backgroundColor: 'rgba(7,12,15,0.85)',
-                      padding: '2px 6px',
-                      borderRadius: 3,
-                      border: `1px solid ${isAccepted ? 'rgba(16,185,129,0.3)' : 'rgba(56,189,248,0.3)'}`,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    CENTERLINE: (X: 428.4, Y: 294.1)
-                  </div>
-                </div>
-              )}
-
-              {/* QuickDraw Hover Evidence Card */}
-              {hoverCardEnter > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 650,
-                    top: 210,
-                    width: 330,
-                    backgroundColor: 'rgba(13, 23, 28, 0.96)',
-                    backdropFilter: 'blur(16px)',
-                    border: `1.5px solid ${isAccepted ? '#10b981' : '#38bdf8'}`,
-                    borderRadius: 10,
-                    padding: '16px 18px',
-                    fontFamily: FONT.ui,
-                    boxShadow: '0 24px 50px rgba(0,0,0,0.65)',
-                    opacity: hoverCardEnter,
-                    transform: `translateY(${(1 - hoverCardEnter) * 12}px) scale(${isAccepted ? acceptPop : 1})`,
-                    zIndex: 20,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginBottom: 8,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: FONT.mono,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: '0.1em',
-                        color: isAccepted ? '#34d399' : '#38bdf8',
-                      }}
-                    >
-                      {isAccepted
-                        ? '✓ ACCEPTED TO TAKEOFF'
-                        : 'DETECTED VECTOR CANDIDATE'}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: FONT.mono,
-                        fontSize: 10,
-                        color: '#64748b',
-                      }}
-                    >
-                      D-04
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      fontFamily: FONT.ui,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: '#ffffff',
-                      marginBottom: 4,
-                    }}
-                  >
-                    16×10 Rect. Supply Duct
-                  </div>
-
-                  <div
-                    style={{
-                      fontFamily: FONT.mono,
-                      fontSize: 11,
-                      color: '#94a3b8',
-                      lineHeight: 1.6,
-                      marginBottom: 12,
-                    }}
-                  >
-                    <div>• Spec: 24ga Galvanized Steel (SMACNA 2")</div>
-                    <div>• Physical Run: 34.2 LF (3 Segments)</div>
-                  </div>
-
-                  {!isAccepted ? (
-                    <div
-                      style={{
-                        backgroundColor: '#0284c7',
-                        color: '#ffffff',
-                        fontFamily: FONT.mono,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        padding: '8px 14px',
-                        borderRadius: 6,
-                        textAlign: 'center',
-                        letterSpacing: '0.06em',
-                        boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
-                      }}
-                    >
-                      ACCEPT TO TAKEOFF ↵
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        border: '1px solid rgba(16, 185, 129, 0.4)',
-                        color: '#34d399',
-                        fontFamily: FONT.mono,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: '6px 12px',
-                        borderRadius: 6,
-                        textAlign: 'center',
-                      }}
-                    >
-                      COMMITTED TO ESTIMATE LEDGER
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Bottom Takeoff Ledger Table */}
-              {ledgerEnter > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 20,
-                    right: 20,
-                    bottom: 16,
-                    backgroundColor: 'rgba(11, 19, 24, 0.95)',
-                    backdropFilter: 'blur(16px)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 8,
-                    padding: '12px 18px',
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.7)',
-                    opacity: ledgerEnter,
-                    transform: `translateY(${(1 - ledgerEnter) * 16}px)`,
-                    zIndex: 30,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      borderBottom: '1px solid rgba(255,255,255,0.06)',
-                      paddingBottom: 8,
-                      marginBottom: 8,
-                      fontFamily: FONT.mono,
-                      fontSize: 10,
-                      color: '#64748b',
-                      letterSpacing: '0.08em',
-                    }}
-                  >
-                    <span>TAKEOFF LEDGER (LEVEL 02)</span>
-                    <span style={{ color: '#34d399' }}>1 ITEM COMMITTED</span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      fontFamily: FONT.mono,
-                      fontSize: 12,
-                      color: '#e2e8f0',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span
-                        style={{
-                          color: '#34d399',
-                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                          padding: '2px 6px',
-                          borderRadius: 3,
-                          fontSize: 10,
-                          fontWeight: 700,
-                        }}
-                      >
-                        ✓ VERIFIED
-                      </span>
-                      <span style={{ fontWeight: 600 }}>16×10 Rect. Supply Duct</span>
-                      <span style={{ color: '#64748b' }}>· Galvanized 24ga</span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-                      <span style={{ color: '#94a3b8' }}>Grid B-2 / D-2</span>
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 14,
-                          color: '#38bdf8',
-                        }}
-                      >
-                        34.2 LF
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </WorkstationWindow>
-
-          {/* Animated Cursor */}
-          <Cursor
-            x={cursorX}
-            y={cursorY}
-            clickFrame={clickFrame}
-            currentFrame={f}
-          />
-        </div>
-      </AbsoluteFill>
-
-      {/* Statement at the bottom */}
+      {/* Right-Side Floating Application Window */}
       <div
         style={{
           position: 'absolute',
-          left: 140,
-          bottom: 46,
-          right: 140,
+          right: 70,
+          top: 120,
+          width: 1360,
+          height: 840,
+          borderRadius: 14,
+          overflow: 'hidden',
+          backgroundColor: '#ffffff',
+          boxShadow:
+            '0 30px 90px rgba(23, 37, 43, 0.12), 0 0 0 1px rgba(23, 37, 43, 0.08)',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
+          flexDirection: 'column',
+          opacity: enter,
+          transform: `translateY(${windowShift}px)`,
         }}
       >
-        <div>
+        {/* Workstation Top Bar */}
+        <div
+          style={{
+            height: 48,
+            backgroundColor: '#f8fafc',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 18px',
+            fontFamily: FONT.ui,
+            userSelect: 'none',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ef4444' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#10b981' }} />
+            </div>
+            <div style={{ fontFamily: FONT.mono, fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+              BLUETRACE <span style={{ color: '#64748b', fontWeight: 400 }}>· SYMBOL RECON</span>
+            </div>
+          </div>
+
           <div
             style={{
-              fontFamily: FONT.display,
-              fontSize: 44,
-              fontWeight: 500,
-              color: '#f0ecdf',
-              lineHeight: 1.1,
-              letterSpacing: '-0.015em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontFamily: FONT.mono,
+              fontSize: 12,
+              color: '#0284c7',
+              backgroundColor: '#e0f2fe',
+              padding: '4px 12px',
+              borderRadius: 6,
+              fontWeight: 600,
             }}
           >
-            Suggestions stay connected to the sheet.
+            <span>✦</span>
+            <span>MUSE-SPARK-1.3 · LEGEND CORROBORATION ACTIVE</span>
           </div>
+
           <div
             style={{
               fontFamily: FONT.mono,
-              fontSize: 15,
-              color: '#8b9a9b',
-              marginTop: 8,
-              letterSpacing: '0.04em',
+              fontSize: 12,
+              color: '#475569',
+              backgroundColor: '#f1f5f9',
+              padding: '4px 10px',
+              borderRadius: 4,
             }}
           >
-            Spatial takeoff review · Estimator judgment governs every committed quantity
+            M-201 · LEVEL 02
           </div>
         </div>
 
-        <ConceptTag onDark={true} style={{ position: 'relative', textAlign: 'right' }} />
+        {/* Viewport Interior with Plan & Split Right Drawer */}
+        <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
+          {/* Main Plan Area */}
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#ffffff' }}>
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: 'translate(-38%, -42%) scale(1.15)',
+                transformOrigin: 'center center',
+                width: SHEET_W,
+                height: SHEET_H,
+              }}
+            >
+              <Sheet
+                draws={{ arch: 1, mech: 1, plumb: 1, elec: 1 }}
+                tone="color"
+                highlightMain={true}
+              />
+            </div>
+
+            {/* Red Bounding Box around Active Diffuser Target */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 380,
+                top: 290,
+                width: 110,
+                height: 48,
+                border: `2.5px solid ${isApproved ? '#16a34a' : '#ef4444'}`,
+                backgroundColor: isApproved ? 'rgba(22, 163, 74, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                borderRadius: 4,
+                boxShadow: `0 0 16px ${isApproved ? 'rgba(22, 163, 74, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
+                transition: 'all 0.3s ease',
+              }}
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  left: 4,
+                  top: -20,
+                  fontFamily: FONT.mono,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: isApproved ? '#16a34a' : '#ef4444',
+                  backgroundColor: '#ffffff',
+                  padding: '1px 6px',
+                  borderRadius: 3,
+                  border: `1px solid ${isApproved ? '#bbf7d0' : '#fecaca'}`,
+                }}
+              >
+                {isApproved ? '✓ APPROVED' : 'C · 300 CFM'}
+              </span>
+            </div>
+
+            {/* Other Detected Symbols on Plan */}
+            {[
+              { x: 210, y: 190, label: 'Diffuser A' },
+              { x: 580, y: 190, label: 'Grille B' },
+              { x: 230, y: 490, label: 'VAV-02' },
+            ].map((sItem) => (
+              <div
+                key={sItem.label}
+                style={{
+                  position: 'absolute',
+                  left: sItem.x,
+                  top: sItem.y,
+                  width: 60,
+                  height: 38,
+                  border: '1.5px solid #ef4444',
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  borderRadius: 3,
+                }}
+              />
+            ))}
+
+            {/* Focused Symbol Review Modal (HITL Triage Pattern) */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 340,
+                top: 360,
+                width: 330,
+                backgroundColor: '#ffffff',
+                borderRadius: 10,
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 20px 45px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.04)',
+                padding: '16px 18px',
+                fontFamily: FONT.ui,
+                zIndex: 40,
+                transform: `scale(${isApproved ? approvePop : 1})`,
+              }}
+            >
+              {/* Modal Header */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 14,
+                  borderBottom: '1px solid #f1f5f9',
+                  paddingBottom: 8,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: '#0284c7', fontSize: 13 }}>✦</span>
+                  <span style={{ fontFamily: FONT.mono, fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                    Symbol Recon Review
+                  </span>
+                </div>
+                <div style={{ fontFamily: FONT.mono, fontSize: 11, color: '#64748b' }}>
+                  {isApproved ? '2 of 124' : '1 of 124'}
+                </div>
+              </div>
+
+              {/* Classification Selector */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontFamily: FONT.mono, fontSize: 10, color: '#64748b', marginBottom: 4 }}>
+                  SAVE AS:
+                </div>
+                <div
+                  style={{
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    padding: '7px 10px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#0f172a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>C Linear Slot Diffuser</span>
+                  <span style={{ fontSize: 10, color: '#0284c7', fontWeight: 700 }}>★ Recommended</span>
+                </div>
+              </div>
+
+              {/* Group / Schedule Match */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontFamily: FONT.mono, fontSize: 10, color: '#64748b', marginBottom: 4 }}>
+                  SCHEDULE VERIFICATION:
+                </div>
+                <div
+                  style={{
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 6,
+                    padding: '7px 10px',
+                    fontSize: 11,
+                    color: '#475569',
+                    fontFamily: FONT.mono,
+                  }}
+                >
+                  Schedule M-601 · 300 CFM · 4-Slot
+                </div>
+              </div>
+
+              {/* Reject / Approve Rapid Actions */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fecaca',
+                    padding: '9px 12px',
+                    borderRadius: 6,
+                    textAlign: 'center',
+                    fontFamily: FONT.mono,
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  Reject (N)
+                </div>
+                <div
+                  style={{
+                    flex: 1.3,
+                    backgroundColor: isApproved ? '#15803d' : '#16a34a',
+                    color: '#ffffff',
+                    border: '1px solid #15803d',
+                    padding: '9px 12px',
+                    borderRadius: 6,
+                    textAlign: 'center',
+                    fontFamily: FONT.mono,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    boxShadow: '0 4px 12px rgba(22, 163, 74, 0.35)',
+                  }}
+                >
+                  {isApproved ? '✓ Approved' : 'Approve (Y)'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Rail: Symbol Overview List (Inspection Drawer) */}
+          <div
+            style={{
+              width: 320,
+              backgroundColor: '#f8fafc',
+              borderLeft: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              fontFamily: FONT.ui,
+            }}
+          >
+            {/* Drawer Header */}
+            <div
+              style={{
+                padding: '14px 16px',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#0284c7' }}>✦</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                  Symbol Overview
+                </span>
+              </div>
+              <span
+                style={{
+                  fontFamily: FONT.mono,
+                  fontSize: 11,
+                  color: isApproved ? '#059669' : '#0284c7',
+                  backgroundColor: isApproved ? '#d1fae5' : '#e0f2fe',
+                  padding: '2px 8px',
+                  borderRadius: 10,
+                  fontWeight: 600,
+                }}
+              >
+                {isApproved ? '123 pending' : '124 pending'}
+              </span>
+            </div>
+
+            {/* Symbol Triage Item Rows */}
+            <div style={{ flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                { label: 'A Diffuser', status: 'approved' },
+                { label: 'C Linear Slot Diffuser', status: isApproved ? 'approved' : 'active' },
+                { label: 'C Linear Slot Diffuser', status: 'pending' },
+                { label: 'B Grille', status: 'pending' },
+                { label: 'C Linear Slot Diffuser', status: 'pending' },
+                { label: 'A Diffuser', status: 'pending' },
+                { label: 'B Grille', status: 'pending' },
+                { label: 'A Diffuser', status: 'pending' },
+              ].map((row, i) => {
+                const isCurActive = row.status === 'active';
+                const isCurApproved = row.status === 'approved';
+                return (
+                  <div
+                    key={`${row.label}-${i}`}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      backgroundColor: isCurActive ? '#e2e8f0' : isCurApproved ? '#ecfdf5' : '#ffffff',
+                      border: `1px solid ${isCurActive ? '#94a3b8' : isCurApproved ? '#a7f3d0' : '#e2e8f0'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: 12,
+                      fontFamily: FONT.mono,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: '50%',
+                          backgroundColor: isCurApproved ? '#16a34a' : isCurActive ? '#0284c7' : '#cbd5e1',
+                        }}
+                      />
+                      <span style={{ color: isCurApproved ? '#065f46' : '#1e293b', fontWeight: isCurActive ? 700 : 500 }}>
+                        {row.label}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                      {isCurApproved ? '✓' : `0${i + 1}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bottom Drawer Footer */}
+            <div
+              style={{
+                padding: '12px 16px',
+                borderTop: '1px solid #e2e8f0',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontFamily: FONT.mono,
+                fontSize: 11,
+              }}
+            >
+              <span style={{ color: '#64748b' }}>HITL REVIEW GATE</span>
+              <span style={{ color: '#0284c7', fontWeight: 700 }}>Approve all →</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Animated Mouse Cursor */}
+        <Cursor
+          x={cursorX}
+          y={cursorY}
+          clickFrame={clickFrame}
+          currentFrame={f}
+        />
       </div>
-    </AbsoluteFill>
+    </Paper>
   );
 };

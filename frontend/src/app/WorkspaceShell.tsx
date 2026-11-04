@@ -5,7 +5,7 @@ import {
   FileSpreadsheet, 
   FileText, 
   Compass, 
-  Sparkles, 
+  MessageCircleQuestion,
   Download, 
   Layers 
 } from 'lucide-react';
@@ -203,7 +203,7 @@ export const WorkspaceShell: React.FC<WorkspaceShellProps> = ({
             className="p-3 border-b border-bt-border-subtle"
           >
             <div className="flex items-center space-x-1.5 mb-2 text-xs font-semibold text-bt-text-secondary uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-[#006D84]" aria-hidden="true" />
+              <MessageCircleQuestion className="w-3.5 h-3.5 text-bt-brand" aria-hidden="true" />
               <h2 id="region-copilot-heading">Ask the Drawing</h2>
             </div>
             {copilotContent}

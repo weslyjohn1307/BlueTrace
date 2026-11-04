@@ -7,6 +7,7 @@ vi.mock('../api/client', () => ({
   apiClient: {
     getHealth: vi.fn(),
     uploadDrawing: vi.fn(),
+    previewPackagePage: vi.fn(),
     scanSheet: vi.fn(),
     startAgentJob: vi.fn(),
     streamAgentJobEvents: vi.fn(),
@@ -43,6 +44,7 @@ describe('useTakeoffSession', () => {
     mocked.getHealth.mockResolvedValue({ status: 'online', meta_model_api_configured: false } as never);
     mocked.listTakeoffItems.mockResolvedValue([]);
     mocked.getTakeoffSummary.mockResolvedValue([]);
+    mocked.previewPackagePage.mockResolvedValue({ sheet: sheetMeta(), total_pages: 1 } as never);
   });
 
   function scanAllResult() {
@@ -87,11 +89,14 @@ describe('useTakeoffSession', () => {
     });
 
     expect(mocked.uploadDrawing).toHaveBeenCalledTimes(1);
-    expect(mocked.startAgentJob).toHaveBeenCalledWith({ file_path: 'data/uploads/plan.pdf', project_id: 'plan' });
+    expect(mocked.startAgentJob).toHaveBeenCalledWith(expect.objectContaining({
+      file_path: 'data/uploads/plan.pdf',
+      project_id: expect.stringMatching(/^plan-/),
+    }));
     expect(result.current.state.stage).toBe('ready');
     expect(result.current.state.sheets).toHaveLength(1);
     expect(result.current.state.activeSheetId).toBe('sheet_m22');
-    expect(result.current.state.projectName).toBe('plan');
+    expect(result.current.state.projectName).toMatch(/^plan-/);
     expect(mocked.listTakeoffItems).toHaveBeenCalled();
   });
 
@@ -118,6 +123,48 @@ describe('useTakeoffSession', () => {
 
     expect(result.current.state.sheets).toHaveLength(2);
     expect(result.current.state.activeSheetId).toBe('sheet_m22');
+  });
+
+  it('ignores a late ledger response for a sheet that is no longer active', async () => {
+    mocked.uploadDrawing.mockResolvedValue({
+      filename: 'set.pdf',
+      file_path: 'data/uploads/set.pdf',
+      byte_size: 10,
+      sha256: 'abc',
+    } as never);
+    const second = { ...sheetMeta(), sheet_id: 'sheet_p101', page_index: 1, sheet_number: 'P-101' };
+    useJobResult({
+      ...scanAllResult(),
+      sheets_processed: 2,
+      document_map: { sheets: [sheetMeta(), second] },
+    });
+
+    let resolvePageItems!: (items: never[]) => void;
+    let resolvePageSummary!: (summary: never[]) => void;
+    const pageItems = new Promise<never[]>((resolve) => { resolvePageItems = resolve; });
+    const pageSummary = new Promise<never[]>((resolve) => { resolvePageSummary = resolve; });
+    mocked.listTakeoffItems.mockImplementation(async (params) =>
+      params?.sheet_id === 'sheet_p101' ? pageItems : []
+    );
+    mocked.getTakeoffSummary.mockImplementation(async (params) =>
+      params?.sheet_id === 'sheet_p101' ? pageSummary : []
+    );
+
+    const { result } = renderHook(() => useTakeoffSession());
+    await act(async () => {
+      await result.current.selectFile(new File(['%PDF-1.4'], 'set.pdf', { type: 'application/pdf' }));
+    });
+
+    await act(async () => {
+      result.current.selectSheet('sheet_p101');
+      result.current.selectSheet('sheet_m22');
+      resolvePageItems([{ item_id: 'page-2-item' }] as never[]);
+      resolvePageSummary([] as never[]);
+      await Promise.resolve();
+    });
+
+    expect(result.current.state.activeSheetId).toBe('sheet_m22');
+    expect(result.current.state.items).toEqual([]);
   });
 
   it('reloads the ledger after the orchestrator confirms items are persisted', async () => {
@@ -162,10 +209,12 @@ describe('useTakeoffSession', () => {
       await result.current.openFixture('fixtures/mechanical/hvac_plan_level2.pdf');
     });
 
-    expect(mocked.startAgentJob).toHaveBeenCalledWith({
+    expect(mocked.startAgentJob).toHaveBeenCalledWith(expect.objectContaining({
       file_path: 'fixtures/mechanical/hvac_plan_level2.pdf',
       project_id: 'hvac_plan_level2',
-    });
+      analysis_scope: 'all',
+      meta_consent: false,
+    }));
     expect(result.current.state.stage).toBe('ready');
   });
 

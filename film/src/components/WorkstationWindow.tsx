@@ -1,5 +1,6 @@
 import React from 'react';
 import { C, FONT } from '../theme';
+import { BrandSymbol } from './BrandSymbol';
 
 interface WorkstationWindowProps {
   children: React.ReactNode;
@@ -103,6 +104,7 @@ export const WorkstationWindow: React.FC<WorkstationWindowProps> = ({
               gap: 8,
             }}
           >
+            <BrandSymbol size={18} variant="dark-surface" />
             <span style={{ color: '#e5e7eb', fontWeight: 600 }}>BLUETRACE</span>
             <span>/</span>
             <span>T3 EXPANSION</span>

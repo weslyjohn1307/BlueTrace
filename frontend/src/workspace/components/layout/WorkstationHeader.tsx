@@ -2,18 +2,19 @@ import React from 'react';
 import {
   PanelLeft,
   PanelRight,
-  CheckCircle2,
-  AlertTriangle,
-  Info,
   MessageCircleQuestion,
 } from 'lucide-react';
+import type { ScaleStatus } from '../../../api/contracts';
+import { ScaleStateBadge } from '../ScaleStateBadge';
 
 export interface WorkstationHeaderProps {
   sheetNumber: string;
   sheetTitle: string;
   discipline: string;
   scaleRaw?: string | null;
-  scaleOk: boolean;
+  scaleStatus?: ScaleStatus;
+  /** @deprecated Compatibility for existing header callers. Prefer `scaleStatus`. */
+  scaleOk?: boolean;
   sheetType?: string | null;
   leftSidebarOpen: boolean;
   onToggleLeftSidebar: () => void;
@@ -37,6 +38,7 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
   sheetTitle,
   discipline,
   scaleRaw,
+  scaleStatus,
   scaleOk,
   sheetType,
   leftSidebarOpen,
@@ -49,6 +51,7 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
   onStatusFilterChange,
   onOpenCopilot,
 }) => {
+  const displayedScaleStatus: ScaleStatus = scaleStatus ?? (scaleOk ? 'VERIFIED' : 'UNVERIFIED');
   return (
     <header
       className="z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-bt-border-subtle bg-bt-surface px-4 py-2"
@@ -117,48 +120,7 @@ export const WorkstationHeader: React.FC<WorkstationHeaderProps> = ({
           </select>
         </label>
 
-        {(() => {
-          const isNonPlan =
-            sheetType === 'schedule' ||
-            sheetType === 'legend' ||
-            sheetType === 'detail' ||
-            sheetType === 'other' ||
-            /legend|schedule|abbreviation|symbol|detail/i.test(sheetTitle);
-
-          if (scaleOk) {
-            return (
-          <span
-                className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-bt-success-border bg-bt-success-bg px-2 text-xs font-medium text-bt-success"
-                title="The printed or calibrated scale is verified for this sheet."
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Scale {scaleRaw || 'verified'}</span>
-              </span>
-            );
-          }
-
-          if (isNonPlan) {
-            return (
-              <span
-                className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-bt-border-subtle bg-bt-panel px-2 text-xs font-medium text-bt-text-secondary"
-                title="Information, legend, and schedule sheets do not require physical scale."
-              >
-                <Info className="h-3.5 w-3.5 text-bt-text-secondary" aria-hidden="true" />
-                <span>Scale not needed</span>
-              </span>
-            );
-          }
-
-          return (
-            <span
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-bt-review-border bg-bt-review-bg px-2 text-xs font-medium text-bt-review"
-              title="No verified scale yet. Measured lengths stay in review until you verify or calibrate this sheet."
-            >
-              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Scale unverified</span>
-            </span>
-          );
-        })()}
+        <ScaleStateBadge status={displayedScaleStatus} sheetType={sheetType} sheetTitle={sheetTitle} scaleRaw={scaleRaw} />
 
         {onOpenCopilot ? (
           <button

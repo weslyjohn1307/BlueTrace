@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, BrainCircuit, AlertTriangle, Cpu, ChevronDown, ChevronRight, MapPin, Terminal } from 'lucide-react';
+import { Send, BrainCircuit, AlertTriangle, Cpu, MapPin } from 'lucide-react';
 import { apiClient } from '../../api/client';
 
 export interface CopilotMessage {
@@ -10,7 +10,6 @@ export interface CopilotMessage {
   scaleVerified: boolean;
   streaming?: boolean;
   citations?: number[][];
-  thoughtChain?: string[];
 }
 
 export interface CopilotPanelProps {
@@ -46,7 +45,7 @@ function parseInlineMarkdown(text: string, onEvidence?: (boxes: number[][]) => v
     }
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
-        <code key={i} className="bg-bt-inset px-1 py-0.5 rounded text-cyan-300 font-mono text-[11px] border border-bt-border-subtle">
+        <code key={i} className="bg-bt-inset px-1 py-0.5 rounded text-bt-info font-mono text-[11px] border border-bt-border-subtle">
           {part.slice(1, -1)}
         </code>
       );
@@ -60,7 +59,7 @@ function parseInlineMarkdown(text: string, onEvidence?: (boxes: number[][]) => v
           key={i}
           type="button"
           onClick={() => onEvidence?.([[x, y]])}
-          className="inline-flex items-center space-x-0.5 px-1.5 py-0.5 mx-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] hover:bg-cyan-900 transition-colors cursor-pointer align-baseline"
+          className="inline-flex items-center space-x-0.5 px-1.5 py-0.5 mx-0.5 rounded bg-bt-info-bg border border-bt-info-border text-bt-info font-mono text-[10px] hover:bg-bt-panel transition-colors cursor-pointer align-baseline"
           title={`Highlight coordinate [${x}, ${y}] on drawing canvas`}
         >
           <MapPin className="w-2.5 h-2.5 inline" />
@@ -138,7 +137,7 @@ export function MarkdownContent({ text, onEvidence }: { text: string; onEvidence
     // Headings
     if (trimmed.startsWith('### ')) {
       blocks.push(
-        <h4 key={`h4-${i}`} className="font-bold text-cyan-300 font-mono text-[11px] uppercase tracking-wider mt-2 mb-1">
+          <h4 key={`h4-${i}`} className="font-bold text-bt-info font-sans text-xs mt-2 mb-1">
           {parseInlineMarkdown(trimmed.replace(/^###\s+/, ''), onEvidence)}
         </h4>
       );
@@ -147,7 +146,7 @@ export function MarkdownContent({ text, onEvidence }: { text: string; onEvidence
     }
     if (trimmed.startsWith('## ')) {
       blocks.push(
-        <h3 key={`h3-${i}`} className="font-bold text-bt-on-brand font-mono text-xs uppercase tracking-wider mt-2.5 mb-1 border-b border-bt-border-subtle pb-0.5">
+          <h3 key={`h3-${i}`} className="font-bold text-bt-text-primary font-sans text-sm mt-2.5 mb-1 border-b border-bt-border-subtle pb-1">
           {parseInlineMarkdown(trimmed.replace(/^##\s+/, ''), onEvidence)}
         </h3>
       );
@@ -156,7 +155,7 @@ export function MarkdownContent({ text, onEvidence }: { text: string; onEvidence
     }
     if (trimmed.startsWith('# ')) {
       blocks.push(
-        <h2 key={`h2-${i}`} className="font-bold text-bt-on-brand font-mono text-sm tracking-tight mt-3 mb-1.5">
+          <h2 key={`h2-${i}`} className="font-bold text-bt-text-primary font-sans text-base tracking-tight mt-3 mb-1.5">
           {parseInlineMarkdown(trimmed.replace(/^#\s+/, ''), onEvidence)}
         </h2>
       );
@@ -221,12 +220,6 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({});
-
-  const toggleThought = (id: string) => {
-    setExpandedThoughts((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
   const sendQuery = async (queryText: string) => {
     const query = queryText.trim();
     if (!query || busy) return;
@@ -252,14 +245,8 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
         modelUsed: false,
         scaleVerified: false,
         streaming: true,
-        thoughtChain: [
-          'Reading the open sheet region',
-          'Checking scale evidence for this sheet',
-          'Gathering cited evidence for the answer',
-        ],
       },
     ]);
-    setExpandedThoughts((prev) => ({ ...prev, [assistantId]: true }));
 
     const patchAssistant = (patch: Partial<CopilotMessage>) =>
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, ...patch } : m)));
@@ -304,10 +291,10 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
   return (
     <div className="flex flex-col h-full bg-bt-surface text-bt-text-primary text-xs" data-testid="copilot-panel">
       {/* Panel header: role and evidence basis, never a model name. */}
-      <div className="px-3 py-2 bg-bt-inset/80 border-b border-bt-border-subtle flex items-center justify-between text-[10px] font-mono select-none">
-        <div className="flex items-center space-x-1.5 text-cyan-400">
-          <Terminal className="w-3.5 h-3.5" />
-          <span className="font-semibold tracking-wider">Engineering Copilot</span>
+      <div className="px-3 py-2 bg-bt-inset/80 border-b border-bt-border-subtle flex items-center justify-between text-xs select-none">
+        <div className="flex items-center space-x-1.5 text-bt-brand">
+          <BrainCircuit className="w-3.5 h-3.5" />
+          <span className="font-semibold">Engineering Copilot</span>
         </div>
         <span className="text-bt-text-tertiary">Cites sheet evidence</span>
       </div>
@@ -315,13 +302,13 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {messages.length === 0 && (
           <div className="space-y-4 pt-4">
-            <div className="text-bt-text-secondary text-center font-mono text-xs px-2">
-              Ask about this drawing sheet — counts, footage, CFM balance, or physical scale.
+                <div className="text-bt-text-secondary text-center text-xs px-2">
+              Ask about this sheet. Answers use the available drawing and takeoff evidence.
             </div>
 
             {/* Quick Prompt Composer Chips */}
             <div className="space-y-1.5">
-              <div className="text-[10px] font-mono text-bt-text-tertiary uppercase tracking-wider px-1">
+              <div className="text-xs text-bt-text-tertiary px-1">
                 Suggested questions
               </div>
               <div className="grid grid-cols-1 gap-1.5">
@@ -331,10 +318,10 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
                     type="button"
                     onClick={() => void sendQuery(prompt)}
                     disabled={busy || !sheetId}
-                    className="text-left px-2.5 py-2 rounded-lg bg-bt-panel/80 hover:bg-bt-panel/80 border border-bt-border-strong/70 hover:border-cyan-500/40 text-bt-text-secondary hover:text-bt-on-brand transition-all duration-150 active:scale-[0.98] text-xs font-mono disabled:opacity-50 cursor-pointer flex items-center justify-between group"
+                    className="text-left px-2.5 py-2 rounded-md bg-bt-panel border border-bt-border-subtle hover:border-bt-selection-border text-bt-text-secondary hover:text-bt-text-primary transition-colors duration-150 text-xs disabled:opacity-50 cursor-pointer flex items-center justify-between group"
                   >
                     <span>{prompt}</span>
-                    <span className="text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+                    <span className="text-bt-brand opacity-0 group-hover:opacity-100 transition-opacity">→</span>
                   </button>
                 ))}
               </div>
@@ -346,7 +333,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
           <div key={msg.id} className={msg.role === 'user' ? 'text-right' : 'text-left'}>
             {/* User Query Bubble */}
             {msg.role === 'user' && (
-              <div className="inline-block max-w-[90%] px-3 py-2 rounded-lg bg-cyan-900/60 border border-cyan-500/30 text-bt-on-brand font-mono text-xs text-left">
+              <div className="inline-block max-w-[90%] px-3 py-2 rounded-md bg-bt-selection border border-bt-selection-border text-bt-text-primary text-xs text-left">
                 {msg.text}
               </div>
             )}
@@ -354,45 +341,14 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
             {/* Assistant Response Card */}
             {msg.role === 'assistant' && (
               <div className="space-y-2 max-w-[95%]">
-                {/* Reasoning / Chain of Thought Accordion */}
-                {msg.thoughtChain && msg.thoughtChain.length > 0 && (
-                  <div className="rounded-lg border border-bt-border-subtle bg-bt-inset/60 overflow-hidden font-mono text-[10px]">
-                    <button
-                      type="button"
-                      onClick={() => toggleThought(msg.id)}
-                      className="w-full px-2.5 py-1.5 flex items-center justify-between text-bt-text-secondary hover:text-bt-text-primary bg-bt-surface/40 cursor-pointer"
-                    >
-                      <span className="flex items-center space-x-1.5 text-cyan-400 font-semibold">
-                        <BrainCircuit className="w-3.5 h-3.5" />
-                        <span>Working notes ({msg.thoughtChain.length} steps)</span>
-                      </span>
-                      {expandedThoughts[msg.id] ? (
-                        <ChevronDown className="w-3 h-3" />
-                      ) : (
-                        <ChevronRight className="w-3 h-3" />
-                      )}
-                    </button>
-                    {expandedThoughts[msg.id] && (
-                      <div className="p-2 space-y-1 text-bt-text-secondary border-t border-bt-border-subtle/80 bg-bt-inset">
-                        {msg.thoughtChain.map((step, idx) => (
-                          <div key={step} className="flex items-center space-x-2 text-[10px]">
-                            <span className="text-cyan-400 font-bold">{idx + 1}.</span>
-                            <span>{step}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {/* Assistant Output Content */}
                 <div className="p-3 rounded-lg bg-bt-panel/90 border border-bt-border-strong/80 text-bt-text-primary leading-relaxed font-sans text-xs">
                   {msg.text ? (
                     <MarkdownContent text={msg.text} onEvidence={onEvidence} />
                   ) : msg.streaming ? (
-                    <div className="flex items-center space-x-2 text-cyan-300 font-mono text-[11px]">
+                    <div className="flex items-center space-x-2 text-bt-info text-xs">
                       <BrainCircuit className="w-4 h-4 text-bt-brand" />
-                      <span>Reading sheet evidence…</span>
+                      <span>Preparing an answer from sheet evidence…</span>
                     </div>
                   ) : null}
                 </div>
@@ -406,7 +362,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
                         key={`${cite[0]}-${cite[1]}-${idx}`}
                         type="button"
                         onClick={() => onEvidence([cite])}
-                        className="flex items-center space-x-1 px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] hover:bg-cyan-900 transition-all duration-150 active:scale-[0.96] cursor-pointer"
+                        className="flex items-center space-x-1 px-2 py-1 rounded bg-bt-info-bg border border-bt-info-border text-bt-info font-mono text-xs hover:bg-bt-panel transition-colors cursor-pointer"
                         title="Highlight on drawing canvas"
                       >
                         <MapPin className="w-2.5 h-2.5" />
@@ -423,7 +379,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
                   <div className="flex items-center space-x-2 text-[10px] font-mono pt-0.5">
                     {msg.modelUsed ? (
                       <span
-                        className="flex items-center space-x-1 text-cyan-300 font-semibold"
+                        className="flex items-center space-x-1 text-bt-info font-semibold"
                         title="Answered with Meta assistance using this package evidence."
                       >
                         <BrainCircuit className="w-3.5 h-3.5 text-bt-brand" />
@@ -439,7 +395,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
                       </span>
                     )}
                     {!msg.scaleVerified && (
-                      <span className="flex items-center space-x-1 text-amber-400">
+                      <span className="flex items-center space-x-1 text-bt-review">
                         <AlertTriangle className="w-3 h-3" />
                         <span>scale unverified</span>
                       </span>
@@ -452,7 +408,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ sheetId, onEvidence 
         ))}
 
         {error && (
-          <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-500/40 text-rose-200 font-mono text-xs" role="alert">
+          <div className="p-2.5 rounded-md bg-bt-danger-bg border border-bt-danger-border text-bt-danger text-xs" role="alert">
             {error}
           </div>
         )}

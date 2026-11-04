@@ -163,7 +163,7 @@ export const OffsetGatingDuct: React.FC = () => {
         </div>
         <div>
           {isOptimal && (
-            <span className="flex items-center space-x-1.5 text-xs text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-800/40 font-mono font-bold">
+            <span className="flex items-center space-x-1.5 text-xs text-emerald-400 bg-bt-success-bg px-2.5 py-1 rounded-full border border-emerald-800/40 font-mono font-bold">
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Optimal (Centerline Synthesized)</span>
             </span>
@@ -175,7 +175,7 @@ export const OffsetGatingDuct: React.FC = () => {
             </span>
           )}
           {isTooTight && (
-            <span className="flex items-center space-x-1.5 text-xs text-amber-400 bg-amber-950/60 px-2.5 py-1 rounded-full border border-amber-800/40 font-mono font-bold">
+            <span className="flex items-center space-x-1.5 text-xs text-amber-400 bg-bt-review-bg px-2.5 py-1 rounded-full border border-amber-800/40 font-mono font-bold">
               <AlertTriangle className="w-3.5 h-3.5" />
               <span>Over-Segmented (Broken Run)</span>
             </span>

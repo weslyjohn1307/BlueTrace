@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import { C, EASE_ENTER, FONT, ramp, s } from '../theme';
 import { Paper } from '../components/primitives';
+import { BrandSymbol } from '../components/BrandSymbol';
 
 export const Shot8End: React.FC = () => {
   const f = useCurrentFrame();
@@ -20,19 +21,16 @@ export const Shot8End: React.FC = () => {
         }}
       >
         <div style={{ textAlign: 'center', maxWidth: 1000 }}>
-          {/* Subtle architectural brand mark */}
+          {/* Official BlueTrace Brand Pack Monogram */}
           <div
             style={{
               display: 'inline-flex',
-              alignItems: 'flex-end',
-              gap: 8,
-              height: 38,
-              marginBottom: 36,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 32,
             }}
           >
-            <span style={{ width: 6, height: 26, backgroundColor: C.supply }} />
-            <span style={{ width: 6, height: 38, backgroundColor: C.ink }} />
-            <span style={{ width: 6, height: 18, backgroundColor: C.plumbing }} />
+            <BrandSymbol size={64} variant="color" />
           </div>
 
           {/* Wordmark */}

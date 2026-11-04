@@ -66,12 +66,12 @@ export const UploadCard: React.FC<UploadCardProps> = ({
       >
         {loading ? (
           <div className="py-4" role="status" aria-live="polite">
-            <FileUp className="mx-auto h-7 w-7 text-[#37C6FF]" aria-hidden="true" />
+            <FileUp className="mx-auto h-7 w-7 text-bt-brand" aria-hidden="true" />
             <p className="mt-2 text-sm font-medium text-bt-text-primary">{STAGE_COPY[loadingStage]}</p>
           </div>
         ) : (
           <div>
-            <FileUp className="mx-auto h-7 w-7 text-[#37C6FF]" aria-hidden="true" />
+            <FileUp className="mx-auto h-7 w-7 text-bt-brand" aria-hidden="true" />
             <p className="mt-2 text-sm font-medium text-bt-text-primary">
               Drop a PDF here, or choose a file
             </p>

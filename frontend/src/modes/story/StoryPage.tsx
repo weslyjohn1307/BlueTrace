@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { ArrowRight, Sparkles, ShieldCheck, GitCommit, Layers } from 'lucide-react';
+import { ArrowRight, FileSearch, ShieldCheck, GitCommit, Layers } from 'lucide-react';
 import { StoryHeader } from './components/StoryHeader';
 import { StorySection } from './components/StorySection';
 import { STORY_ACTS } from './data/storyContent';
@@ -65,7 +65,7 @@ export const StoryPage: React.FC = () => {
       {/* Hero Header */}
       <section className="pt-20 pb-16 px-4 sm:px-6 max-w-5xl mx-auto text-center border-b border-slate-800/80">
         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-[#006D84]/30 border border-teal-500/40 text-cyan-300 font-mono text-xs mb-6">
-          <Sparkles className="w-3.5 h-3.5 text-[#38BDF8]" />
+          <FileSearch className="w-3.5 h-3.5 text-[#38BDF8]" aria-hidden="true" />
           <span>Meta Global AI Hackathon — BlueTraceAI</span>
         </div>
 
@@ -150,7 +150,7 @@ export const StoryPage: React.FC = () => {
                 to="/workspace"
                 className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 rounded-lg bg-[#006D84] hover:bg-[#005769] text-white font-semibold text-sm shadow-lg transition-all no-underline"
               >
-                <Sparkles className="w-4 h-4 text-[#38BDF8]" />
+                <FileSearch className="w-4 h-4 text-[#38BDF8]" aria-hidden="true" />
                 <span>Launch Live Drawing Workstation</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>

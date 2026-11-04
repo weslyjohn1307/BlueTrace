@@ -95,7 +95,7 @@ export const AiStatusPill: React.FC<AiStatusPillProps> = ({
       onClick={onOpenSettings}
       aria-label={`AI status: ${tone.label}. ${tone.description} Open settings.`}
       title={`${tone.label}. ${tone.description}`}
-      className={`${base} transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]`}
+      className={`${base} transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface`}
     >
       {content}
     </button>

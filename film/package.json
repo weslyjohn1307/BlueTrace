@@ -11,9 +11,12 @@
   },
   "dependencies": {
     "@remotion/cli": "4.0.540",
+    "@types/three": "^0.187.0",
+    "@zakisheriff/liquid-glass": "^0.3.20",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "remotion": "4.0.540"
+    "remotion": "4.0.540",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.2",

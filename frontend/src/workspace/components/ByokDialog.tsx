@@ -81,7 +81,7 @@ export const ByokDialog: React.FC<ByokDialogProps> = ({ open, onClose, configure
 
       {configured ? (
         <div className="space-y-3">
-          <div className="flex items-center space-x-2 text-emerald-300 font-mono">
+          <div className="flex items-center space-x-2 text-bt-success font-mono">
             <ShieldCheck className="w-4 h-4 shrink-0" />
             <span>Configured{maskedKey ? ` (${maskedKey})` : ''} — this session only</span>
           </div>

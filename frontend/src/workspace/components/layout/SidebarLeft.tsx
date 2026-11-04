@@ -50,9 +50,9 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
             type="button"
             aria-pressed={sheetPanelMode === 'tree'}
             onClick={() => onSheetPanelModeChange('tree')}
-            className={`flex-1 rounded px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] ${
+            className={`flex-1 rounded px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus ${
               sheetPanelMode === 'tree'
-                ? 'border border-[#005BFF]/50 bg-[#005BFF]/20 text-[#9BDCFF]'
+                ? 'border border-bt-selection-border bg-bt-brand-soft text-bt-brand'
                 : 'border border-transparent text-bt-text-secondary hover:bg-bt-surface hover:text-bt-text-primary'
             }`}
           >
@@ -62,9 +62,9 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
             type="button"
             aria-pressed={sheetPanelMode === 'filmstrip'}
             onClick={() => onSheetPanelModeChange('filmstrip')}
-            className={`flex-1 rounded px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] ${
+            className={`flex-1 rounded px-2 py-1 text-[10px] font-medium uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus ${
               sheetPanelMode === 'filmstrip'
-                ? 'border border-[#005BFF]/50 bg-[#005BFF]/20 text-[#9BDCFF]'
+                ? 'border border-bt-selection-border bg-bt-brand-soft text-bt-brand'
                 : 'border border-transparent text-bt-text-secondary hover:bg-bt-surface hover:text-bt-text-primary'
             }`}
           >

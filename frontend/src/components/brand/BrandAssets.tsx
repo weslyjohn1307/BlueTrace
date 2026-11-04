@@ -183,7 +183,7 @@ export const BrandLockup: React.FC<BrandLockupProps> = ({
         {showDescriptor && (
           <span
             className={`text-[9px] font-mono tracking-[0.16em] uppercase mt-0.5 ${
-              isDark ? 'text-[#37C6FF]' : 'text-[#005BFF]'
+              isDark ? 'text-bt-brand' : 'text-[#005BFF]'
             }`}
           >
             {descriptorText}

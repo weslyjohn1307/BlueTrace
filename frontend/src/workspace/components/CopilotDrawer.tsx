@@ -80,7 +80,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
             <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
             <span>Discrepancies</span>
             {discrepancies.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-bt-review border border-bt-review-border">
                 {discrepancies.length}
               </span>
             )}

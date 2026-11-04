@@ -155,7 +155,7 @@ export const SettingsPage: React.FC = () => {
             <AiStatusPill availability={availability} />
             <Link
               to="/"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-bt-border-strong px-2.5 text-xs text-bt-text-primary no-underline transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-bt-border-strong px-2.5 text-xs text-bt-text-primary no-underline transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
               Back to workspace
@@ -218,7 +218,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => void refreshHealth()}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-bt-border-strong px-2.5 text-xs text-bt-text-primary transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-bt-border-strong px-2.5 text-xs text-bt-text-primary transition-colors hover:bg-bt-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
               >
                 <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
                 Retry
@@ -227,10 +227,10 @@ export const SettingsPage: React.FC = () => {
 
             <div className="mt-4 rounded-lg border border-bt-border-subtle bg-bt-surface/40 p-4">
               <div className="flex items-center gap-2">
-                <KeyRound className="h-4 w-4 text-[#37C6FF]" aria-hidden="true" />
+                <KeyRound className="h-4 w-4 text-bt-brand" aria-hidden="true" />
                 <h3 className="text-[13px] font-medium text-bt-text-primary">Meta API key</h3>
                 {configured ? (
-                  <span className="rounded border border-emerald-500/35 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-300">
+                  <span className="rounded border border-emerald-500/35 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-bt-success">
                     Configured{maskedKey ? ` (${maskedKey})` : ''}
                   </span>
                 ) : (
@@ -284,7 +284,7 @@ export const SettingsPage: React.FC = () => {
                       type="button"
                       onClick={() => void saveKey()}
                       disabled={busy || keyInput.trim() === ''}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#005BFF] px-3 text-xs font-medium text-bt-on-brand transition-colors hover:bg-[#0049CC] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF]"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#005BFF] px-3 text-xs font-medium text-bt-on-brand transition-colors hover:bg-[#0049CC] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus"
                     >
                       {busy ? (
                         <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -299,7 +299,7 @@ export const SettingsPage: React.FC = () => {
                     Stored in server memory only. Never written to browser storage, logs or source.
                   </p>
                   {keySaved ? (
-                    <p className="mt-2 text-xs text-emerald-300" role="status">
+                    <p className="mt-2 text-xs text-bt-success" role="status">
                       Key configured for this session.
                     </p>
                   ) : null}
@@ -334,7 +334,7 @@ export const SettingsPage: React.FC = () => {
               </div>
               <div className="rounded-lg border border-bt-border-subtle bg-bt-surface/40 p-4">
                 <div className="flex items-center gap-2 text-[13px] font-medium text-bt-text-primary">
-                  <CloudOff className="h-4 w-4 text-[#37C6FF]" aria-hidden="true" />
+                  <CloudOff className="h-4 w-4 text-bt-brand" aria-hidden="true" />
                   Meta services
                 </div>
                 <ul className="mt-2 space-y-1.5 text-xs text-bt-text-secondary">

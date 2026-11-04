@@ -110,7 +110,7 @@ export const CopilotSandbox: React.FC = () => {
             </span>
             <span>Local SQLite Workstation</span>
           </div>
-          <div className="text-emerald-300 bg-slate-950 p-2 rounded border border-slate-800/60 break-all">
+          <div className="text-bt-success bg-slate-950 p-2 rounded border border-slate-800/60 break-all">
             {activeQuery.sql}
           </div>
         </div>

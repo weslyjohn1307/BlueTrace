@@ -121,6 +121,7 @@ export interface SheetCanvasProps {
   pins: CanvasPin[];
   vectorRuns?: VectorRun[];
   cropEnabled: boolean;
+  metaEnabled?: boolean;
   onCropRequest: (cursorPt: [number, number], imageBase64: string) => void;
   renderBadge?: (screen: Point, pagePt: [number, number]) => React.ReactNode;
   scaleRatio?: number;
@@ -218,12 +219,13 @@ interface ToolButtonProps {
   accent?: 'cyan' | 'emerald' | 'amber';
   icon: React.ReactNode;
   busy?: boolean;
+  disabled?: boolean;
 }
 
 const TOOL_ACTIVE: Record<NonNullable<ToolButtonProps['accent']>, string> = {
-  cyan: 'bg-[#005BFF]/25 text-[#9BDCFF] ring-1 ring-inset ring-[#37C6FF]/45',
-  emerald: 'bg-emerald-500/20 text-emerald-200 ring-1 ring-inset ring-emerald-400/45',
-  amber: 'bg-amber-500/20 text-amber-200 ring-1 ring-inset ring-amber-400/45',
+  cyan: 'bg-[#005BFF]/25 text-bt-brand ring-1 ring-inset ring-[#37C6FF]/45',
+  emerald: 'bg-emerald-500/20 text-bt-success ring-1 ring-inset ring-emerald-400/45',
+  amber: 'bg-amber-500/20 text-bt-review ring-1 ring-inset ring-amber-400/45',
 };
 
 const ToolButton: React.FC<ToolButtonProps> = ({
@@ -235,6 +237,7 @@ const ToolButton: React.FC<ToolButtonProps> = ({
   accent = 'cyan',
   icon,
   busy = false,
+  disabled = false,
 }) => {
   const [tooltipDismissed, setTooltipDismissed] = useState(false);
   return (
@@ -250,15 +253,17 @@ const ToolButton: React.FC<ToolButtonProps> = ({
   <button
     type="button"
     onClick={onClick}
+    disabled={disabled}
+    title={disabled ? `${title} · Enable Meta for this package` : title}
     aria-label={`${label} (${shortcut})`}
     aria-describedby={`canvas-tool-${shortcut.toLowerCase()}-tooltip`}
     aria-keyshortcuts={shortcut}
     aria-pressed={active}
-    className={`inline-flex h-10 w-10 items-center justify-center rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1220] ${
+    className={`inline-flex h-10 w-10 items-center justify-center rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface ${
       active
         ? TOOL_ACTIVE[accent]
         : 'text-bt-text-secondary hover:bg-bt-panel hover:text-bt-text-primary'
-    }`}
+    } ${disabled ? 'cursor-not-allowed opacity-45' : ''}`}
   >
     {icon}
     {busy ? (
@@ -277,6 +282,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   pins,
   vectorRuns = [],
   cropEnabled,
+  metaEnabled = true,
   onCropRequest,
   renderBadge,
   scaleRatio,
@@ -509,6 +515,23 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
       restoreActiveRef.current = false;
       fitToContainer();
     }
+    // A cached image can finish before React's passive effects run. In that
+    // ordering, onLoad sets true first and the reset above hides the PDF again.
+    // Reconcile the committed image after resetting the state so it cannot
+    // remain hidden behind the loading indicator.
+    const image = imgRef.current;
+    if (image?.complete) {
+      if (image.naturalWidth > 0) {
+        setImgLoaded(true);
+        if (restoreActiveRef.current) {
+          restoreActiveRef.current = false;
+        } else {
+          fitToContainer();
+        }
+      } else {
+        setImgError(true);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageUrl, initialTransformSignature, fitToContainer]);
 
@@ -586,7 +609,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   }, [fireCrop]);
 
   const handleSegmentClick = async (pagePoint: Point) => {
-    if (isSegmenting || !imgLoaded) return;
+    if (!metaEnabled || isSegmenting || !imgLoaded) return;
     const base64 = captureCrop(pagePoint);
     if (!base64) return;
 
@@ -760,13 +783,13 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
       setToolMode('pan');
     } else if (e.key === 'l' || e.key === 'L') {
       setLayersOpen((open) => !open);
-    } else if (e.key === 'q' || e.key === 'Q') {
+    } else if ((e.key === 'q' || e.key === 'Q') && metaEnabled) {
       setToolMode('quickdraw');
       if (cursorRef.current) {
         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
         fireCrop();
       }
-    } else if (e.key === 's' || e.key === 'S') {
+    } else if ((e.key === 's' || e.key === 'S') && metaEnabled) {
       setToolMode('segment');
     } else if (e.key === 'c' || e.key === 'C') {
       enterCalibrateMode();
@@ -923,6 +946,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             label="QuickDraw"
             shortcut="Q"
             icon={<Crosshair className="h-3.5 w-3.5" aria-hidden="true" />}
+            disabled={!metaEnabled}
           />
           <ToolButton
             active={toolMode === 'segment'}
@@ -933,6 +957,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             accent="emerald"
             busy={isSegmenting}
             icon={<Scan className="h-3.5 w-3.5" aria-hidden="true" />}
+            disabled={!metaEnabled}
           />
           <ToolButton
             active={toolMode === 'calibrate'}
@@ -951,7 +976,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             title="Zoom Out [-]"
             aria-label="Zoom out (-)"
             onClick={zoomOut}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface"
           >
             <ZoomOut className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -963,7 +988,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             title="Zoom In [+]"
             aria-label="Zoom in (+)"
             onClick={zoomIn}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface"
           >
             <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -972,7 +997,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             title="Fit to Window [0]"
             aria-label="Fit to window (0)"
             onClick={fitToContainer}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface"
           >
             <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -982,7 +1007,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
           {scaleStatus === 'CALIBRATED' && (
             <span
               data-testid="calibrated-badge"
-              className="mr-1 inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-950/70 px-2 text-[11px] font-medium text-emerald-300"
+              className="mr-1 inline-flex h-7 items-center gap-1.5 rounded-md border border-bt-success-border bg-bt-success-bg px-2 text-[11px] font-medium text-bt-success"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
               CALIBRATED{calibrationResult?.scaleRaw ? ` // ${calibrationResult.scaleRaw}` : ''}
@@ -996,7 +1021,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             aria-haspopup="dialog"
             aria-expanded={layersOpen}
             onClick={() => setLayersOpen((open) => !open)}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E] ${
+            className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bt-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bt-surface ${
               layersOpen
                 ? 'bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200'
                 : 'text-bt-text-secondary hover:bg-bt-panel hover:text-bt-text-primary'
@@ -1486,7 +1511,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
           <span
             data-testid="calibrate-status"
             role="status"
-            className="rounded border border-amber-500/40 bg-amber-950/70 px-2 py-0.5 font-medium text-amber-200"
+            className="rounded border border-bt-review-border bg-bt-review-bg px-2 py-0.5 font-medium text-bt-review"
           >
             {calibratePhase === 'AWAITING_P1' && 'CALIBRATE: click first point (P1) — Shift snaps 0/45/90°'}
             {calibratePhase === 'AWAITING_P2' && 'CALIBRATE: click second point (P2) — Shift snaps 0/45/90° — Esc cancels'}
@@ -1498,7 +1523,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
         {calibratePhase === 'INPUT_MODAL_OPEN' && calP1 && calP2 && (
           <span
             data-testid="calibration-input-modal"
-            className="rounded border border-amber-500/40 bg-bt-surface/95 px-2 py-0.5 font-mono text-amber-100"
+            className="rounded border border-bt-review-border bg-bt-surface/95 px-2 py-0.5 font-mono text-amber-100"
           >
             P1 [{calP1.x.toFixed(1)}, {calP1.y.toFixed(1)}] → P2 [{calP2.x.toFixed(1)}, {calP2.y.toFixed(1)}]
           </span>

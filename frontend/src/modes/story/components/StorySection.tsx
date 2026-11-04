@@ -67,7 +67,7 @@ export const StorySection: React.FC<StorySectionProps> = ({ act, children }) => 
             </div>
 
             <div className="p-3 rounded-lg bg-emerald-950/20 border border-emerald-800/30">
-              <span className="font-bold text-emerald-300 font-mono text-xs uppercase tracking-wider block mb-1 flex items-center space-x-1.5">
+              <span className="font-bold text-bt-success font-mono text-xs uppercase tracking-wider block mb-1 flex items-center space-x-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>The Engineering Truth:</span>
               </span>

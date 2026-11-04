@@ -105,9 +105,9 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
       onClose={onCancel}
       data-testid="calibration-modal"
       ariaLabel="Scale calibration"
-      className="w-96 max-w-[calc(100vw-2rem)] rounded-xl bg-bt-surface border border-amber-500/40 shadow-2xl p-5"
+      className="w-96 max-w-[calc(100vw-2rem)] rounded-xl bg-bt-surface border border-bt-review-border shadow-2xl p-5"
     >
-      <h2 className="text-sm font-mono font-bold text-amber-300">Calibrate sheet scale</h2>
+      <h2 className="text-sm font-mono font-bold text-bt-review">Calibrate sheet scale</h2>
       <p className="mt-1 text-[11px] font-mono text-bt-text-secondary">
         P1 [{p1[0].toFixed(1)}, {p1[1].toFixed(1)}] → P2 [{p2[0].toFixed(1)}, {p2[1].toFixed(1)}] ({lengthPt.toFixed(1)} pt)
       </p>

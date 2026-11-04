@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { displaySheetNumber } from '../utils/sheetLabels';
+import { ScaleStateBadge } from './ScaleStateBadge';
 
-export type ThumbnailScaleStatus = 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED';
+export type ThumbnailScaleStatus = 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED' | 'CONFLICT';
 
 export interface ThumbnailCardData {
   sheet_id: string;
   sheet_number: string;
   sheet_title: string;
   discipline: string;
+  sheet_type?: string | null;
   scale_raw?: string | null;
   scale_status: ThumbnailScaleStatus;
   page_index: number;
@@ -61,7 +63,6 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
     setFailed(true);
   };
 
-  const scaleOk = sheet.scale_status === 'VERIFIED' || sheet.scale_status === 'CALIBRATED';
   return (
     <button
       type="button"
@@ -114,13 +115,13 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
           </span>
         </div>
         <div className="truncate font-sans text-xs text-bt-text-secondary" title={sheet.sheet_title}>{sheet.sheet_title || 'Untitled Sheet'}</div>
-        <div className="font-sans text-xs">
-          {scaleOk ? (
-            <span className="text-bt-success font-semibold">{sheet.scale_raw || 'Verified'}</span>
-          ) : (
-            <span className="text-bt-review font-medium">Scale unverified</span>
-          )}
-        </div>
+        <ScaleStateBadge
+          status={sheet.scale_status}
+          sheetType={sheet.sheet_type}
+          sheetTitle={sheet.sheet_title}
+          scaleRaw={sheet.scale_raw}
+          compact
+        />
       </div>
     </button>
   );

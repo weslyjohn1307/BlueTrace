@@ -13,7 +13,8 @@ import { CorrectionModal, type CorrectionSubmitPayload } from './components/Corr
 import { RejectionModal } from './components/modals/RejectionModal';
 import { SchedulePanel } from './components/SchedulePanel';
 import { QAPanel } from './components/QAPanel';
-import { CopilotDrawer } from './components/CopilotDrawer';
+import { CopilotPanel } from './components/CopilotPanel';
+import { DiscrepancyList } from './components/DiscrepancyList';
 import {
   WorkstationHeader,
   SidebarLeft,
@@ -36,11 +37,11 @@ import { agentDisplayName, progressDisplayMessage } from './utils/agentDisplay';
 import { debugSkipUnknownItem, logAcceptTelemetry, logRejectTelemetry, logReviewTelemetry } from './utils/reviewTelemetry';
 import { displaySheetNumber } from './utils/sheetLabels';
 
-type RightTab = 'ledger' | 'schedule' | 'qa';
+type RightTab = 'ledger' | 'schedule' | 'qa' | 'copilot';
 type SheetPanelMode = 'tree' | 'filmstrip';
 
 export const TakeoffWorkspace: React.FC = () => {
-  const { state, checkBackend, selectFile, openFixture, selectSheet, setItemStatus, reset, refreshLedger, applyCalibrationResult } =
+  const { state, checkBackend, selectFile, openFixture, selectSheet, selectPreviewPage, scanAll, cancelAnalysis, resumeAnalysis, setMetaConsent, setItemStatus, reset, refreshLedger, applyCalibrationResult } =
     useTakeoffSession();
   const [badge, setBadge] = useState<CursorCropResponse | null>(null);
   const [badgeBusy, setBadgeBusy] = useState(false);
@@ -53,7 +54,6 @@ export const TakeoffWorkspace: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [discrepancies, setDiscrepancies] = useState<DiscrepancyItem[]>([]);
   const [reconcileError, setReconcileError] = useState<string | null>(null);
-  const [copilotOpen, setCopilotOpen] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('ledger');
   const [qaAnnotations, setQaAnnotations] = useState<QAAnnotation[]>([]);
   const [qaChecklist, setQaChecklist] = useState<QAChecklist[]>([]);
@@ -722,9 +722,14 @@ export const TakeoffWorkspace: React.FC = () => {
         setRightSidebarOpen((prev) => !prev);
       } else if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
-        setCopilotOpen((prev) => !prev);
+        if (rightTab === 'copilot' && rightSidebarOpen) setRightSidebarOpen(false);
+        else {
+          setRightTab('copilot');
+          setRightSidebarOpen(true);
+          if (window.innerWidth < 1280) setLeftSidebarOpen(false);
+        }
       } else if (e.key === 'Escape') {
-        if (copilotOpen) setCopilotOpen(false);
+        if (rightSidebarOpen) setRightSidebarOpen(false);
         if (badge) setBadge(null);
       } else if (e.key === 'Enter' && badge && !badge.review_required) {
         e.preventDefault();
@@ -734,7 +739,7 @@ export const TakeoffWorkspace: React.FC = () => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [copilotOpen, badge, acceptBadge]);
+  }, [rightTab, rightSidebarOpen, badge, acceptBadge]);
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -754,6 +759,12 @@ export const TakeoffWorkspace: React.FC = () => {
     activeSheet &&
     (activeSheet.meta.scale_status === 'VERIFIED' || activeSheet.meta.scale_status === 'CALIBRATED');
 
+  const handlePackagePageChange = useCallback((pageIndex: number) => {
+    const indexedSheet = state.sheets.find((sheet) => sheet.pageIndex === pageIndex);
+    if (indexedSheet) selectSheet(indexedSheet.meta.sheet_id);
+    else void selectPreviewPage(pageIndex);
+  }, [state.sheets, selectSheet, selectPreviewPage]);
+
   return (
     <div className="bt-app workspace-root flex h-screen min-h-0 select-none flex-col overflow-hidden bg-bt-canvas text-bt-text-primary">
       <GlobalTopNav
@@ -767,24 +778,32 @@ export const TakeoffWorkspace: React.FC = () => {
 
       {!showWorkspace ? (
         <main className="flex flex-1 items-center justify-center overflow-y-auto p-4">
-          {state.stage === 'orchestrating' ? (
-            <PackageIntake
-              fileName={state.source?.fileName ?? (state.projectName || 'Drawing package')}
-              imageUrl={
-                state.source ? apiClient.getPageImageUrl(state.source.filePath, 0, 150) : null
-              }
-              progress={state.agentProgress}
-              agentName={agentDisplayName(state.agentProgress?.currentAgent)}
-              message={progressDisplayMessage(state.agentProgress?.currentMessage)}
-            />
+          {state.stage === 'orchestrating' && state.agentProgress ? (
+            <section
+              data-testid="package-processing-state"
+              aria-live="polite"
+              className="mx-auto flex w-full max-w-md flex-col items-center justify-center rounded-xl border border-bt-border-subtle bg-bt-surface p-6 text-center shadow-lg"
+            >
+              <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-bt-brand border-t-transparent" />
+              <h2 className="text-base font-semibold text-bt-text-primary">
+                Reading drawing package…
+              </h2>
+              <p className="mt-1 text-xs font-medium text-bt-brand">
+                {agentDisplayName(state.agentProgress.currentAgent)}
+              </p>
+              <p className="mt-1 text-xs text-bt-text-secondary">
+                {progressDisplayMessage(state.agentProgress.currentMessage)}
+              </p>
+              {typeof state.agentProgress.totalPages === 'number' && state.agentProgress.totalPages > 0 && (
+                <p className="mt-2 font-mono text-xs text-bt-text-tertiary">
+                  {state.agentProgress.classifiedPages} of {state.agentProgress.totalPages} pages classified
+                </p>
+              )}
+            </section>
           ) : (
             <UploadCard
               loading={packageBusy}
-              loadingStage={
-                state.stage === 'uploading' || state.stage === 'scanning'
-                  ? state.stage
-                  : undefined
-              }
+              loadingStage={state.stage === 'uploading' || state.stage === 'scanning' ? state.stage : undefined}
               error={state.error}
               onFile={(file) => void selectFile(file)}
             />
@@ -810,7 +829,7 @@ export const TakeoffWorkspace: React.FC = () => {
               sheetTitle={activeSheet.meta.sheet_title}
               discipline={activeSheet.meta.discipline}
               scaleRaw={activeSheet.meta.scale_raw}
-              scaleOk={Boolean(scaleOk)}
+              scaleStatus={activeSheet.meta.scale_status}
               sheetType={activeSheet.meta.sheet_type}
               leftSidebarOpen={leftSidebarOpen}
               onToggleLeftSidebar={() => {
@@ -828,8 +847,42 @@ export const TakeoffWorkspace: React.FC = () => {
               onDisciplineFilterChange={setDisciplineFilter}
               statusFilter={statusFilter as 'ALL' | 'MATCHED' | 'DISCREPANCIES' | 'GHOST'}
               onStatusFilterChange={setStatusFilter}
-              onOpenCopilot={() => setCopilotOpen(true)}
+              onOpenCopilot={() => {
+                setRightTab('copilot');
+                setRightSidebarOpen(true);
+                if (window.innerWidth < 1280) setLeftSidebarOpen(false);
+              }}
             />
+
+            {state.source && activeSheet ? (
+              <PackageIntake
+                fileName={state.source.fileName}
+                pageIndex={activeSheet.pageIndex}
+                totalPages={state.totalPages}
+                summarySheets={state.sheets.map((sheet) => ({
+                  sheetType: sheet.meta.sheet_type,
+                  title: sheet.meta.sheet_title,
+                  discipline: sheet.meta.discipline,
+                  scaleStatus: sheet.meta.scale_status,
+                }))}
+                sheetNumber={activeSheet.meta.sheet_number}
+                sheetTitle={activeSheet.meta.sheet_title}
+                discipline={activeSheet.meta.discipline}
+                scaleStatus={activeSheet.meta.scale_status}
+                sheetType={activeSheet.meta.sheet_type}
+                progress={state.agentProgress}
+                analysisScope={state.agentProgress?.analysisScope ?? null}
+                metaConsent={state.metaConsent}
+                onMetaConsentChange={setMetaConsent}
+                agentName={agentDisplayName(state.agentProgress?.currentAgent)}
+                message={progressDisplayMessage(state.agentProgress?.currentMessage)}
+                running={state.stage === 'orchestrating'}
+                onPageChange={handlePackagePageChange}
+              onStart={(metaConsent) => void scanAll(state.source!.filePath, state.source!.fileName, state.projectName, { metaConsent, analysisScope: metaConsent ? 'vision' : 'all' })}
+                onCancel={() => void cancelAnalysis()}
+                onResume={() => void resumeAnalysis()}
+              />
+            ) : null}
 
             <ViewportContainer
               error={state.error}
@@ -843,7 +896,8 @@ export const TakeoffWorkspace: React.FC = () => {
                 heightPt={activeSheet.meta.height_pt}
                 pins={filteredPins}
                 vectorRuns={vectorRuns}
-                cropEnabled={true}
+                cropEnabled={state.metaConsent}
+                metaEnabled={state.metaConsent}
                 scaleRatio={activeSheet.meta.scale_ratio ?? undefined}
                 scaleStatus={activeSheet.meta.scale_status}
                 calibrationResult={calibrationResult}
@@ -935,14 +989,29 @@ export const TakeoffWorkspace: React.FC = () => {
               />
             )}
             {rightTab === 'qa' && (
-              <QAPanel
-                annotations={qaAnnotations}
-                checklist={qaChecklist}
-                loading={qaLoading}
-                error={qaError}
-                onResolve={handleQAResolve}
-                onRefresh={() => void refreshQAAnnotations()}
-              />
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                <QAPanel
+                  annotations={qaAnnotations}
+                  checklist={qaChecklist}
+                  loading={qaLoading}
+                  error={qaError}
+                  onResolve={handleQAResolve}
+                  onRefresh={() => void refreshQAAnnotations()}
+                />
+                <div className="min-h-64 flex-1 border-t border-bt-border-subtle">
+                  <DiscrepancyList
+                    discrepancies={discrepancies}
+                    onLocateItem={handleLocateItem}
+                    onPlaceGhostPin={(ghostId) => handlePlaceGhostPin(ghostId, [400, 300])}
+                    onDismissDiscrepancy={(id) => setDiscrepancies((prev) => prev.filter((item) => item.item_id !== id))}
+                    onVerifyDiscrepancy={(id) => setDiscrepancies((prev) => prev.map((item) => item.item_id === id ? { ...item, severity: 'INFO' } : item))}
+                    onEvidence={handleEvidence}
+                  />
+                </div>
+              </div>
+            )}
+            {rightTab === 'copilot' && (
+              <CopilotPanel sheetId={state.activeSheetId} onEvidence={handleEvidence} />
             )}
           </SidebarRight>
         </main>
@@ -1041,26 +1110,6 @@ export const TakeoffWorkspace: React.FC = () => {
         />
       )}
 
-      {/* Flyout Copilot Drawer */}
-      <CopilotDrawer
-        open={copilotOpen}
-        onClose={() => setCopilotOpen(false)}
-        sheetId={state.activeSheetId}
-        onEvidence={handleEvidence}
-        discrepancies={discrepancies}
-        onLocateItem={handleLocateItem}
-        onPlaceGhostPin={(ghostId) => {
-          handlePlaceGhostPin(ghostId, [400.0, 300.0]);
-        }}
-        onDismissDiscrepancy={(id) => {
-          setDiscrepancies((prev) => prev.filter((d) => d.item_id !== id));
-        }}
-        onVerifyDiscrepancy={(id) => {
-          setDiscrepancies((prev) =>
-            prev.map((d) => (d.item_id === id ? { ...d, severity: 'INFO' } : d))
-          );
-        }}
-      />
     </div>
   );
 };

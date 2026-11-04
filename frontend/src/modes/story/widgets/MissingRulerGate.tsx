@@ -41,7 +41,7 @@ export const MissingRulerGate: React.FC = () => {
             onClick={() => setScalePresent(false)}
             className={`px-3 py-1 text-xs font-mono rounded cursor-pointer transition-colors ${
               !scalePresent
-                ? 'bg-amber-950/60 text-amber-300 font-bold border border-amber-800/60'
+                ? 'bg-bt-review-bg text-bt-review font-bold border border-amber-800/60'
                 : 'bg-slate-800 text-slate-400 hover:text-white'
             }`}
           >
@@ -116,17 +116,17 @@ export const MissingRulerGate: React.FC = () => {
         ) : (
           <div className="mt-3 space-y-2">
             {scalePresent ? (
-              <div className="p-2.5 rounded bg-emerald-950/40 border border-emerald-800/50 text-emerald-300">
+              <div className="p-2.5 rounded bg-emerald-950/40 border border-emerald-800/50 text-bt-success">
                 <div className="font-bold text-emerald-400">Verified Length: 14.63 meters (48.0 ft)</div>
-                <div className="text-[11px] text-emerald-200/80 mt-0.5">Scale confirmed programmatically against legend calibration bar.</div>
+                <div className="text-[11px] text-bt-success/80 mt-0.5">Scale confirmed programmatically against legend calibration bar.</div>
               </div>
             ) : (
-              <div className="p-2.5 rounded bg-amber-950/40 border border-amber-800/60 text-amber-200">
+              <div className="p-2.5 rounded bg-amber-950/40 border border-amber-800/60 text-bt-review">
                 <div className="font-bold flex items-center space-x-1.5 text-amber-400">
                   <ShieldCheck className="w-4 h-4" />
                   <span>length: null (FAIL-CLOSED)</span>
                 </div>
-                <div className="mt-1 text-[11px] leading-relaxed text-amber-300/90">
+                <div className="mt-1 text-[11px] leading-relaxed text-bt-review/90">
                   <span className="font-bold">Gate G3 Rule: </span> Scale unverified. Physical lengths set to null to protect estimators from inaccurate bids. Pixel vector length preserved (360 pt) for manual calibration.
                 </div>
               </div>

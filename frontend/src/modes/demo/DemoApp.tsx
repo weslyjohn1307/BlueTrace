@@ -3,7 +3,7 @@ import {
   FolderCheck, 
   FileCheck, 
   Layout, 
-  Sparkles, 
+  MessageCircleQuestion,
   Download, 
   AlertTriangle,
   ArrowRight,
@@ -277,7 +277,7 @@ const DemoAppContent: React.FC = () => {
       }
       copilotContent={
         <div className="p-3 bg-amber-50/50 rounded border border-amber-200 text-xs text-amber-900 flex items-start space-x-2">
-          <Sparkles className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <MessageCircleQuestion className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" aria-hidden="true" />
           <div>
             <div className="font-semibold">Copilot Placeholder</div>
             <p className="text-[11px] text-amber-700 leading-relaxed">

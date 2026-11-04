@@ -5,7 +5,7 @@
  * ONLY shapes the UI may use — there is no project/run/job layer.
  */
 
-export type ScaleStatus = 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED';
+export type ScaleStatus = 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED' | 'CONFLICT';
 export type ReviewStatus = 'SUGGESTED' | 'ACCEPTED' | 'CORRECTED' | 'REJECTED' | 'CANNOT_DETERMINE';
 export type ReviewAction = 'ACCEPT' | 'CORRECT' | 'REJECT' | 'CANNOT_DETERMINE';
 export type TakeoffCategory = 'DUCTWORK' | 'PIPING' | 'EQUIPMENT' | 'FIXTURE';
@@ -508,6 +508,8 @@ export interface OrchestrateAgentRequest {
   file_path: string;
   project_id?: string;
   job_id?: string;
+  meta_consent?: boolean;
+  analysis_scope?: 'all' | 'vision';
 }
 
 export interface OrchestrateAgentResponse {
@@ -536,7 +538,22 @@ export interface AgentJobEvent {
 export interface AgentJobStarted {
   job_id: string;
   project_id: string;
-  status: 'running';
+  status: 'running' | 'cancelled' | 'interrupted' | 'failed' | 'complete';
+}
+
+export interface AgentJobSnapshot {
+  job_id: string;
+  project_id: string;
+  status: 'running' | 'cancelled' | 'interrupted' | 'failed' | 'complete';
+  meta_consent: boolean;
+  analysis_scope: 'all' | 'vision';
+  event_count: number;
+  events: AgentJobEvent[];
+}
+
+export interface PreviewPageResponse {
+  sheet: SheetMetadata;
+  total_pages: number;
 }
 
 export interface ReconcileAgentRequest {

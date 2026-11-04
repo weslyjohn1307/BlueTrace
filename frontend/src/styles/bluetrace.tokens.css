@@ -35,6 +35,9 @@
   --bt-info-fg: #235EA8; --bt-info-bg: #E7F0FC; --bt-info-border: #B7CDEB;
   --bt-offline-fg: #536273; --bt-offline-bg: #EDF1F5; --bt-offline-border: #CBD4DE;
 
+  --mep-ui-mechanical: #2468A8; --mep-ui-electrical: #8C4611; --mep-ui-plumbing: #087668;
+  --mep-ui-mechanical-tint: #EAF2FA; --mep-ui-electrical-tint: #F8EEE5; --mep-ui-plumbing-tint: #E7F4F1;
+
   --bt-shadow-panel: 0 1px 2px rgb(16 25 35 / 5%), 0 6px 18px rgb(16 25 35 / 4%);
   --bt-shadow-dialog: 0 16px 48px rgb(16 25 35 / 16%);
 }
@@ -70,6 +73,9 @@
   --bt-danger-fg: #FF9299; --bt-danger-bg: #3F1B23; --bt-danger-border: #7D3440;
   --bt-info-fg: #8BB8F1; --bt-info-bg: #172C47; --bt-info-border: #34577F;
   --bt-offline-fg: #BAC5D1; --bt-offline-bg: #202B36; --bt-offline-border: #435262;
+
+  --mep-ui-mechanical: #8FC6F4; --mep-ui-electrical: #F0AD70; --mep-ui-plumbing: #6DD0BD;
+  --mep-ui-mechanical-tint: #172D41; --mep-ui-electrical-tint: #362619; --mep-ui-plumbing-tint: #12322E;
 
   --bt-shadow-panel: 0 1px 0 rgb(255 255 255 / 3%), 0 8px 24px rgb(0 0 0 / 16%);
   --bt-shadow-dialog: 0 20px 56px rgb(0 0 0 / 42%);
@@ -122,7 +128,7 @@
   --bt-font-technical: "Inconsolata", ui-monospace, monospace;
   --bt-font-editorial: "Lora", Georgia, serif;
 
-  --bt-text-xs: 11px; --bt-text-sm: 12px; --bt-text-base: 14px; --bt-text-lg: 16px;
+  --bt-text-xs: 12px; --bt-text-sm: 12px; --bt-text-base: 14px; --bt-text-lg: 16px;
   --bt-text-section: 18px; --bt-text-subheading: 20px; --bt-text-heading: 24px;
   --bt-text-title: 32px; --bt-text-display: 40px;
 

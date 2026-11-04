@@ -4,6 +4,7 @@ import { FPS, HEIGHT, WIDTH } from './theme';
 import { shot, TOTAL_FRAMES } from './timeline';
 import { MEDIA } from './media';
 import { Fonts } from './components/Fonts';
+import { AudioTracks } from './components/AudioTracks';
 
 // Shot components
 import { Shot1Open } from './shots/Shot1Open';
@@ -58,6 +59,9 @@ export const FilmSequence: React.FC = () => {
       <Sequence {...shot('end')}>
         <Shot8End />
       </Sequence>
+
+      {/* Master Audio Track: Ambient Bed + Kokoro Narration + Kinetic SFX */}
+      <AudioTracks />
 
       {/* Optional Voiceover Audio Track (Meta Model API Narration) */}
       {MEDIA.voiceover && (

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Layers, FileText, CheckCircle2, AlertTriangle, ScanLine, Search, X, Info } from 'lucide-react';
+import { Layers, FileText, ScanLine, Search, X } from 'lucide-react';
 import { displaySheetNumber } from '../utils/sheetLabels';
+import { ScaleStateBadge } from './ScaleStateBadge';
 
 export interface SheetItemData {
   sheet_id: string;
@@ -9,7 +10,7 @@ export interface SheetItemData {
   discipline: string;
   scale_raw?: string | null;
   scale_ratio?: number | null;
-  scale_status: 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED';
+  scale_status: 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED' | 'CONFLICT';
   page_index: number;
   sheet_type?: string | null;
 }
@@ -166,15 +167,6 @@ export const SheetTree: React.FC<SheetTreeProps> = ({
         ) : (
           filteredSheets.map((sheet) => {
             const isActive = sheet.sheet_id === activeSheetId;
-            const isScaleVerified =
-              sheet.scale_status === 'VERIFIED' || sheet.scale_status === 'CALIBRATED';
-            const isNonPlanSheet = Boolean(
-              sheet.sheet_type &&
-                ['legend', 'schedule', 'detail', 'diagram', 'info', 'cover'].includes(
-                  sheet.sheet_type.toLowerCase()
-                )
-            );
-
             return (
               <button
                 type="button"
@@ -200,34 +192,20 @@ export const SheetTree: React.FC<SheetTreeProps> = ({
                   </span>
                 </div>
 
-                <div className="min-w-0 truncate text-xs text-bt-text-secondary font-sans font-medium" title={sheet.sheet_title}>
-                  {sheet.sheet_title || 'Untitled Sheet'}
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 flex-1 truncate text-xs font-sans font-medium text-bt-text-secondary" title={sheet.sheet_title}>
+                    {sheet.sheet_title || 'Untitled Sheet'}
+                  </div>
+                  {sheet.sheet_type ? (
+                    <span className="shrink-0 rounded border border-bt-border-subtle px-1.5 py-0.5 text-[11px] uppercase text-bt-text-tertiary">
+                      {sheet.sheet_type}
+                    </span>
+                  ) : null}
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-bt-border-subtle/80 text-[10px] font-mono">
-                  <span className="text-bt-text-tertiary">Scale:</span>
-                  {isNonPlanSheet ? (
-                    <span
-                      className="flex items-center space-x-1 text-bt-text-secondary font-medium"
-                      title="Schedules, legends, and details do not carry measured plan lengths."
-                    >
-                      <Info className="w-2.5 h-2.5 text-bt-text-tertiary" />
-                      <span>Scale not needed</span>
-                    </span>
-                  ) : isScaleVerified ? (
-                    <span className="flex items-center space-x-1 text-bt-success font-semibold">
-                      <CheckCircle2 className="w-2.5 h-2.5" />
-                      <span>{sheet.scale_raw || 'Verified'}</span>
-                    </span>
-                  ) : (
-                    <span
-                      className="flex items-center space-x-1 text-bt-review font-medium"
-                      title="Measured lengths stay in review until this sheet is verified or calibrated."
-                    >
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      <span>Scale unverified</span>
-                    </span>
-                  )}
+                <div className="flex items-center justify-between gap-2 border-t border-bt-border-subtle/80 pt-1">
+                  <span className="font-mono text-[11px] text-bt-text-tertiary">Scale</span>
+                  <ScaleStateBadge status={sheet.scale_status} sheetType={sheet.sheet_type} sheetTitle={sheet.sheet_title} compact />
                 </div>
               </button>
             );

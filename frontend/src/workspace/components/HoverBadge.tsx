@@ -33,7 +33,7 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
       <div
         className={`px-3 py-2 rounded-xl shadow-[0_12px_36px_rgba(0,0,0,0.6)] backdrop-blur-md border text-xs flex items-center space-x-2.5 transition-all ${
           reviewRequired
-            ? 'bg-amber-950/95 border-amber-500/60 text-amber-200 ring-1 ring-amber-500/30'
+            ? 'bg-bt-review-bg border-bt-review-border text-bt-review ring-1 ring-amber-500/30'
             : 'bg-bt-surface/95 border-cyan-500/50 text-bt-text-primary ring-1 ring-cyan-500/20'
         }`}
       >

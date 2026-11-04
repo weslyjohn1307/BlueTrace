@@ -206,10 +206,10 @@ export const IoUBreakdown: React.FC = () => {
       </div>
 
       {/* Engineering Insight Banner */}
-      <div className="mt-4 p-3 rounded-lg bg-amber-950/30 border border-amber-800/40 flex items-start space-x-3 text-xs leading-relaxed text-amber-200">
+      <div className="mt-4 p-3 rounded-lg bg-bt-review-bg border border-amber-800/40 flex items-start space-x-3 text-xs leading-relaxed text-bt-review">
         <AlertOctagon className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <div>
-          <span className="font-semibold text-amber-300">Why Standard Object Detection Fails: </span>
+          <span className="font-semibold text-bt-review">Why Standard Object Detection Fails: </span>
           Even when the box perfectly encloses the CAD line, the overlap area remains mathematically zero because a 1D vector line has no 2D thickness (0.0 pt stroke).
           In the official dataset, <span className="font-mono font-bold text-white">80.1% (632,317 annotations)</span> are zero-width lines.
         </div>
