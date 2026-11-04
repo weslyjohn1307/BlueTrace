@@ -616,6 +616,15 @@ class FinderL1Agent(BaseAgent):
             symbol_counts=counts,
         )
 
+    def _tile_pdf_page(self, pdf_path: str | Path, page_index: int) -> tuple[list[Any], float, float]:
+        """Open and tile a page off-loop; return only detached tile data."""
+        doc = pymupdf.open(str(pdf_path))
+        try:
+            page = doc[page_index]
+            return self.tiler.tile_sheet(page), float(page.rect.width), float(page.rect.height)
+        finally:
+            doc.close()
+
     async def run_stream(
         self,
         context: AgentContext,
@@ -726,11 +735,13 @@ class FinderL1Agent(BaseAgent):
             payload={"exemplars_count": len(exemplars)},
         )
 
-        # 2. Open PDF page and generate tiles
+        # 2. Tile on a worker thread so dense vector pages do not block live job events.
+        tiles, page_width, page_height = await asyncio.to_thread(
+            self._tile_pdf_page, pdf_path, page_index
+        )
         doc = pymupdf.open(str(pdf_path))
         try:
             page = doc[page_index]
-            tiles = self.tiler.tile_sheet(page)
             content_tiles = self.filter_tiles_for_inference(tiles)
 
             yield AgentEvent(
@@ -762,8 +773,8 @@ class FinderL1Agent(BaseAgent):
                 sheet_title="Plan View",
                 discipline=disc_clean,
                 scale_status=scale_status_val,
-                width_pt=float(page.rect.width),
-                height_pt=float(page.rect.height),
+                width_pt=page_width,
+                height_pt=page_height,
             )
 
             # 4. Candidate Discovery: Genuine VLM Perception Swarm (Finding 01)

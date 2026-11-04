@@ -128,22 +128,17 @@ class OrchestratorAgent(BaseAgent):
         """Enforce FAIL_CLOSED.md gates before writing takeoff items to database."""
         sanitized_items: list[TakeoffRecord] = []
         flags: list[dict[str, Any]] = []
+        scale_locked_item_ids: list[str] = []
 
         is_scale_valid = sheet.scale_status in (ScaleStatus.VERIFIED.value, ScaleStatus.CALIBRATED.value)
 
         for item in items:
+            scale_locked = False
             # Gate 1: Scale Gate (Fail-Closed Scale Rule)
             if not is_scale_valid and item.category in ("DUCTWORK", "PIPING"):
                 item.total_length_ft = 0.0
                 item.review_required = True
-                flags.append({
-                    "flag_id": uuid.uuid4().hex[:12],
-                    "sheet_id": sheet.sheet_id,
-                    "item_id": item.item_id,
-                    "type": "SCALE_UNVERIFIED_LINEAR_LOCKED",
-                    "severity": "HIGH",
-                    "message": f"Linear item {item.item_id} footage locked to 0.0 because scale is {sheet.scale_status}",
-                })
+                scale_locked = True
 
             # Gate 2: Evidence Gate
             has_geometry = bool(item.geometry) and (
@@ -166,6 +161,25 @@ class OrchestratorAgent(BaseAgent):
                 item.status = "SUGGESTED"
 
             sanitized_items.append(item)
+            if scale_locked:
+                scale_locked_item_ids.append(item.item_id)
+
+        if scale_locked_item_ids:
+            scale_flag: dict[str, Any] = {
+                "flag_id": uuid.uuid4().hex[:12],
+                "sheet_id": sheet.sheet_id,
+                "item_ids": scale_locked_item_ids,
+                "item_count": len(scale_locked_item_ids),
+                "type": "SCALE_UNVERIFIED_LINEAR_LOCKED",
+                "severity": "HIGH",
+                "message": (
+                    f"{len(scale_locked_item_ids)} linear item(s) have footage locked to 0.0 "
+                    f"because scale is {sheet.scale_status}. Each item remains available for review."
+                ),
+            }
+            if len(scale_locked_item_ids) == 1:
+                scale_flag["item_id"] = scale_locked_item_ids[0]
+            flags.append(scale_flag)
 
         return sanitized_items, flags
 
@@ -334,6 +348,7 @@ class OrchestratorAgent(BaseAgent):
                         "sheet_type": sheet_type.value,
                         "scale_status": sheet_meta.scale_status,
                         "target_agents": target_agents,
+                        "sheet_metadata": sheet_meta.model_dump(mode="json"),
                     },
                 )
 

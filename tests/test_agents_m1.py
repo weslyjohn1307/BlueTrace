@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pymupdf
 import pytest
 
 from src.agents import (
@@ -327,6 +328,9 @@ class TestReconAgent:
         assert ReconAgent.classify_sheet_type("TYPICAL DUCT HANGER DETAILS", "M-502")[0] == SheetType.DETAIL
         assert ReconAgent.classify_sheet_type("COVER SHEET & DRAWING INDEX", "G-001")[0] == SheetType.OTHER
         assert ReconAgent.classify_sheet_type("", "")[0] == SheetType.UNREADABLE
+        assert ReconAgent.classify_sheet_type(
+            "HVAC Schedule Plan", "M-118", text="FIRE RISER"
+        )[0] == SheetType.PLAN
 
     def test_scale_adjudication_matrix_native_vs_vlm(self) -> None:
         # Case 1: Concordant Native + VLM -> VERIFIED
@@ -423,6 +427,26 @@ class TestReconAgent:
         assert res.width_pt > 0
         assert res.height_pt > 0
         assert len(res.evidence_ids) >= 2
+
+    @pytest.mark.asyncio
+    async def test_recon_finds_native_scale_outside_title_block(self, tmp_path: Path) -> None:
+        pdf_path = tmp_path / "plumbing_plan.pdf"
+        doc = pymupdf.open()
+        page = doc.new_page(width=600, height=400)
+        page.insert_text((430, 280), "P-101")
+        page.insert_text((430, 300), "PLUMBING FLOOR PLAN")
+        page.insert_text((20, 370), '1/8\" = 1\'-0\"')
+        doc.save(pdf_path)
+        doc.close()
+
+        result = await ReconAgent().recon_sheet(pdf_path, page_index=0, project_id="scale-test")
+
+        assert result.sheet_type == SheetType.PLAN
+        assert result.scale_status == ScaleStatus.VERIFIED
+        assert result.scale_ratio == 96.0
+        assert result.scale_raw == '1/8\" = 1\'-0\"'
+        assert result.scale_candidates[0].source == "native_page"
+        assert result.scale_candidates[0].bbox == [0.0, 0.0, 600.0, 400.0]
 
 
 # ---------------------------------------------------------------------------

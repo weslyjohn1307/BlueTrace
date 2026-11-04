@@ -488,12 +488,107 @@ class TestFinderL1Symbols:
 class TestTracerL2Linework:
     """Unit and component tests for Agent 03 (Tracer L2 Linework Runs)."""
 
+    def test_batch_semantic_labeling_matches_nearby_page_text(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        agent = TracerL2Agent()
+        pdf_path = tmp_path / "semantic-labels.pdf"
+        doc = pymupdf.open()
+        page = doc.new_page(width=400, height=300)
+        page.insert_text((100, 100), "SA 12x8")
+        doc.save(pdf_path)
+        doc.close()
+
+        get_text = pymupdf.Page.get_text
+        word_reads: list[object] = []
+
+        def track_word_reads(page: pymupdf.Page, option: str, *args: object, **kwargs: object):
+            if option == "words":
+                word_reads.append(kwargs.get("clip"))
+            return get_text(page, option, *args, **kwargs)
+
+        monkeypatch.setattr(pymupdf.Page, "get_text", track_word_reads)
+
+        runs = [
+            {"run_id": "run-1", "polyline": [[105.0, 105.0], [130.0, 105.0]]},
+            {"run_id": "run-2", "polyline": [[350.0, 250.0], [370.0, 250.0]]},
+        ]
+        labeled = agent._label_runs_from_pdf(pdf_path, 0, runs)
+
+        assert labeled[0]["system"] == "SupplyAir"
+        assert labeled[0]["dimension_label"] == "12x8"
+        assert "system" not in labeled[1]
+        assert labeled[0]["polyline"] == runs[0]["polyline"]
+        assert word_reads == [None]
+
     def test_tracer_initialization_and_metadata(self) -> None:
         """Verify agent_id, agent_name, is_llm_agent is False (deterministic code traces)."""
         tracer = TracerL2Agent()
         assert tracer.agent_id in ("agent_03_tracer_l2", "agent_03_tracer")
         assert "Tracer" in tracer.agent_name
         assert tracer.use_topology is True
+
+    def test_empty_topology_on_unscaled_vector_plan_retries_review_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Keep vector evidence visible when topology finds no runs; never infer scale."""
+        topology_result = {
+            "raw_segment_count": 12,
+            "filtered_count": 8,
+            "results": [],
+            "scale_status": "SCALE_UNREADABLE",
+            "drawing_type": "PLAN_VIEW_UNSCALED",
+        }
+        fallback_result = {
+            "raw_segment_count": 12,
+            "filtered_count": 8,
+            "results": [{"polyline": [[10.0, 20.0], [30.0, 20.0]], "geometric_length_pt": 20.0}],
+        }
+        responses = iter([topology_result, fallback_result])
+        calls: list[dict[str, Any]] = []
+
+        def fake_pipeline(**kwargs: Any) -> dict[str, Any]:
+            calls.append(kwargs)
+            return next(responses)
+
+        monkeypatch.setattr("src.agents.tracer_l2.run_l2_pipeline", fake_pipeline)
+        runs = TracerL2Agent().extract_linework_runs("fixture.pdf", use_topology=True)
+
+        assert len(runs) == 1
+        assert runs[0]["polyline"] == [[10.0, 20.0], [30.0, 20.0]]
+        assert "TOPOLOGY_EMPTY_FALLBACK" in runs[0]["uncertainty_codes"]
+        assert runs[0]["continuity_status"] == "REVIEW_REQUIRED"
+        assert calls[0]["use_topology"] is True
+        assert calls[1]["use_topology"] is False
+        assert calls[1]["use_centerline"] is False
+
+    def test_dense_page_uses_review_required_vector_fallback(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """Avoid multi-minute topology on a huge vector page without dropping geometry."""
+        monkeypatch.setattr(
+            "src.agents.tracer_l2._page_drawing_object_count",
+            lambda _path, _page: 100_000,
+        )
+        calls: list[dict[str, Any]] = []
+
+        def fake_pipeline(**kwargs: Any) -> dict[str, Any]:
+            calls.append(kwargs)
+            return {
+                "raw_segment_count": 108_767,
+                "filtered_count": 655,
+                "scale_status": "VALID",
+                "drawing_type": "PLAN_VIEW",
+                "results": [
+                    {
+                        "polyline": [[10.0, 20.0], [30.0, 20.0]],
+                        "geometric_length_pt": 20.0,
+                    }
+                ],
+            }
+
+        monkeypatch.setattr("src.agents.tracer_l2.run_l2_pipeline", fake_pipeline)
+        runs = TracerL2Agent().extract_linework_runs(tmp_path / "dense.pdf", use_topology=True)
+
+        assert len(runs) == 1
+        assert runs[0]["uncertainty_codes"] == ["TOPOLOGY_DENSITY_FALLBACK"]
+        assert runs[0]["continuity_status"] == "REVIEW_REQUIRED"
+        assert calls[0]["use_topology"] is False
+        assert calls[0]["use_centerline"] is False
 
     def test_deterministic_linework_extraction_on_vector_fixture(self) -> None:
         """Verify native PyMuPDF linework extraction traces physical vector segments."""
@@ -851,6 +946,47 @@ class TestOrchestratorM2Integration:
         assert sanitized[0].review_required is True
         assert len(flags) == 1
         assert flags[0]["type"] == "SCALE_UNVERIFIED_LINEAR_LOCKED"
+
+    def test_orchestrator_groups_scale_gate_warning_per_sheet(self) -> None:
+        orch = OrchestratorAgent()
+        sheet = SheetMetadata(
+            sheet_id="s_bad_scale",
+            page_index=0,
+            sheet_number="M-101",
+            sheet_title="HVAC Plan",
+            discipline="MECHANICAL",
+            scale_status="UNVERIFIED",
+            scale_ratio=None,
+            width_pt=1000.0,
+            height_pt=800.0,
+        )
+        template = TakeoffRecord(
+            item_id="run-1",
+            project_id="p1",
+            sheet_id="s_bad_scale",
+            category="DUCTWORK",
+            system="SupplyAir",
+            dimension_label='12x10" Supply',
+            status="SUGGESTED",
+            source="VECTOR_ENGINE",
+            total_length_ft=50.0,
+            count=1,
+            geometry={"type": "polyline", "points": [[100, 100], [200, 100]]},
+            confidence=0.9,
+            review_required=False,
+        )
+        items = [template.model_copy(update={"item_id": f"run-{i}"}) for i in (1, 2)]
+        items.append(template.model_copy(update={"item_id": "run-no-geometry", "geometry": {}}))
+
+        sanitized, flags = orch.enforce_fail_closed_gates(sheet, items)
+
+        assert len(sanitized) == 2
+        assert all(item.total_length_ft == 0.0 and item.review_required for item in sanitized)
+        assert len(flags) == 2
+        scale_flag = next(flag for flag in flags if flag["type"] == "SCALE_UNVERIFIED_LINEAR_LOCKED")
+        assert scale_flag["item_count"] == 2
+        assert scale_flag["item_ids"] == ["run-1", "run-2"]
+        assert any(flag["type"] == "MISSING_EVIDENCE_GEOMETRY" for flag in flags)
 
     @pytest.mark.asyncio
     async def test_orchestrator_handles_missing_agent_without_failing(self, tmp_path: Path) -> None:

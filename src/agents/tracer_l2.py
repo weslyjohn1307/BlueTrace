@@ -8,6 +8,7 @@ annotations with evidence IDs.
 
 from __future__ import annotations
 
+import asyncio
 import itertools
 import logging
 import math
@@ -20,7 +21,7 @@ from typing import Any, Literal
 
 import pymupdf
 from pydantic import BaseModel, ConfigDict, Field
-from shapely.geometry import LineString, MultiPoint, Point
+from shapely.geometry import LineString, MultiPoint, Point, box
 from shapely.ops import split as shapely_split
 from shapely.strtree import STRtree
 
@@ -40,6 +41,23 @@ from src.models.schemas import SheetMetadata
 from src.store.takeoff_store import TakeoffRecord, TakeoffStore
 
 logger = logging.getLogger(__name__)
+
+# The topology pipeline retains detailed pairwise decisions. On unusually dense
+# sheets this can grow superlinearly even when only a small fraction of PDF
+# drawing objects are MEP routes. Use the bounded legacy vector assembler above
+# this observed density, and keep every resulting run review-required.
+_TOPOLOGY_DRAWING_OBJECT_LIMIT = 50_000
+
+
+def _page_drawing_object_count(pdf_path: str | Path, page_index: int) -> int:
+    """Count native vector drawing objects before choosing the topology path."""
+    doc = pymupdf.open(str(pdf_path))
+    try:
+        if page_index < 0 or page_index >= doc.page_count:
+            return 0
+        return len(doc[page_index].get_drawings())
+    finally:
+        doc.close()
 
 # AEC Regex Patterns for Duct and Pipe Dimensions
 _RECT_DUCT_RE = re.compile(r"\b(\d{1,3})\s*[/xX×]\s*(\d{1,3})\b")
@@ -205,6 +223,17 @@ class TracerL2Agent(BaseAgent):
         """Extract deterministic linear runs using vector topology pipeline."""
         disc = discipline or (sheet_metadata.discipline.lower() if sheet_metadata else "mechanical")
         run_topo = self.use_topology if use_topology is None else use_topology
+        dense_page = False
+        if run_topo:
+            try:
+                dense_page = (
+                    _page_drawing_object_count(pdf_path, page_index)
+                    > _TOPOLOGY_DRAWING_OBJECT_LIMIT
+                )
+            except (OSError, RuntimeError, ValueError) as exc:
+                # A failed preflight must not weaken scale or geometry handling;
+                # continue through the normal deterministic topology pipeline.
+                logger.debug("Vector density preflight unavailable: %s", exc)
 
         try:
             # Primary execution: topology branch
@@ -213,7 +242,8 @@ class TracerL2Agent(BaseAgent):
                 page_num=page_index,
                 discipline=disc,
                 scale_override=scale_override,
-                use_topology=run_topo,
+                use_topology=run_topo and not dense_page,
+                use_centerline=not dense_page,
                 representation_config_path=self.rep_config_path,
                 topology_config_path=self.topo_config_path,
             )
@@ -230,6 +260,34 @@ class TracerL2Agent(BaseAgent):
                 )
             except Exception as fallback_exc:  # noqa: BLE001
                 logger.warning("Pipeline fallback also failed: %s", fallback_exc)
+                return []
+
+        # Topology can successfully return an empty plan result on dense vector
+        # sheets without raising. For unscaled plans only, retry the legacy
+        # deterministic assembler so geometry remains available for engineer
+        # review; never use this path to create scaled measurements.
+        used_review_fallback = dense_page
+        if (
+            run_topo
+            and not pipeline_result.get("results")
+            and pipeline_result.get("filtered_count", 0) > 0
+            and pipeline_result.get("drawing_type") == "PLAN_VIEW_UNSCALED"
+            and pipeline_result.get("scale_status") in {"SCALE_UNREADABLE", "UNVERIFIED"}
+        ):
+            try:
+                pipeline_result = run_l2_pipeline(
+                    pdf_path=pdf_path,
+                    page_num=page_index,
+                    discipline=disc,
+                    scale_override=scale_override,
+                    use_topology=False,
+                    use_centerline=False,
+                    representation_config_path=self.rep_config_path,
+                    topology_config_path=self.topo_config_path,
+                )
+                used_review_fallback = True
+            except Exception as fallback_exc:  # noqa: BLE001
+                logger.warning("Unscaled-plan review fallback failed: %s", fallback_exc)
                 return []
 
         raw_segment_count = pipeline_result.get("raw_segment_count", 0)
@@ -260,8 +318,7 @@ class TracerL2Agent(BaseAgent):
             obj_type = item.get("object_type", "duct")
             category = "PIPING" if obj_type == "pipe" else "DUCTWORK"
 
-            runs.append(
-                {
+            run = {
                     "run_id": item.get("object_id") or item.get("run_id") or f"run_{uuid.uuid4().hex[:8]}",
                     "category": category,
                     "system": item.get("system", "General"),
@@ -273,7 +330,13 @@ class TracerL2Agent(BaseAgent):
                     "continuity_status": item.get("continuity_status", "CONTINUOUS"),
                     "uncertainty_codes": item.get("uncertainty_codes", []),
                 }
-            )
+            if used_review_fallback:
+                fallback_code = (
+                    "TOPOLOGY_DENSITY_FALLBACK" if dense_page else "TOPOLOGY_EMPTY_FALLBACK"
+                )
+                run["uncertainty_codes"] = [*run["uncertainty_codes"], fallback_code]
+                run["continuity_status"] = "REVIEW_REQUIRED"
+            runs.append(run)
 
         return runs
 
@@ -631,6 +694,33 @@ class TracerL2Agent(BaseAgent):
             events=events,
         )
 
+    def _label_runs_from_pdf(
+        self, pdf_path: str | Path, page_index: int, runs: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Index page words once, then label runs without repeated clipped PDF scans."""
+        doc = pymupdf.open(str(pdf_path))
+        try:
+            page = doc[page_index]
+            if not runs:
+                return []
+            words = page.get_text("words") or []
+            word_boxes = [box(float(word[0]), float(word[1]), float(word[2]), float(word[3])) for word in words]
+            word_tree = STRtree(word_boxes) if word_boxes else None
+            labeled: list[dict[str, Any]] = []
+            for run in runs:
+                points = run.get("polyline") or run.get("geometry", {}).get("points", [])
+                nearby_text = ""
+                if points and word_tree is not None:
+                    xs = [float(point[0]) for point in points]
+                    ys = [float(point[1]) for point in points]
+                    clip = box(min(xs) - 25.0, min(ys) - 25.0, max(xs) + 25.0, max(ys) + 25.0)
+                    word_indices = sorted(int(index) for index in word_tree.query(clip, predicate="intersects"))
+                    nearby_text = " ".join(str(words[index][4]) for index in word_indices)
+                labeled.append(self.label_run_semantics(run, nearby_text=nearby_text))
+            return labeled
+        finally:
+            doc.close()
+
     async def run_stream(
         self,
         context: AgentContext,
@@ -666,7 +756,8 @@ class TracerL2Agent(BaseAgent):
         )
 
         # 1. Deterministic vector linework extraction
-        runs = self.extract_linework_runs(
+        extract_task = asyncio.create_task(asyncio.to_thread(
+            self.extract_linework_runs,
             pdf_path=pdf_path,
             page_index=page_index,
             sheet_metadata=sheet_metadata,
@@ -675,7 +766,23 @@ class TracerL2Agent(BaseAgent):
             scale_ratio=scale_ratio,
             scale_override=scale_override,
             use_topology=use_topology,
-        )
+        ))
+        while not extract_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(extract_task), timeout=5.0)
+            except TimeoutError:
+                elapsed = round(time.monotonic() - start_time, 1)
+                yield AgentEvent(
+                    job_id=job_id,
+                    agent_id=self.agent_id,
+                    event_type=AgentEventType.PROGRESS,
+                    sheet_id=sheet_ident,
+                    page_index=page_index,
+                    progress=0.10,
+                    message=f"Vector topology extraction is still running ({elapsed}s)",
+                    payload={"phase": "vector_extraction", "elapsed_seconds": elapsed},
+                )
+        runs = await extract_task
 
         yield AgentEvent(
             job_id=job_id,
@@ -689,15 +796,37 @@ class TracerL2Agent(BaseAgent):
         )
 
         # 2. Semantic labeling pass
-        doc = pymupdf.open(str(pdf_path))
-        try:
-            page = doc[page_index]
-            labeled_runs: list[dict[str, Any]] = []
-            for r in runs:
-                labeled = self.label_run_semantics(r, page=page)
-                labeled_runs.append(labeled)
-        finally:
-            doc.close()
+        fallback_review = bool(runs) and all(
+            any(
+                code in r.get("uncertainty_codes", [])
+                for code in ("TOPOLOGY_EMPTY_FALLBACK", "TOPOLOGY_DENSITY_FALLBACK")
+            )
+            for r in runs
+        )
+        if fallback_review:
+            # Avoid per-run text lookups on thousands of fallback geometries.
+            # Their semantics and connectivity remain explicitly unreviewed.
+            labeled_runs = runs
+        else:
+            label_task = asyncio.create_task(asyncio.to_thread(
+                self._label_runs_from_pdf, pdf_path, page_index, runs
+            ))
+            while not label_task.done():
+                try:
+                    await asyncio.wait_for(asyncio.shield(label_task), timeout=5.0)
+                except TimeoutError:
+                    elapsed = round(time.monotonic() - start_time, 1)
+                    yield AgentEvent(
+                        job_id=job_id,
+                        agent_id=self.agent_id,
+                        event_type=AgentEventType.PROGRESS,
+                        sheet_id=sheet_ident,
+                        page_index=page_index,
+                        progress=0.55,
+                        message=f"Semantic labeling is still running ({elapsed}s)",
+                        payload={"phase": "semantic_labeling", "elapsed_seconds": elapsed},
+                    )
+            labeled_runs = await label_task
 
         yield AgentEvent(
             job_id=job_id,
@@ -711,7 +840,30 @@ class TracerL2Agent(BaseAgent):
         )
 
         # 3. Ambiguous junction topology resolution & splitting
-        split_runs, junction_flags = self.resolve_junction_topology(labeled_runs)
+        if fallback_review:
+            split_runs = labeled_runs
+            density_fallback = any(
+                "TOPOLOGY_DENSITY_FALLBACK" in run.get("uncertainty_codes", [])
+                for run in labeled_runs
+            )
+            fallback_code = (
+                "TOPOLOGY_DENSITY_FALLBACK" if density_fallback else "TOPOLOGY_EMPTY_FALLBACK"
+            )
+            junction_flags = [{
+                "flag_id": uuid.uuid4().hex[:12],
+                "type": fallback_code,
+                "severity": "HIGH",
+                "message": (
+                    "This sheet exceeds the topology density budget. Deterministic vector fallback "
+                    "geometry is shown for engineer review; connectivity and system labels are unresolved."
+                    if density_fallback
+                    else "Topology extraction returned no routes. Deterministic fallback geometry is shown "
+                    "for engineer review; connectivity and system labels are unresolved."
+                ),
+                "run_count": len(labeled_runs),
+            }]
+        else:
+            split_runs, junction_flags = self.resolve_junction_topology(labeled_runs)
 
         # Emit junction flags as AgentEventType.FLAG_RAISED
         for flag in junction_flags:
@@ -722,7 +874,7 @@ class TracerL2Agent(BaseAgent):
                 sheet_id=sheet_ident,
                 page_index=page_index,
                 progress=0.75,
-                message=flag.get("message", "Ambiguous junction split without bridging"),
+                message=str(flag.get("message") or "Ambiguous junction split without bridging"),
                 payload=flag,
             )
 
