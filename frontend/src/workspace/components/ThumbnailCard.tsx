@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { displaySheetNumber } from '../utils/sheetLabels';
 
 export type ThumbnailScaleStatus = 'VERIFIED' | 'UNVERIFIED' | 'CALIBRATED';
 
@@ -23,11 +24,10 @@ export interface ThumbnailCardProps {
 
 function disciplineBadge(discipline: string): string {
   const d = discipline.toUpperCase();
-  if (d.includes('MECH')) return 'bg-cyan-950/80 text-cyan-300 border-cyan-500/40';
-  if (d.includes('PLUMB')) return 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40';
-  if (d.includes('ELEC')) return 'bg-purple-950/80 text-purple-300 border-purple-500/40';
-  if (d.includes('ARCH')) return 'bg-amber-950/80 text-amber-300 border-amber-500/40';
-  return 'bg-slate-800 text-slate-400 border-slate-700';
+  if (d.includes('MECH')) return 'bg-mep-mechanical-tint text-mep-mechanical border-mep-mechanical/30';
+  if (d.includes('PLUMB')) return 'bg-mep-plumbing-tint text-mep-plumbing border-mep-plumbing/30';
+  if (d.includes('ELEC')) return 'bg-mep-electrical-tint text-mep-electrical border-mep-electrical/30';
+  return 'bg-bt-panel text-bt-text-secondary border-bt-border-strong';
 }
 
 /** One sheet thumbnail: preview image plus discipline and scale badges. */
@@ -66,35 +66,35 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
     <button
       type="button"
       data-testid="thumbnail-card"
-      aria-label={`${sheet.sheet_number} ${sheet.sheet_title}`}
+      aria-label={`${displaySheetNumber(sheet.sheet_number, sheet.page_index)} ${sheet.sheet_title}`}
       aria-current={active ? 'true' : undefined}
       onClick={() => onSelect(sheet.sheet_id)}
       className={`w-full text-left rounded-lg border overflow-hidden transition-all cursor-pointer ${
         active
-          ? 'border-cyan-400/80 ring-1 ring-cyan-400/30 shadow-[0_0_15px_rgba(34,211,238,0.15)]'
-          : 'border-slate-800 hover:border-slate-700'
-      } bg-slate-900/60`}
+          ? 'border-bt-selection-border ring-1 ring-bt-selection-border bg-bt-brand-soft'
+          : 'border-bt-border-subtle hover:border-bt-border-strong'
+      } bg-bt-surface/60`}
     >
-      <div className="relative w-full aspect-[4/3] bg-slate-950">
+      <div className="relative w-full aspect-[4/3] bg-bt-inset">
         {!loaded && !failed && (
           <div
             data-testid="thumbnail-skeleton"
             aria-hidden="true"
-            className="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800"
+            className="absolute inset-0 animate-pulse bg-bt-panel"
           />
         )}
         {failed ? (
           <div
             data-testid="thumbnail-fallback"
-            className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-slate-900 text-slate-400"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-bt-surface text-bt-text-secondary"
           >
-            <span className="font-mono font-bold text-slate-200 text-sm">{sheet.sheet_number}</span>
-            <span className="font-mono text-[10px]">Preview unavailable</span>
+            <span className="font-sans font-semibold text-bt-text-primary text-sm">{displaySheetNumber(sheet.sheet_number, sheet.page_index)}</span>
+            <span className="font-sans text-xs">Preview unavailable</span>
           </div>
         ) : (
           <img
             src={src}
-            alt={`Thumbnail of ${sheet.sheet_number}`}
+            alt={`Preview of ${displaySheetNumber(sheet.sheet_number, sheet.page_index)}`}
             loading="lazy"
             onLoad={() => setLoaded(true)}
             onError={handleError}
@@ -104,21 +104,21 @@ export const ThumbnailCard: React.FC<ThumbnailCardProps> = ({
       </div>
       <div className="p-1.5 space-y-1">
         <div className="flex items-center justify-between gap-1">
-          <span className="font-mono font-bold text-slate-100 text-[11px] truncate">
-            {sheet.sheet_number}
+          <span className="min-w-0 truncate font-sans font-semibold text-bt-text-primary text-xs" title={sheet.sheet_number}>
+            {displaySheetNumber(sheet.sheet_number, sheet.page_index)}
           </span>
           <span
-            className={`text-[9px] uppercase px-1 py-px rounded font-mono font-semibold border shrink-0 ${disciplineBadge(sheet.discipline)}`}
+            className={`max-w-24 truncate text-xs px-1.5 py-0.5 rounded font-sans font-semibold border shrink-0 ${disciplineBadge(sheet.discipline)}`}
           >
             {sheet.discipline}
           </span>
         </div>
-        <div className="text-[10px] text-slate-400 truncate">{sheet.sheet_title || 'Untitled Sheet'}</div>
-        <div className="text-[10px] font-mono">
+        <div className="truncate font-sans text-xs text-bt-text-secondary" title={sheet.sheet_title}>{sheet.sheet_title || 'Untitled Sheet'}</div>
+        <div className="font-sans text-xs">
           {scaleOk ? (
-            <span className="text-emerald-400 font-semibold">{sheet.scale_raw || 'Verified'}</span>
+            <span className="text-bt-success font-semibold">{sheet.scale_raw || 'Verified'}</span>
           ) : (
-            <span className="text-amber-400 font-medium">Review Required</span>
+            <span className="text-bt-review font-medium">Scale unverified</span>
           )}
         </div>
       </div>

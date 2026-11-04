@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MousePointer,
   Hand,
@@ -8,7 +8,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Activity,
+  Layers,
 } from 'lucide-react';
 import {
   calculateFitTransform,
@@ -21,11 +21,18 @@ import {
   type TransformState,
 } from '../../utils/transform';
 import { LaserScanLoader } from './LaserScanLoader';
-import { VectorTraceCard } from './VectorTraceCard';
+import {
+  LayerControls,
+  DEFAULT_LAYER_VISIBILITY,
+  type LayerVisibility,
+  type SystemLegendEntry,
+} from './LayerControls';
 import { PinHoverCard } from './PinHoverCard';
 import { SymbolPinsOverlay } from './SymbolPinsOverlay';
 import { apiClient } from '../../api/client';
-import { getDisciplineColor } from '../utils/disciplineColors';
+import type { ScaleStatus } from '../../api/contracts';
+import { displaySystemLabel, getOverlayColor, OVERLAY_COLORS } from '../utils/disciplineColors';
+import { Tooltip } from '../../components/Tooltip';
 
 export type ToolMode = 'select' | 'pan' | 'quickdraw' | 'segment' | 'calibrate';
 
@@ -79,6 +86,8 @@ export interface CanvasPin {
   plan_qty?: number;
   confidence?: number;
   reviewRequired?: boolean;
+  /** PDF point bounds for symbol detections, in [x0, y0, x1, y1] order. */
+  bbox?: [number, number, number, number];
   description?: string;
   isGhost?: boolean;
   variance?: number;
@@ -90,7 +99,7 @@ export interface SegmentedPolygon {
   points: [number, number][];
   centroid: [number, number];
   areaSqFt?: number;
-  confidence: number;
+  confidence?: number;
   label: string;
 }
 
@@ -100,6 +109,7 @@ export interface VectorRun {
   points: [number, number][];
   system?: string;
   status?: string;
+  reviewRequired?: boolean;
   label?: string;
   length_ft?: number;
 }
@@ -114,7 +124,6 @@ export interface SheetCanvasProps {
   onCropRequest: (cursorPt: [number, number], imageBase64: string) => void;
   renderBadge?: (screen: Point, pagePt: [number, number]) => React.ReactNode;
   scaleRatio?: number;
-  discipline?: string;
   selectedPinId?: string | null;
   onSelectPin?: (pin: CanvasPin) => void;
   onPlaceGhostPin?: (ghostId: string, pagePoint: [number, number]) => void;
@@ -136,42 +145,37 @@ export interface SheetCanvasProps {
     mode?: TransformState['mode'];
   } | null;
   calibrationResult?: CalibrationResult | null;
-  scaleStatus?: string;
+  scaleStatus?: ScaleStatus;
   onCalibrationPointsSelected?: (p1: [number, number], p2: [number, number]) => void;
   onCalibrationCancel?: () => void;
   /** Instant 72 DPI blur-up thumbnail preview during sheet transitions. */
   thumbnailUrl?: string;
 }
 
-const SYSTEM_RUN_COLORS: Record<string, string> = {
-  supply: '#0284c7',
-  return: '#16a34a',
-  exhaust: '#d97706',
-};
-
 function vectorRunColor(system?: string): string {
+  return getOverlayColor(system);
+}
+
+function vectorRunDash(system?: string, reviewRequired = false): string | undefined {
+  if (reviewRequired) return '5 3';
   const key = (system ?? '').toLowerCase();
-  for (const [name, color] of Object.entries(SYSTEM_RUN_COLORS)) {
-    if (key.includes(name)) return color;
-  }
-  return '#94a3b8';
+  if (/electrical|power|lighting|conduit/.test(key)) return '8 4';
+  if (/water|plumb|piping|sanitary|waste|sewer|chilled|heating water|hhw/.test(key)) return '10 3 2 3';
+  return undefined;
 }
 
 const PIN_COLORS: Record<CanvasPin['kind'], string> = {
-  ghost: '#d97706',
-  evidence: '#22D3EE',
-  item: '#34D399',
-  symbol: '#0284c7',
+  ghost: OVERLAY_COLORS.ghost,
+  evidence: OVERLAY_COLORS.evidence,
+  item: OVERLAY_COLORS.item,
+  symbol: OVERLAY_COLORS.supply,
 };
 
 function getPinFill(pin: CanvasPin): string {
-  if (pin.discipline) {
-    return getDisciplineColor(pin.discipline);
-  }
-  if (pin.system) {
-    return getDisciplineColor(pin.system);
-  }
-  return PIN_COLORS[pin.kind] ?? '#34D399';
+  if (pin.kind === 'ghost' || pin.status === 'UNPLACED_GHOST') return OVERLAY_COLORS.ghost;
+  if (pin.system) return getOverlayColor(pin.system);
+  if (pin.discipline) return getOverlayColor(pin.discipline);
+  return PIN_COLORS[pin.kind] ?? OVERLAY_COLORS.item;
 }
 
 const HOVER_DEBOUNCE_MS = 250;
@@ -205,6 +209,67 @@ const CROP_WINDOW_PT = 150;
 const CROP_OUTPUT_PX = 312;
 const VIEWPORT_AUTOSAVE_DEBOUNCE_MS = 300;
 
+interface ToolButtonProps {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  label: string;
+  shortcut: string;
+  accent?: 'cyan' | 'emerald' | 'amber';
+  icon: React.ReactNode;
+  busy?: boolean;
+}
+
+const TOOL_ACTIVE: Record<NonNullable<ToolButtonProps['accent']>, string> = {
+  cyan: 'bg-[#005BFF]/25 text-[#9BDCFF] ring-1 ring-inset ring-[#37C6FF]/45',
+  emerald: 'bg-emerald-500/20 text-emerald-200 ring-1 ring-inset ring-emerald-400/45',
+  amber: 'bg-amber-500/20 text-amber-200 ring-1 ring-inset ring-amber-400/45',
+};
+
+const ToolButton: React.FC<ToolButtonProps> = ({
+  active,
+  onClick,
+  title,
+  label,
+  shortcut,
+  accent = 'cyan',
+  icon,
+  busy = false,
+}) => {
+  const [tooltipDismissed, setTooltipDismissed] = useState(false);
+  return (
+  <span
+    className="group relative inline-flex"
+    onMouseEnter={() => setTooltipDismissed(false)}
+    onMouseLeave={() => setTooltipDismissed(false)}
+    onFocusCapture={() => setTooltipDismissed(false)}
+    onKeyDown={(event) => {
+      if (event.key === 'Escape') setTooltipDismissed(true);
+    }}
+  >
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={`${label} (${shortcut})`}
+    aria-describedby={`canvas-tool-${shortcut.toLowerCase()}-tooltip`}
+    aria-keyshortcuts={shortcut}
+    aria-pressed={active}
+    className={`inline-flex h-10 w-10 items-center justify-center rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1220] ${
+      active
+        ? TOOL_ACTIVE[accent]
+        : 'text-bt-text-secondary hover:bg-bt-panel hover:text-bt-text-primary'
+    }`}
+  >
+    {icon}
+    {busy ? (
+      <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+    ) : null}
+  </button>
+  <Tooltip id={`canvas-tool-${shortcut.toLowerCase()}-tooltip`} visible={!tooltipDismissed}>{title}</Tooltip>
+  </span>
+  );
+};
+
 export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   imageUrl,
   widthPt,
@@ -215,7 +280,6 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   onCropRequest,
   renderBadge,
   scaleRatio,
-  discipline = 'MEP-HVAC',
   selectedPinId,
   onSelectPin,
   onPlaceGhostPin,
@@ -235,7 +299,10 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
   const [cursor, setCursor] = useState<{ screen: Point; page: Point } | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [toolMode, setToolMode] = useState<ToolMode>('quickdraw');
+  const [imageRetry, setImageRetry] = useState(0);
+  const [toolMode, setToolMode] = useState<ToolMode>('select');
+  const [layers, setLayers] = useState<LayerVisibility>(DEFAULT_LAYER_VISIBILITY);
+  const [layersOpen, setLayersOpen] = useState(false);
   const [segmentedPolygons, setSegmentedPolygons] = useState<SegmentedPolygon[]>([]);
   const [isSegmenting, setIsSegmenting] = useState(false);
 
@@ -567,7 +634,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
             points: mappedPts,
             centroid: [cx, cy],
             areaSqFt,
-            confidence: resp.confidence ?? 0.95,
+            confidence: resp.confidence,
             label: resp.concept || 'Equipment Segment',
           },
         ]);
@@ -600,7 +667,7 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
     if (toolMode === 'calibrate' && calP1 && calibratePhase === 'AWAITING_P2') {
       setCalPreview(snapCalibrationPoint(calP1, page, (e as React.MouseEvent).shiftKey));
     }
-    if (cropEnabled && imgLoaded && (toolMode === 'quickdraw' || toolMode === 'select')) {
+    if (cropEnabled && imgLoaded && toolMode === 'quickdraw') {
       scheduleHoverCrop();
     }
   };
@@ -676,6 +743,10 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
+      if (layersOpen) {
+        setLayersOpen(false);
+        return;
+      }
       if (calibratePhase !== 'IDLE') {
         cancelCalibration();
         return;
@@ -687,6 +758,8 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
       setToolMode('select');
     } else if (e.key === 'h' || e.key === 'H') {
       setToolMode('pan');
+    } else if (e.key === 'l' || e.key === 'L') {
+      setLayersOpen((open) => !open);
     } else if (e.key === 'q' || e.key === 'Q') {
       setToolMode('quickdraw');
       if (cursorRef.current) {
@@ -738,626 +811,747 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({
 
   const matrix = `translate(${transform.translationX}px, ${transform.translationY}px) scale(${transform.scale})`;
 
+  const isGhostPin = (pin: CanvasPin) => pin.kind === 'ghost' || pin.status === 'UNPLACED_GHOST';
+  const layerCounts = useMemo(
+    () => ({
+      vector: vectorRuns.length,
+      components: pins.filter((pin) => pin.kind === 'symbol' || pin.kind === 'item').length,
+      ghosts: pins.filter((pin) => pin.kind === 'ghost' || pin.status === 'UNPLACED_GHOST').length,
+      evidence: pins.filter((pin) => pin.kind === 'evidence').length,
+      review:
+        vectorRuns.filter((run) => run.reviewRequired).length +
+        pins.filter((pin) => pin.reviewRequired).length,
+    }),
+    [pins, vectorRuns]
+  );
+  const layerSystems = useMemo(() => {
+    const grouped = new Map<string, SystemLegendEntry>();
+    for (const run of vectorRuns) {
+      const label = displaySystemLabel(run.system);
+      const current = grouped.get(label);
+      if (current) current.count += 1;
+      else grouped.set(label, { label, color: vectorRunColor(run.system), count: 1, dash: vectorRunDash(run.system) });
+    }
+    return [...grouped.values()].sort((a, b) => b.count - a.count);
+  }, [vectorRuns]);
+
+  const visibleVectorRuns = layers.vector ? vectorRuns : [];
+  const visiblePins = pins.filter((pin) => {
+    if (pin.kind === 'symbol' || pin.kind === 'item') return layers.components;
+    if (isGhostPin(pin)) return layers.ghosts;
+    if (pin.kind === 'evidence') return layers.evidence;
+    return true;
+  });
+
+  const toolCopy: Record<ToolMode, { label: string; shortcut: string; hint: string }> = {
+    select: {
+      label: 'Select',
+      shortcut: 'V',
+      hint: 'Select a pin or ledger item to inspect its evidence.',
+    },
+    pan: {
+      label: 'Pan',
+      shortcut: 'H',
+      hint: 'Drag to move the sheet. Space-drag or the middle mouse button works in any tool.',
+    },
+    quickdraw: {
+      label: 'QuickDraw',
+      shortcut: 'Q',
+      hint: 'Hover a duct or tag and hold still to read its dimension. Sends one crop to Meta per hover.',
+    },
+    segment: {
+      label: 'Segment',
+      shortcut: 'S',
+      hint: 'Click an equipment boundary to request a SAM 3.1 mask. Results stay in review.',
+    },
+    calibrate: {
+      label: 'Calibrate',
+      shortcut: 'C',
+      hint: 'Click two points with a known real distance to set this sheet scale.',
+    },
+  };
+  const activeTool = toolCopy[toolMode];
+  const totalLengthFt = vectorRuns.reduce((sum, run) => sum + (run.length_ft ?? 0), 0);
+
+  // Compact key in the reserved status strip. With the vector layer on and no
+  // systems traced yet we still show the standard system colors: it is a color
+  // key, not a claim that geometry exists. Counts appear only for real runs.
+  const fallbackSystemLegend: SystemLegendEntry[] = [
+    { label: 'Mechanical', color: OVERLAY_COLORS.supply, count: 0 },
+    { label: 'Electrical', color: OVERLAY_COLORS.electrical, count: 0 },
+    { label: 'Plumbing', color: OVERLAY_COLORS.coldWater, count: 0 },
+  ];
+  const legendSystems = layers.vector
+    ? layerSystems.length > 0
+      ? layerSystems
+      : fallbackSystemLegend
+    : [];
+  const legendIsEmpty =
+    legendSystems.length === 0 && !layers.components && !layers.ghosts;
+
   return (
     <div
-      ref={containerRef}
-      tabIndex={0}
-      role="application"
-      aria-label="Drawing sheet canvas. Hover or press Q over a duct run to dimension it."
-      data-testid="sheet-canvas"
-      className="relative w-full h-full overflow-hidden bg-slate-950 cad-dot-grid-dark cad-crosshair outline-none select-none"
-      onMouseMove={handleMouseMove}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-      onKeyDown={handleKeyDown}
-      onKeyUp={handleKeyUp}
-      onDragOver={(e) => {
-        e.preventDefault();
-        try {
-          e.dataTransfer.dropEffect = 'move';
-        } catch {
-          // ignore
-        }
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        let ghostId = draggedGhostIdRef.current;
-        if (e.dataTransfer) {
-          try {
-            const data = e.dataTransfer.getData('text/plain');
-            if (data) ghostId = data;
-          } catch {
-            // ignore
-          }
-        }
-        if (ghostId && onPlaceGhostPin) {
-          const el = containerRef.current;
-          const rect = el ? el.getBoundingClientRect() : { left: 0, top: 0, width: 1200, height: 800 };
-          const rawClientX = (e as unknown as { clientX?: number }).clientX;
-          const rawClientY = (e as unknown as { clientY?: number }).clientY;
-          const clientX =
-            typeof rawClientX === 'number' && !Number.isNaN(rawClientX)
-              ? rawClientX
-              : (cursorRef.current?.screen.x ?? 400);
-          const clientY =
-            typeof rawClientY === 'number' && !Number.isNaN(rawClientY)
-              ? rawClientY
-              : (cursorRef.current?.screen.y ?? 300);
-          const screenPt = { x: clientX - (rect.left || 0), y: clientY - (rect.top || 0) };
-          const pagePt = screenPointToPagePoint(screenPt, transformRef.current);
-          const clampedX = Math.max(0, Math.min(widthPt || 3024, pagePt.x));
-          const clampedY = Math.max(0, Math.min(heightPt || 2160, pagePt.y));
-          onPlaceGhostPin(ghostId, [clampedX, clampedY]);
-        }
-        draggedGhostIdRef.current = null;
-      }}
+      data-testid="sheet-canvas-shell"
+      className="flex h-full min-h-0 w-full flex-col bg-bt-canvas"
     >
-      {/* Laser Scan Loading Experience */}
-      {!imgLoaded && !imgError && (
-        <LaserScanLoader
-          label="SYS.CAD // RASTERIZING_VECTOR_LAYERS"
-          sublabel="Aligning 150 DPI viewport & vector geometry..."
-          discipline={discipline}
-        />
-      )}
-
-      {imgError && (
-        <div className="absolute inset-0 flex items-center justify-center text-rose-400 text-sm px-6 text-center font-mono">
-          Could not render this sheet. Re-scan or pick another page.
-        </div>
-      )}
-
-      {/* Floating CAD HUD Dock */}
-      {imgLoaded && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 flex items-center bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 rounded-xl px-2 py-1 shadow-[0_8px_32px_rgba(0,0,0,0.6)] space-x-1 select-none">
-          <button
-            type="button"
-            title="Select & Inspect [V]"
+      {/* Reserved tool dock above the drawing: no control sits over evidence. */}
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-1.5 border-b border-bt-border-subtle bg-bt-surface px-3 py-1.5">
+        <div role="toolbar" aria-label="Canvas tools" className="flex items-center gap-1">
+          <ToolButton
+            active={toolMode === 'select'}
             onClick={() => setToolMode('select')}
-            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
-              toolMode === 'select'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <MousePointer className="w-3.5 h-3.5" />
-            <span>Select</span>
-            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">V</kbd>
-          </button>
-
-          <button
-            type="button"
-            title="Pan Canvas [H or Space+drag]"
+            title="Select and inspect [V]"
+            label="Select"
+            shortcut="V"
+            icon={<MousePointer className="h-3.5 w-3.5" aria-hidden="true" />}
+          />
+          <ToolButton
+            active={toolMode === 'pan'}
             onClick={() => setToolMode('pan')}
-            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
-              toolMode === 'pan'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <Hand className="w-3.5 h-3.5" />
-            <span>Pan</span>
-            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">H</kbd>
-          </button>
+            title="Pan the sheet [H or Space+drag]"
+            label="Pan"
+            shortcut="H"
+            icon={<Hand className="h-3.5 w-3.5" aria-hidden="true" />}
+          />
 
-          <button
-            type="button"
-            title="QuickDraw Duct Dimension Hover [Q]"
+          <span className="mx-1 h-4 w-px bg-bt-panel" aria-hidden="true" />
+
+          <ToolButton
+            active={toolMode === 'quickdraw'}
             onClick={() => setToolMode('quickdraw')}
-            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
-              toolMode === 'quickdraw'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
-            <span>QuickDraw</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">Q</kbd>
-          </button>
-
-          <button
-            type="button"
-            title="SAM 3.1 Room & Boundary Segmenter [S]"
+            title="QuickDraw duct dimension [Q]"
+            label="QuickDraw"
+            shortcut="Q"
+            icon={<Crosshair className="h-3.5 w-3.5" aria-hidden="true" />}
+          />
+          <ToolButton
+            active={toolMode === 'segment'}
             onClick={() => setToolMode('segment')}
-            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
-              toolMode === 'segment'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <Scan className="w-3.5 h-3.5 text-emerald-400" />
-            <span>SAM 3.1</span>
-            {isSegmenting && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
-            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">S</kbd>
-          </button>
-
-          <button
-            type="button"
-            title="Scale Calibration Ruler [C]"
+            title="Segment an equipment boundary [S]"
+            label="Segment"
+            shortcut="S"
+            accent="emerald"
+            busy={isSegmenting}
+            icon={<Scan className="h-3.5 w-3.5" aria-hidden="true" />}
+          />
+          <ToolButton
+            active={toolMode === 'calibrate'}
             onClick={enterCalibrateMode}
-            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
-              toolMode === 'calibrate'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <Ruler className="w-3.5 h-3.5 text-amber-400" />
-            <span>Calibrate</span>
-            <kbd className="px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-300 border border-slate-700 font-mono">C</kbd>
-          </button>
+            title="Scale Calibration Ruler [C]"
+            label="Calibrate"
+            shortcut="C"
+            accent="amber"
+            icon={<Ruler className="h-3.5 w-3.5" aria-hidden="true" />}
+          />
+        </div>
 
-          <div className="w-[1px] h-4 bg-slate-700/80 mx-1" />
-
+        <div className="ml-auto flex items-center gap-0.5">
           <button
             type="button"
             title="Zoom Out [-]"
+            aria-label="Zoom out (-)"
             onClick={zoomOut}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 cursor-pointer"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]"
           >
-            <ZoomOut className="w-3.5 h-3.5" />
+            <ZoomOut className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
-
-          <span className="text-[11px] font-mono text-cyan-400 px-1 font-semibold">
+          <span className="w-12 text-center font-mono text-xs tabular-nums text-blue-700">
             {(transform.scale * 100).toFixed(0)}%
           </span>
-
           <button
             type="button"
             title="Zoom In [+]"
+            aria-label="Zoom in (+)"
             onClick={zoomIn}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 cursor-pointer"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]"
           >
-            <ZoomIn className="w-3.5 h-3.5" />
+            <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
-
           <button
             type="button"
             title="Fit to Window [0]"
+            aria-label="Fit to window (0)"
             onClick={fitToContainer}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 cursor-pointer"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-bt-text-secondary transition-colors hover:bg-bt-panel hover:text-bt-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E]"
           >
-            <Maximize2 className="w-3.5 h-3.5" />
+            <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+
+          <span className="mx-1 h-4 w-px bg-bt-panel" aria-hidden="true" />
+
+          {scaleStatus === 'CALIBRATED' && (
+            <span
+              data-testid="calibrated-badge"
+              className="mr-1 inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-950/70 px-2 text-[11px] font-medium text-emerald-300"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+              CALIBRATED{calibrationResult?.scaleRaw ? ` // ${calibrationResult.scaleRaw}` : ''}
+            </span>
+          )}
+
+          <button
+            type="button"
+            title="Layers, legend and scale evidence [L]"
+            aria-label="Layers, legend and scale evidence (L)"
+            aria-haspopup="dialog"
+            aria-expanded={layersOpen}
+            onClick={() => setLayersOpen((open) => !open)}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#37C6FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0F1E] ${
+              layersOpen
+                ? 'bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200'
+                : 'text-bt-text-secondary hover:bg-bt-panel hover:text-bt-text-primary'
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden sm:inline">Layers</span>
           </button>
         </div>
-      )}
+      </div>
 
-      {/* Top Right Live Telemetry Chip */}
-      {imgLoaded && (
-        <>
-          <div className="absolute top-3 right-3 z-30 hidden sm:flex items-center space-x-2 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-lg px-2.5 py-1 text-[10px] font-mono select-none">
-            <Activity className="w-3 h-3 text-emerald-400 animate-pulse" />
-            <span className="text-slate-300">MUSE-SPARK-1.3</span>
-            <span className="text-slate-600">|</span>
-            <span className="text-cyan-400">SAM-3.1 ACTIVE</span>
-          </div>
-
-          <VectorTraceCard
-            totalRuns={vectorRuns.length}
-            totalLengthFt={vectorRuns.reduce((acc, r) => acc + (r.length_ft ?? 0), 0)}
-            confidence={vectorRuns.length > 0 ? 0.998 : 0}
-            scaleVerified={scaleRatio !== undefined && scaleRatio > 0}
-          />
-        </>
-      )}
-
-      <img
-        ref={imgRef}
-        src={imageUrl}
-        alt=""
-        draggable={false}
-        onLoad={() => {
-          setImgLoaded(true);
-          // A restored session viewport already positions the sheet; the
-          // load-time fit only applies to fresh (non-restored) sheets.
-          if (restoreActiveRef.current) {
-            restoreActiveRef.current = false;
-          } else {
-            fitToContainer();
-          }
-        }}
-        onError={() => setImgError(true)}
-        className="absolute left-0 top-0 max-w-none"
-        style={{
-          transform: matrix,
-          transformOrigin: '0 0',
-          width: `${widthPt}px`,
-          height: `${heightPt}px`,
-          visibility: imgLoaded ? 'visible' : 'hidden',
-        }}
-      />
-
-      {/* 72 DPI instant blur-up thumbnail preview during sheet transitions */}
-      {thumbnailUrl && !imgLoaded && !imgError && (
-        <img
-          src={thumbnailUrl}
-          alt=""
-          aria-hidden="true"
-          data-testid="sheet-canvas-thumbnail"
-          draggable={false}
-          className="absolute left-0 top-0 max-w-none filter blur-xs opacity-75 transition-opacity duration-300 pointer-events-none select-none"
-          style={{
-            transform: matrix,
-            transformOrigin: '0 0',
-            width: `${widthPt}px`,
-            height: `${heightPt}px`,
+      {/* Drawing surface keeps every pointer, keyboard and drop handler. */}
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={containerRef}
+          tabIndex={0}
+          role="application"
+          aria-label="Drawing sheet canvas. Press Q over a duct run to dimension it and L for layers."
+          data-testid="sheet-canvas"
+          className="absolute inset-0 overflow-hidden cad-dot-grid cad-crosshair outline-none select-none"
+          onMouseMove={handleMouseMove}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          onKeyDown={handleKeyDown}
+          onKeyUp={handleKeyUp}
+          onDragOver={(e) => {
+            e.preventDefault();
+            try {
+              e.dataTransfer.dropEffect = 'move';
+            } catch {
+              // ignore
+            }
           }}
-        />
-      )}
+          onDrop={(e) => {
+            e.preventDefault();
+            let ghostId = draggedGhostIdRef.current;
+            if (e.dataTransfer) {
+              try {
+                const data = e.dataTransfer.getData('text/plain');
+                if (data) ghostId = data;
+              } catch {
+                // ignore
+              }
+            }
+            if (ghostId && onPlaceGhostPin) {
+              const el = containerRef.current;
+              const rect = el ? el.getBoundingClientRect() : { left: 0, top: 0, width: 1200, height: 800 };
+              const rawClientX = (e as unknown as { clientX?: number }).clientX;
+              const rawClientY = (e as unknown as { clientY?: number }).clientY;
+              const clientX =
+                typeof rawClientX === 'number' && !Number.isNaN(rawClientX)
+                  ? rawClientX
+                  : (cursorRef.current?.screen.x ?? 400);
+              const clientY =
+                typeof rawClientY === 'number' && !Number.isNaN(rawClientY)
+                  ? rawClientY
+                  : (cursorRef.current?.screen.y ?? 300);
+              const screenPt = { x: clientX - (rect.left || 0), y: clientY - (rect.top || 0) };
+              const pagePt = screenPointToPagePoint(screenPt, transformRef.current);
+              const clampedX = Math.max(0, Math.min(widthPt || 3024, pagePt.x));
+              const clampedY = Math.max(0, Math.min(heightPt || 2160, pagePt.y));
+              onPlaceGhostPin(ghostId, [clampedX, clampedY]);
+            }
+            draggedGhostIdRef.current = null;
+          }}
+        >
+          {!imgLoaded && !imgError && <LaserScanLoader />}
 
-      <svg
-        className="absolute left-0 top-0 pointer-events-none"
-        style={{ transform: matrix, transformOrigin: '0 0', width: `${widthPt}px`, height: `${heightPt}px` }}
-        viewBox={`0 0 ${widthPt} ${heightPt}`}
-        aria-hidden="true"
-      >
-        {/* Render SAM 3.1 Segmented Polygons */}
-        {segmentedPolygons.map((sp) => (
-          <g key={sp.id} className="animate-fade-in">
-            <polygon
-              points={sp.points.map(([x, y]) => `${x},${y}`).join(' ')}
-              fill="rgba(16, 185, 129, 0.18)"
-              stroke="#10B981"
-              strokeWidth={2}
-              strokeDasharray="4 2"
+          {imgError && (
+            <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bt-canvas px-6 text-center font-sans text-sm text-bt-text-primary">
+              <p className="max-w-sm text-bt-text-secondary">This page could not be rendered from the saved drawing.</p>
+              <button
+                type="button"
+                className="min-h-10 rounded-md border border-bt-border-strong bg-bt-surface px-3 text-sm font-medium text-bt-text-primary hover:bg-bt-panel"
+                onClick={() => {
+                  setImgError(false);
+                  setImgLoaded(false);
+                  setImageRetry((attempt) => attempt + 1);
+                }}
+              >
+                Try again
+              </button>
+              <span className="text-xs text-bt-text-tertiary">If it still fails, open the source PDF again.</span>
+            </div>
+          )}
+
+          <img
+            ref={imgRef}
+            key={`${imageUrl}:${imageRetry}`}
+            src={imageUrl}
+            alt=""
+            draggable={false}
+            onLoad={() => {
+              setImgLoaded(true);
+              // A restored session viewport already positions the sheet; the
+              // load-time fit only applies to fresh (non-restored) sheets.
+              if (restoreActiveRef.current) {
+                restoreActiveRef.current = false;
+              } else {
+                fitToContainer();
+              }
+            }}
+            onError={() => setImgError(true)}
+            className="absolute left-0 top-0 max-w-none"
+            style={{
+              transform: matrix,
+              transformOrigin: '0 0',
+              width: `${widthPt}px`,
+              height: `${heightPt}px`,
+              visibility: imgLoaded ? 'visible' : 'hidden',
+            }}
+          />
+
+          {/* 72 DPI instant blur-up thumbnail preview during sheet transitions */}
+          {thumbnailUrl && !imgLoaded && !imgError && (
+            <img
+              src={thumbnailUrl}
+              alt=""
+              aria-hidden="true"
+              data-testid="sheet-canvas-thumbnail"
+              draggable={false}
+              className="pointer-events-none absolute left-0 top-0 max-w-none select-none opacity-75 blur-xs transition-opacity duration-300"
+              style={{
+                transform: matrix,
+                transformOrigin: '0 0',
+                width: `${widthPt}px`,
+                height: `${heightPt}px`,
+              }}
             />
-            <circle cx={sp.centroid[0]} cy={sp.centroid[1]} r={4} fill="#10B981" />
-            <text
-              x={sp.centroid[0] + 8}
-              y={sp.centroid[1] + 4}
-              fill="#34D399"
-              fontSize={13}
-              fontFamily="monospace"
-              fontWeight="bold"
-            >
-              SAM 3.1 // {sp.areaSqFt ? `${sp.areaSqFt.toFixed(1)} sq ft` : 'Boundary'}
-            </text>
-          </g>
-        ))}
+          )}
 
-        {/* Extracted Vector Runs (auto-takeoff linework by system) */}
-        {vectorRuns
-          .filter((run) => run.points.length >= 2)
-          .map((run) => (
-            <polyline
-              key={run.id}
-              data-testid="vector-run"
-              data-system={run.system ?? ''}
-              points={run.points.map(([x, y]) => `${x},${y}`).join(' ')}
-              fill="none"
-              stroke={vectorRunColor(run.system)}
-              strokeWidth={2.5}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              opacity={run.status === 'SUGGESTED' ? 0.75 : 0.95}
-              className="animate-duct-flow"
-            >
-              {run.label ? <title>{run.label}</title> : null}
-            </polyline>
-          ))}
-
-        {/* Left Margin Ghost Pin Staging Dock Visual */}
-        {pins.some((p) => (p.kind === 'ghost' || p.status === 'UNPLACED_GHOST') && p.x <= 100) && (
-          <g opacity={0.6} className="select-none pointer-events-none">
-            <rect
-              x={20}
-              y={70}
-              width={80}
-              height={Math.max(120, pins.filter((p) => p.kind === 'ghost' || p.status === 'UNPLACED_GHOST').length * 35 + 40)}
-              fill="#0f172a"
-              fillOpacity={0.6}
-              stroke="#d97706"
-              strokeWidth={1.5}
-              strokeDasharray="4 2"
-              rx={6}
-            />
-            <text
-              x={26}
-              y={88}
-              fill="#d97706"
-              fontSize={8}
-              fontFamily="monospace"
-              fontWeight="bold"
-            >
-              STAGING DOCK
-            </text>
-          </g>
-        )}
-
-        {/* CAD Takeoff & Ghost Pins with Interactive Affordances & Sonar Rings */}
-        {/* Symbol-swarm detections (kind === 'symbol') render via SymbolPinsOverlay below. */}
-        {pins
-          .filter((p) => p.kind !== 'symbol')
-          .map((pin) => {
-          const isGhost = pin.kind === 'ghost' || pin.status === 'UNPLACED_GHOST';
-          const isSelected = selectedPinId === pin.id;
-          const displayLabel = pin.label || pin.tag;
-          const pinFill = getPinFill(pin);
-
-          return (
-            <g
-              key={pin.id}
-              data-testid="canvas-pin"
-              data-discipline={pin.discipline}
-              data-status={pin.status}
-              data-ghost={isGhost ? 'true' : undefined}
-              className="pointer-events-auto cursor-pointer outline-none focus-visible:outline-none"
-              tabIndex={0}
-              role="button"
-              aria-label={displayLabel ? `Pin: ${displayLabel}` : `Pin at ${pin.x.toFixed(0)}, ${pin.y.toFixed(0)}`}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onSelectPin?.(pin);
-                }
-              }}
-              onFocus={() => handlePinMouseEnter(pin)}
-              onBlur={handlePinMouseLeave}
-              {...(isGhost ? ({ draggable: true } as Record<string, unknown>) : {})}
-              onDragStart={(e) => {
-                draggedGhostIdRef.current = pin.id;
-                if (e.dataTransfer) {
-                  try {
-                    e.dataTransfer.setData('text/plain', pin.id);
-                  } catch {
-                    // Safe in jsdom
-                  }
-                }
-              }}
-              onMouseEnter={() => handlePinMouseEnter(pin)}
-              onMouseLeave={handlePinMouseLeave}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectPin?.(pin);
-              }}
-            >
-              {/* Selected pin halo ring */}
-              {isSelected && (
-                <circle
-                  cx={pin.x}
-                  cy={pin.y}
-                  r={14}
-                  fill="none"
-                  stroke="#38bdf8"
-                  strokeWidth={2}
-                  data-testid="selected-pin-halo"
-                  className="animate-pulse"
-                />
-              )}
-
-              {/* Ghost pin sonar radar pulse rings */}
-              {isGhost && (
-                <>
-                  <circle
-                    cx={pin.x}
-                    cy={pin.y}
-                    r={8}
-                    className="sonar-ring stroke-amber-400"
-                    fill="none"
-                    strokeWidth={1.5}
+          <svg
+            className="pointer-events-none absolute left-0 top-0"
+            style={{ transform: matrix, transformOrigin: '0 0', width: `${widthPt}px`, height: `${heightPt}px` }}
+            viewBox={`0 0 ${widthPt} ${heightPt}`}
+            aria-hidden="true"
+          >
+            {/* Segmented boundaries stay in review until the engineer acts. */}
+            {layers.components &&
+              segmentedPolygons.map((sp) => (
+                <g key={sp.id} className="animate-fade-in">
+                  <polygon
+                    points={sp.points.map(([x, y]) => `${x},${y}`).join(' ')}
+                    fill="rgba(16, 185, 129, 0.18)"
+                    stroke="#10B981"
+                    strokeWidth={2}
+                    strokeDasharray="4 2"
                   />
-                  <circle
-                    cx={pin.x}
-                    cy={pin.y}
-                    r={8}
-                    className="sonar-ring-delayed stroke-amber-400"
-                    fill="none"
-                    strokeWidth={1}
-                  />
-                </>
-              )}
-
-              {/* Evidence pin pulse ring */}
-              {pin.kind === 'evidence' && (
-                <circle
-                  cx={pin.x}
-                  cy={pin.y}
-                  r={8}
-                  className="sonar-ring stroke-cyan-400"
-                  fill="none"
-                  strokeWidth={1.5}
-                />
-              )}
-
-              {/* Large invisible hit area for Doherty target acquisition */}
-              <circle cx={pin.x} cy={pin.y} r={18} fill="transparent" />
-
-              {/* Pin marker with 2px white stroke ensuring >= 3:1 contrast */}
-              <circle
-                cx={pin.x}
-                cy={pin.y}
-                r={9}
-                fill={pinFill}
-                fillOpacity={0.9}
-                stroke="#ffffff"
-                strokeWidth={2}
-              />
-
-              {displayLabel && (
-                <g transform={`translate(${pin.x + 12}, ${pin.y - 10})`}>
-                  <rect
-                    rx={4}
-                    width={displayLabel.length * 7.5 + 16}
-                    height={18}
-                    fill={isGhost ? '#78350f' : '#083344'}
-                    stroke={isGhost ? '#f59e0b' : '#06b6d4'}
-                    strokeWidth={1}
-                  />
+                  <circle cx={sp.centroid[0]} cy={sp.centroid[1]} r={4} fill="#10B981" />
                   <text
-                    x={8}
-                    y={13}
-                    fill="#ffffff"
-                    fontSize={11}
+                    x={sp.centroid[0] + 8}
+                    y={sp.centroid[1] + 4}
+                    fill="#34D399"
+                    fontSize={13}
                     fontFamily="monospace"
                     fontWeight="bold"
                   >
-                    {displayLabel}
+                    Segment // {sp.areaSqFt ? `${sp.areaSqFt.toFixed(1)} sq ft` : 'Boundary in review'}
+                  </text>
+                </g>
+              ))}
+
+            {/* Extracted vector runs (auto-takeoff linework by system) */}
+            {visibleVectorRuns
+              .filter((run) => run.points.length >= 2)
+              .map((run) => (
+                <g key={run.id} data-system={run.system ?? ''} data-review={run.reviewRequired ? 'true' : undefined}>
+                  <polyline
+                    data-testid="vector-run-halo"
+                    points={run.points.map(([x, y]) => `${x},${y}`).join(' ')}
+                    fill="none"
+                    stroke={OVERLAY_COLORS.halo}
+                    strokeWidth={7}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <polyline
+                    data-testid="vector-run"
+                    data-system={run.system ?? ''}
+                    data-review={run.reviewRequired ? 'true' : undefined}
+                    points={run.points.map(([x, y]) => `${x},${y}`).join(' ')}
+                    fill="none"
+                    stroke={vectorRunColor(run.system)}
+                    strokeWidth={4.5}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    strokeDasharray={vectorRunDash(run.system, run.reviewRequired && layers.review)}
+                    vectorEffect="non-scaling-stroke"
+                    opacity={run.status === 'SUGGESTED' || run.reviewRequired ? 0.95 : 1}
+                  >
+                    {run.label ? <title>{run.label}</title> : null}
+                  </polyline>
+                </g>
+              ))}
+
+            {/* Left margin ghost staging dock */}
+            {layers.ghosts &&
+              pins.some((p) => (p.kind === 'ghost' || p.status === 'UNPLACED_GHOST') && p.x <= 100) && (
+                <g opacity={0.6} className="pointer-events-none select-none">
+                  <rect
+                    x={20}
+                    y={70}
+                    width={80}
+                    height={Math.max(
+                      120,
+                      pins.filter((p) => p.kind === 'ghost' || p.status === 'UNPLACED_GHOST').length * 35 + 40
+                    )}
+                    fill="#0f172a"
+                    fillOpacity={0.6}
+                    stroke="#d97706"
+                    strokeWidth={1.5}
+                    strokeDasharray="4 2"
+                    rx={6}
+                  />
+                  <text x={26} y={88} fill="#d97706" fontSize={8} fontFamily="monospace" fontWeight="bold">
+                    SCHEDULE MATCHES
                   </text>
                 </g>
               )}
-            </g>
-          );
-          })}
-        {/* Symbol-swarm pin layer: system colors + amber review pulse */}
-        <SymbolPinsOverlay
-          pins={pins.filter((p) => p.kind === 'symbol')}
-          onSelectPin={
-            onSelectPin
-              ? (symbolPin) =>
-                  onSelectPin(
-                    pins.find((p) => p.id === symbolPin.id) ?? {
-                      ...symbolPin,
-                      kind: 'symbol' as const,
-                    }
-                  )
-              : undefined
-          }
-        />
 
-        {/* CAD Precision Crosshair Lines */}
-        {cursor && (
-          <g stroke="#22D3EE" strokeWidth={1} opacity={0.6}>
-            <line x1={cursor.page.x} y1={0} x2={cursor.page.x} y2={heightPt} />
-            <line x1={0} y1={cursor.page.y} x2={widthPt} y2={cursor.page.y} />
-          </g>
-        )}
+            {/* Takeoff and ghost pins. Symbol pins render through their own layer. */}
+            {visiblePins
+              .filter((p) => p.kind !== 'symbol')
+              .map((pin) => {
+                const isGhost = pin.kind === 'ghost' || pin.status === 'UNPLACED_GHOST';
+                const isSelected = selectedPinId === pin.id;
+                const displayLabel = pin.label || pin.tag;
+                const pinFill = getPinFill(pin);
 
-        {/* Calibration rubberband (P1 -> live cursor) while awaiting P2 */}
-        {toolMode === 'calibrate' && calP1 && (calPreview || calP2) && calibratePhase === 'AWAITING_P2' && (
-          <g data-testid="calibration-rubberband">
-            <line
-              x1={calP1.x}
-              y1={calP1.y}
-              x2={(calPreview ?? calP2)?.x ?? calP1.x}
-              y2={(calPreview ?? calP2)?.y ?? calP1.y}
-              stroke="#f59e0b"
-              strokeWidth={2}
-              strokeDasharray="6 3"
+                return (
+                  <g
+                    key={pin.id}
+                    data-testid="canvas-pin"
+                    data-discipline={pin.discipline}
+                    data-status={pin.status}
+                    data-ghost={isGhost ? 'true' : undefined}
+                    className="pointer-events-auto cursor-pointer outline-none focus-visible:outline-none"
+                    tabIndex={0}
+                    role="button"
+                    aria-label={displayLabel ? `Pin: ${displayLabel}` : `Pin at ${pin.x.toFixed(0)}, ${pin.y.toFixed(0)}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSelectPin?.(pin);
+                      }
+                    }}
+                    onFocus={() => handlePinMouseEnter(pin)}
+                    onBlur={handlePinMouseLeave}
+                    {...(isGhost ? ({ draggable: true } as Record<string, unknown>) : {})}
+                    onDragStart={(e) => {
+                      draggedGhostIdRef.current = pin.id;
+                      if (e.dataTransfer) {
+                        try {
+                          e.dataTransfer.setData('text/plain', pin.id);
+                        } catch {
+                          // Safe in jsdom
+                        }
+                      }
+                    }}
+                    onMouseEnter={() => handlePinMouseEnter(pin)}
+                    onMouseLeave={handlePinMouseLeave}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectPin?.(pin);
+                    }}
+                  >
+                    {isSelected && (
+                      <circle
+                        cx={pin.x}
+                        cy={pin.y}
+                        r={14}
+                        fill="none"
+                        stroke={OVERLAY_COLORS.selected}
+                        strokeWidth={2}
+                        data-testid="selected-pin-halo"
+                      />
+                    )}
+
+                    {isGhost && (
+                      <>
+                        <circle
+                          cx={pin.x}
+                          cy={pin.y}
+                          r={8}
+                          fill="none"
+                          stroke={OVERLAY_COLORS.ghost}
+                          strokeWidth={2}
+                          vectorEffect="non-scaling-stroke"
+                          data-testid="ghost-pin-ring"
+                        />
+                        <circle
+                          cx={pin.x}
+                          cy={pin.y}
+                          r={8}
+                          fill="none"
+                          stroke={OVERLAY_COLORS.ghost}
+                          strokeWidth={1.5}
+                          strokeDasharray="2 2"
+                          vectorEffect="non-scaling-stroke"
+                          data-testid="ghost-pin-ring-dashed"
+                        />
+                      </>
+                    )}
+
+                    {pin.kind === 'evidence' && (
+                      <circle
+                        cx={pin.x}
+                        cy={pin.y}
+                        r={8}
+                        fill="none"
+                        stroke={OVERLAY_COLORS.evidence}
+                        strokeWidth={2}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    )}
+
+                    {/* Large invisible hit area for target acquisition */}
+                    <circle cx={pin.x} cy={pin.y} r={18} fill="transparent" />
+
+                    <circle
+                      cx={pin.x}
+                      cy={pin.y}
+                      r={9}
+                      fill={pinFill}
+                      fillOpacity={0.9}
+                      stroke={OVERLAY_COLORS.halo}
+                      strokeWidth={2.5}
+                    />
+
+                    {displayLabel && (
+                      <g transform={`translate(${pin.x + 12}, ${pin.y - 10})`}>
+                        <rect
+                          rx={4}
+                          width={displayLabel.length * 7.5 + 16}
+                          height={18}
+                          fill={OVERLAY_COLORS.labelBackground}
+                          stroke={isGhost ? OVERLAY_COLORS.ghost : getPinFill(pin)}
+                          strokeWidth={1}
+                        />
+                        <text
+                          x={8}
+                          y={13}
+                          fill={OVERLAY_COLORS.labelText}
+                          fontSize={11}
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          {displayLabel}
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+
+            <SymbolPinsOverlay
+              pins={visiblePins.filter((p) => p.kind === 'symbol')}
+              reviewEmphasis={layers.review}
+              onSelectPin={
+                onSelectPin
+                  ? (symbolPin) =>
+                      onSelectPin(
+                        pins.find((p) => p.id === symbolPin.id) ?? {
+                          ...symbolPin,
+                          kind: 'symbol' as const,
+                        }
+                      )
+                  : undefined
+              }
             />
-            <circle cx={calP1.x} cy={calP1.y} r={4} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.5} />
-          </g>
-        )}
 
-        {/* Committed calibration ruler overlay (amber dashed + ticks + dimension text) */}
-        {calibrationResult && (
-          <g data-testid="calibration-overlay">
-            <line
-              x1={calibrationResult.p1[0]}
-              y1={calibrationResult.p1[1]}
-              x2={calibrationResult.p2[0]}
-              y2={calibrationResult.p2[1]}
-              stroke="#f59e0b"
-              strokeWidth={2.5}
-              strokeDasharray="8 4"
+            {cursor && (
+              <g stroke={OVERLAY_COLORS.evidence} strokeWidth={1} opacity={0.7}>
+                <line x1={cursor.page.x} y1={0} x2={cursor.page.x} y2={heightPt} />
+                <line x1={0} y1={cursor.page.y} x2={widthPt} y2={cursor.page.y} />
+              </g>
+            )}
+
+            {layers.calibration &&
+              toolMode === 'calibrate' &&
+              calP1 &&
+              (calPreview || calP2) &&
+              calibratePhase === 'AWAITING_P2' && (
+                <g data-testid="calibration-rubberband">
+                  <line
+                    x1={calP1.x}
+                    y1={calP1.y}
+                    x2={(calPreview ?? calP2)?.x ?? calP1.x}
+                    y2={(calPreview ?? calP2)?.y ?? calP1.y}
+                    stroke={OVERLAY_COLORS.calibration}
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
+                  />
+                  <circle
+                    cx={calP1.x}
+                    cy={calP1.y}
+                    r={4}
+                    fill={OVERLAY_COLORS.calibration}
+                    stroke={OVERLAY_COLORS.halo}
+                    strokeWidth={1.5}
+                  />
+                </g>
+              )}
+
+            {layers.calibration && calibrationResult && (
+              <g data-testid="calibration-overlay">
+                <line
+                  x1={calibrationResult.p1[0]}
+                  y1={calibrationResult.p1[1]}
+                  x2={calibrationResult.p2[0]}
+                  y2={calibrationResult.p2[1]}
+                  stroke={OVERLAY_COLORS.calibration}
+                  strokeWidth={2.5}
+                  strokeDasharray="8 4"
+                />
+                {[0, 0.25, 0.5, 0.75, 1].map((t) => {
+                  const tx = calibrationResult.p1[0] + (calibrationResult.p2[0] - calibrationResult.p1[0]) * t;
+                  const ty = calibrationResult.p1[1] + (calibrationResult.p2[1] - calibrationResult.p1[1]) * t;
+                  return (
+                    <circle
+                      key={t}
+                      cx={tx}
+                      cy={ty}
+                      r={2.5}
+                      fill={OVERLAY_COLORS.calibration}
+                      stroke={OVERLAY_COLORS.halo}
+                      strokeWidth={0.75}
+                    />
+                  );
+                })}
+                <text
+                  x={(calibrationResult.p1[0] + calibrationResult.p2[0]) / 2 + 8}
+                  y={(calibrationResult.p1[1] + calibrationResult.p2[1]) / 2 - 8}
+                  fill={OVERLAY_COLORS.calibration}
+                  fontSize={12}
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                >
+                  {calibrationResult.scaleRaw ?? `${calibrationResult.lengthPt.toFixed(1)} pt`}
+                </text>
+              </g>
+            )}
+          </svg>
+
+          {cursor && renderBadge && renderBadge(cursor.screen, [cursor.page.x, cursor.page.y])}
+
+          {hoveredPin && (
+            <PinHoverCard
+              pin={hoveredPin}
+              screenX={pagePointToScreenPoint({ x: hoveredPin.x, y: hoveredPin.y }, transform).x}
+              screenY={pagePointToScreenPoint({ x: hoveredPin.x, y: hoveredPin.y }, transform).y}
+              onSelect={onSelectPin}
+              onPlaceOnCanvas={onPlaceGhostPin ? (p) => onPlaceGhostPin(p.id, [p.x, p.y]) : undefined}
             />
-            {[0, 0.25, 0.5, 0.75, 1].map((t) => {
-              const tx = calibrationResult.p1[0] + (calibrationResult.p2[0] - calibrationResult.p1[0]) * t;
-              const ty = calibrationResult.p1[1] + (calibrationResult.p2[1] - calibrationResult.p1[1]) * t;
-              return <circle key={t} cx={tx} cy={ty} r={2.5} fill="#f59e0b" />;
-            })}
-            <text
-              x={(calibrationResult.p1[0] + calibrationResult.p2[0]) / 2 + 8}
-              y={(calibrationResult.p1[1] + calibrationResult.p2[1]) / 2 - 8}
-              fill="#fbbf24"
-              fontSize={12}
-              fontFamily="monospace"
-              fontWeight="bold"
-            >
-              {calibrationResult.scaleRaw ?? `${calibrationResult.lengthPt.toFixed(1)} pt`}
-            </text>
-          </g>
+          )}
+        </div>
+
+        {layersOpen && (
+          <div className="absolute right-2 top-2 z-40">
+            <LayerControls
+              visibility={layers}
+              counts={layerCounts}
+              systems={layers.vector ? layerSystems : []}
+              scaleStatus={scaleStatus ?? 'UNVERIFIED'}
+              scaleRatio={scaleRatio ?? null}
+              totalRuns={vectorRuns.length}
+              totalLengthFt={totalLengthFt}
+              onToggle={(key) => setLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
+              onReset={() => setLayers(DEFAULT_LAYER_VISIBILITY)}
+              onClose={() => setLayersOpen(false)}
+            />
+          </div>
         )}
-      </svg>
-
-      {/* Calibrate phase status chip */}
-      {toolMode === 'calibrate' && (
-        <div
-          data-testid="calibrate-status"
-          className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-lg bg-amber-950/90 border border-amber-500/40 text-amber-200 text-[11px] font-mono"
-        >
-          {calibratePhase === 'AWAITING_P1' && 'CALIBRATE: click first point (P1) — Shift snaps 0/45/90°'}
-          {calibratePhase === 'AWAITING_P2' && 'CALIBRATE: click second point (P2) — Shift snaps 0/45/90° — Esc cancels'}
-          {calibratePhase === 'INPUT_MODAL_OPEN' && 'CALIBRATE: enter real-world distance — Esc cancels'}
-          {calibratePhase === 'IDLE' && 'CALIBRATE: ready'}
-        </div>
-      )}
-
-      {/* Committed-points modal placeholder (real CalibrationModal is hosted by the workspace) */}
-      {calibratePhase === 'INPUT_MODAL_OPEN' && calP1 && calP2 && (
-        <div
-          data-testid="calibration-input-modal"
-          className="absolute top-28 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-lg bg-slate-900/95 border border-amber-500/40 text-amber-100 text-[11px] font-mono"
-        >
-          P1 [{calP1.x.toFixed(1)}, {calP1.y.toFixed(1)}] → P2 [{calP2.x.toFixed(1)}, {calP2.y.toFixed(1)}]
-        </div>
-      )}
-
-      {/* Emerald calibrated badge once the sheet scale is CALIBRATED */}
-      {scaleStatus === 'CALIBRATED' && (
-        <div
-          data-testid="calibrated-badge"
-          className="absolute top-3 left-3 z-30 flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-[11px] font-mono font-semibold"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-          <span>CALIBRATED{calibrationResult?.scaleRaw ? ` // ${calibrationResult.scaleRaw}` : ''}</span>
-        </div>
-      )}
-
-      {/* Compass Bearing & Orientation Dial (Stitch Screen 3 & 4) */}
-      <div
-        className="absolute right-3 bottom-3 z-30 hidden sm:flex items-center gap-2.5 bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-xl px-2.5 py-1.5 text-[10px] font-mono select-none shadow-lg"
-        data-purpose="orientation-controls"
-      >
-        <div className="relative w-7 h-7 rounded-full border border-slate-700 flex items-center justify-center bg-slate-950">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-full h-px bg-slate-800" />
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center rotate-90">
-            <div className="w-full h-px bg-slate-800" />
-          </div>
-          <div className="w-0.5 h-2.5 bg-cyan-400 -translate-y-1 transform origin-bottom" />
-          <div className="w-1 h-1 rounded-full bg-cyan-400" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-slate-200 font-bold">315.0° N</span>
-          <span className="text-[9px] text-slate-300">ROT: LOCKED</span>
-        </div>
       </div>
 
-      {/* Bottom Status & Coordinate Telemetry */}
-      <div className="absolute bottom-2 left-2 z-30 text-[10px] font-mono text-slate-300 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-md border border-slate-800 flex items-center space-x-3 select-none">
-        <span className="flex items-center space-x-1.5 text-cyan-400 font-semibold">
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-          <span>TOOL: {toolMode.toUpperCase()}</span>
+      {/* Reserved status strip: selected tool, state and a live legend. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-bt-border-subtle bg-bt-surface px-3 py-1.5 text-xs">
+        <span className="flex min-w-0 max-w-md items-center gap-1.5">
+          <span className="shrink-0 font-medium text-bt-text-primary">{activeTool.label}</span>
+          <span className="truncate text-bt-text-tertiary">{activeTool.hint}</span>
         </span>
-        <span className="text-slate-500">|</span>
-        <span>
+
+        {toolMode === 'calibrate' && (
+          <span
+            data-testid="calibrate-status"
+            role="status"
+            className="rounded border border-amber-500/40 bg-amber-950/70 px-2 py-0.5 font-medium text-amber-200"
+          >
+            {calibratePhase === 'AWAITING_P1' && 'CALIBRATE: click first point (P1) — Shift snaps 0/45/90°'}
+            {calibratePhase === 'AWAITING_P2' && 'CALIBRATE: click second point (P2) — Shift snaps 0/45/90° — Esc cancels'}
+            {calibratePhase === 'INPUT_MODAL_OPEN' && 'CALIBRATE: enter real-world distance — Esc cancels'}
+            {calibratePhase === 'IDLE' && 'CALIBRATE: ready'}
+          </span>
+        )}
+
+        {calibratePhase === 'INPUT_MODAL_OPEN' && calP1 && calP2 && (
+          <span
+            data-testid="calibration-input-modal"
+            className="rounded border border-amber-500/40 bg-bt-surface/95 px-2 py-0.5 font-mono text-amber-100"
+          >
+            P1 [{calP1.x.toFixed(1)}, {calP1.y.toFixed(1)}] → P2 [{calP2.x.toFixed(1)}, {calP2.y.toFixed(1)}]
+          </span>
+        )}
+
+        <span className="ml-auto shrink-0 font-mono tabular-nums text-bt-text-tertiary">
           {cursor
             ? `PDF ${cursor.page.x.toFixed(1)}, ${cursor.page.y.toFixed(1)} pt`
-            : `${(transform.scale * 100).toFixed(0)}% zoom`}
+            : 'Pointer off sheet'}
         </span>
-        <span className="text-slate-500">|</span>
-        <span className="text-slate-300">
-          {toolMode === 'segment'
-            ? 'Click equipment boundary to segment with SAM 3.1'
-            : 'Hover / [Q] dimension · [H] pan · [0] fit'}
-        </span>
+
+        <div
+          data-testid="overlay-color-legend"
+          aria-label="Drawing overlay color key"
+          className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-t border-bt-divider pt-1.5"
+        >
+          <span className="text-xs font-medium text-bt-text-tertiary">
+            Overlay key
+          </span>
+          {legendSystems.map((entry) => (
+            <span key={entry.label} className="inline-flex items-center gap-1 text-bt-text-primary">
+              <svg className="h-2 w-6 shrink-0 overflow-visible" viewBox="0 0 24 8" aria-hidden="true">
+                <line x1="0" y1="4" x2="24" y2="4" stroke={entry.color} strokeWidth="3" strokeDasharray={entry.dash} strokeLinecap="butt" />
+              </svg>
+              <span>{entry.label}</span>
+              {entry.count > 0 ? (
+                <span className="font-mono tabular-nums text-bt-text-tertiary">{entry.count}</span>
+              ) : null}
+            </span>
+          ))}
+          {layers.components && (
+            <span className="inline-flex items-center gap-1 text-bt-text-primary">
+              <span
+                className="h-3 w-3 shrink-0 border-2"
+                style={{ borderColor: OVERLAY_COLORS.supply, backgroundColor: `${OVERLAY_COLORS.supply}2E` }}
+                aria-hidden="true"
+              />
+              <span>Detected symbol</span>
+            </span>
+          )}
+          {layers.ghosts && (
+            <span className="inline-flex items-center gap-1 text-bt-text-primary">
+              <span
+                className="h-3 w-3 shrink-0 border border-dashed"
+                style={{ borderColor: OVERLAY_COLORS.ghost }}
+                aria-hidden="true"
+              />
+              <span>Ghost / review</span>
+            </span>
+          )}
+          {legendIsEmpty && <span className="text-bt-text-tertiary">No overlay layers are visible.</span>}
+        </div>
       </div>
-
-      {cursor && renderBadge && renderBadge(cursor.screen, [cursor.page.x, cursor.page.y])}
-
-      {/* Instant Doherty HUD Pin Hover Card */}
-      {hoveredPin && (
-        <PinHoverCard
-          pin={hoveredPin}
-          screenX={pagePointToScreenPoint({ x: hoveredPin.x, y: hoveredPin.y }, transform).x}
-          screenY={pagePointToScreenPoint({ x: hoveredPin.x, y: hoveredPin.y }, transform).y}
-          onSelect={onSelectPin}
-          onPlaceOnCanvas={onPlaceGhostPin ? (p) => onPlaceGhostPin(p.id, [p.x, p.y]) : undefined}
-        />
-      )}
     </div>
   );
 };

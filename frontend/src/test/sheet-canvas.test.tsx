@@ -71,6 +71,8 @@ describe('SheetCanvas hover-to-crop', () => {
     primeLoadedImage(container);
     const canvas = screen.getByTestId('sheet-canvas');
 
+    // Hover-to-crop only runs in QuickDraw, so activate it first.
+    fireEvent.click(screen.getByRole('button', { name: 'QuickDraw (Q)' }));
     fireEvent.mouseMove(canvas, { clientX: 120, clientY: 90 });
     expect(onCropRequest).not.toHaveBeenCalled();
     vi.advanceTimersByTime(500);
@@ -82,7 +84,7 @@ describe('SheetCanvas hover-to-crop', () => {
     expect(cursorPt[1]).toBeGreaterThanOrEqual(0);
   });
 
-  it('renders vector runs in system colors with airflow animation', () => {
+  it('renders static vector routes with system colors and review state', () => {
     const { container } = render(
       <SheetCanvas
         imageUrl="/api/page-image?x=1"
@@ -91,7 +93,7 @@ describe('SheetCanvas hover-to-crop', () => {
         pins={[]}
         vectorRuns={[
           { id: 'r1', points: [[10, 10], [200, 10]], system: 'Supply Air', status: 'ACCEPTED' },
-          { id: 'r2', points: [[10, 40], [200, 40]], system: 'Return Air', status: 'SUGGESTED' },
+          { id: 'r2', points: [[10, 40], [200, 40]], system: 'Return Air', status: 'SUGGESTED', reviewRequired: true },
           { id: 'r3', points: [[10, 70], [200, 70]], system: 'Exhaust Air', status: 'SUGGESTED' },
         ]}
         cropEnabled={false}
@@ -100,10 +102,59 @@ describe('SheetCanvas hover-to-crop', () => {
     );
     const runs = container.querySelectorAll('[data-testid="vector-run"]');
     expect(runs).toHaveLength(3);
-    expect(runs[0].getAttribute('stroke')).toBe('#0284c7');
-    expect(runs[1].getAttribute('stroke')).toBe('#16a34a');
-    expect(runs[2].getAttribute('stroke')).toBe('#d97706');
-    expect(runs[0].getAttribute('class')).toContain('animate-duct-flow');
+    expect(runs[0].getAttribute('stroke')).toBe('#2468A8');
+    expect(runs[1].getAttribute('stroke')).toBe('#2468A8');
+    expect(runs[2].getAttribute('stroke')).toBe('#2468A8');
+    expect(runs[1].getAttribute('stroke-dasharray')).toBe('5 3');
+    expect(container.querySelectorAll('[data-testid="vector-run-halo"]')).toHaveLength(3);
+    expect(runs[0].getAttribute('stroke-dasharray')).toBeNull();
+  });
+
+  it('uses distinct engineering disciplines and scale-up-safe line patterns', () => {
+    const { container } = render(
+      <SheetCanvas
+        imageUrl="/api/page-image?x=1"
+        widthPt={3024}
+        heightPt={2160}
+        pins={[]}
+        vectorRuns={[
+          { id: 'mechanical', points: [[10, 10], [200, 10]], system: 'Supply Air' },
+          { id: 'electrical', points: [[10, 40], [200, 40]], system: 'Electrical Lighting' },
+          { id: 'plumbing', points: [[10, 70], [200, 70]], system: 'Domestic Cold Water' },
+        ]}
+        cropEnabled={false}
+        onCropRequest={() => {}}
+      />
+    );
+    const runs = container.querySelectorAll('[data-testid="vector-run"]');
+    expect(runs[0].getAttribute('stroke')).toBe('#2468A8');
+    expect(runs[0].getAttribute('stroke-dasharray')).toBeNull();
+    expect(runs[1].getAttribute('stroke')).toBe('#A45214');
+    expect(runs[1].getAttribute('stroke-dasharray')).toBe('8 4');
+    expect(runs[2].getAttribute('stroke')).toBe('#087668');
+    expect(runs[2].getAttribute('stroke-dasharray')).toBe('10 3 2 3');
+    expect(runs[0].getAttribute('class')).toBeNull();
+  });
+
+  it('shows a color key once the sheet image is visible', () => {
+    const { container } = render(
+      <SheetCanvas
+        imageUrl="/api/page-image?x=1"
+        widthPt={3024}
+        heightPt={2160}
+        pins={[]}
+        cropEnabled={false}
+        onCropRequest={() => {}}
+      />
+    );
+    const image = container.querySelector('img');
+    if (!image) throw new Error('Sheet image was not rendered');
+    fireEvent.load(image);
+    expect(screen.getByTestId('overlay-color-legend')).toHaveTextContent('Mechanical');
+    expect(screen.getByTestId('overlay-color-legend')).toHaveTextContent('Electrical');
+    expect(screen.getByTestId('overlay-color-legend')).toHaveTextContent('Plumbing');
+    expect(screen.getByTestId('overlay-color-legend')).toHaveTextContent('Detected symbol');
+    expect(screen.getByTestId('overlay-color-legend')).toHaveTextContent('Ghost / review');
   });
 
   it('renders pins as labeled markers', () => {
@@ -148,7 +199,7 @@ describe('SheetCanvas calibrate_state_machine', () => {
     const canvas = screen.getByTestId('sheet-canvas');
 
     // Enter calibrate mode via toolbar button.
-    fireEvent.click(screen.getByTitle('Scale Calibration Ruler [C]'));
+    fireEvent.click(screen.getByRole('button', { name: 'Calibrate (C)' }));
     expect(screen.getByTestId('calibrate-status')).toHaveTextContent('click first point');
 
     // First canvas click locks P1 -> AWAITING_P2 with rubberband.
@@ -208,7 +259,7 @@ describe('SheetCanvas calibration_overlay', () => {
     );
     const overlay = container.querySelector('[data-testid="calibration-overlay"]');
     expect(overlay).toBeInTheDocument();
-    expect(overlay?.querySelector('line')?.getAttribute('stroke')).toBe('#f59e0b');
+    expect(overlay?.querySelector('line')?.getAttribute('stroke')).toBe('#B45309');
     expect(overlay?.querySelector('line')?.getAttribute('stroke-dasharray')).toContain('8');
     expect(overlay?.textContent).toContain('1/4');
     const badge = screen.getByTestId('calibrated-badge');

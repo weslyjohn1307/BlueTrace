@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, X, Sparkles, AlertTriangle, Clock } from 'lucide-react';
+import { Check, X, ScanSearch, AlertTriangle, Clock } from 'lucide-react';
 
 export interface HoverBadgeProps {
   x: number;
@@ -34,22 +34,22 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
         className={`px-3 py-2 rounded-xl shadow-[0_12px_36px_rgba(0,0,0,0.6)] backdrop-blur-md border text-xs flex items-center space-x-2.5 transition-all ${
           reviewRequired
             ? 'bg-amber-950/95 border-amber-500/60 text-amber-200 ring-1 ring-amber-500/30'
-            : 'bg-slate-900/95 border-cyan-500/50 text-slate-100 ring-1 ring-cyan-500/20'
+            : 'bg-bt-surface/95 border-cyan-500/50 text-bt-text-primary ring-1 ring-cyan-500/20'
         }`}
       >
         <div className="flex items-center space-x-1.5">
           {reviewRequired ? (
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
           ) : (
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <ScanSearch className="w-3.5 h-3.5 text-bt-info shrink-0" />
           )}
           <span className="font-semibold tracking-wide font-mono text-xs">
             {detectedText || (reviewRequired ? 'Scale Review Required' : 'Dimensioning…')}
           </span>
         </div>
 
-        <div className="flex items-center space-x-1 text-[10px] opacity-75 font-mono border-l border-slate-700/80 pl-2">
-          <Clock className="w-2.5 h-2.5 text-slate-400" />
+        <div className="flex items-center space-x-1 text-[10px] opacity-75 font-mono border-l border-bt-border-strong/80 pl-2">
+          <Clock className="w-2.5 h-2.5 text-bt-text-secondary" />
           <span>{latencyMs}ms</span>
         </div>
 
@@ -59,7 +59,7 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
           </span>
         )}
 
-        <div className="flex items-center space-x-1.5 pl-2 border-l border-slate-700/80">
+        <div className="flex items-center space-x-1.5 pl-2 border-l border-bt-border-strong/80">
           {onAccept && (
             <button
               type="button"
@@ -67,7 +67,7 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
                 e.stopPropagation();
                 onAccept();
               }}
-              className="flex items-center space-x-1 px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-[10px] transition-colors cursor-pointer shadow-xs"
+              className="flex items-center space-x-1 px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-bt-on-brand font-mono text-[10px] transition-colors cursor-pointer shadow-xs"
               title="Accept Dimension [Enter]"
               aria-label="Accept"
             >
@@ -82,7 +82,7 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
                 e.stopPropagation();
                 onReject();
               }}
-              className="p-1 rounded-md bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="p-1 rounded-md bg-bt-panel hover:bg-rose-600 text-bt-text-secondary hover:text-bt-on-brand transition-colors cursor-pointer"
               title="Dismiss [Esc]"
               aria-label="Reject"
             >
@@ -96,7 +96,7 @@ export const HoverBadge: React.FC<HoverBadgeProps> = ({
                 e.stopPropagation();
                 onClose();
               }}
-              className="p-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1 rounded-md hover:bg-bt-panel text-bt-text-secondary hover:text-bt-on-brand transition-colors cursor-pointer"
               aria-label="Close"
             >
               <X className="w-3 h-3" />

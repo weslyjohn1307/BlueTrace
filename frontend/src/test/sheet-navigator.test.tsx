@@ -10,7 +10,8 @@ vi.mock('../api/client', () => ({
     getHealth: vi.fn(),
     uploadDrawing: vi.fn(),
     scanSheet: vi.fn(),
-    scanAllSheets: vi.fn(),
+    startAgentJob: vi.fn(),
+    streamAgentJobEvents: vi.fn(),
     getPageImageUrl: vi.fn(
       (pdfPath: string, pageIndex = 0, dpi = 150) =>
         `/api/page-image?pdf=${encodeURIComponent(pdfPath)}&p=${pageIndex}&d=${dpi}`
@@ -76,7 +77,7 @@ describe('SheetNavigator', () => {
     );
     expect(screen.getByText('MECHANICAL')).toBeInTheDocument();
     expect(screen.getByText('PLUMBING')).toBeInTheDocument();
-    expect(screen.getByText('Review Required')).toBeInTheDocument();
+    expect(screen.getByText('Scale unverified')).toBeInTheDocument();
     expect(screen.getByText('1/8" = 1\'-0"')).toBeInTheDocument();
   });
 
@@ -117,14 +118,35 @@ describe('SheetNavigator', () => {
 
   it('click sets activeSheetId through useTakeoffSession.selectSheet', async () => {
     const sheets = [makeSheet(0), makeSheet(1)];
-    mocked.scanAllSheets.mockResolvedValue({
-      pdf_path: 'data/uploads/set.pdf',
+    const orchestrationResult = {
       project_id: 'set',
-      total_pages: 2,
-      sheets: sheets.map((s) => s.meta),
-      takeoff: [],
-      errors: [],
-    } as never);
+      job_id: 'run-1',
+      sheets_processed: 2,
+      document_map: { sheets: sheets.map((s) => s.meta) },
+      routes: [],
+      flags: [],
+    };
+    mocked.startAgentJob.mockResolvedValue({ job_id: 'job-1', project_id: 'set', status: 'running' } as never);
+    mocked.streamAgentJobEvents.mockImplementation(async (_jobId, onEvent) => {
+      for (const sheet of sheets) {
+        onEvent({
+          event_type: 'sheet_classified',
+          agent_id: '00-orchestrator',
+          message: 'Classified',
+          page_index: sheet.pageIndex,
+          payload: { sheet_metadata: sheet.meta },
+        } as never);
+      }
+      const complete = {
+        event_type: 'complete',
+        job_terminal: true,
+        agent_id: 'agent_00_orchestrator',
+        message: 'Complete',
+        payload: { document_map: { ...orchestrationResult.document_map, routes: [] } },
+      } as never;
+      onEvent(complete);
+      return complete;
+    });
 
     const { result } = renderHook(() => useTakeoffSession());
     await act(async () => {
@@ -156,7 +178,7 @@ describe('SheetNavigator', () => {
         projectId="set"
       />
     );
-    const images = screen.getAllByAltText('Thumbnail of M-100');
+    const images = screen.getAllByAltText('Preview of M-100');
     expect(images).toHaveLength(1);
     expect(images[0].getAttribute('src')).toBe('/api/thumbnails/set/p0.webp');
 
@@ -175,7 +197,7 @@ describe('SheetNavigator', () => {
     render(
       <SheetNavigator sheets={sheets} activeSheetId="sheet_0" onSelectSheet={() => {}} />
     );
-    const img = screen.getByAltText('Thumbnail of M-100');
+    const img = screen.getByAltText('Preview of M-100');
     expect(img.getAttribute('src')).toContain('/api/page-image?');
 
     // With no fallback configured, one error goes straight to the placeholder.
@@ -189,7 +211,7 @@ describe('SheetNavigator', () => {
       <SheetNavigator sheets={sheets} activeSheetId="sheet_0" onSelectSheet={() => {}} />
     );
     expect(screen.getByTestId('thumbnail-skeleton')).toBeInTheDocument();
-    fireEvent.load(screen.getByAltText('Thumbnail of M-100'));
+    fireEvent.load(screen.getByAltText('Preview of M-100'));
     expect(screen.queryByTestId('thumbnail-skeleton')).not.toBeInTheDocument();
   });
 });

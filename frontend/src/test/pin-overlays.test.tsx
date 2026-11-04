@@ -73,21 +73,21 @@ describe('SheetCanvas Pin Overlays & Discipline Colors', () => {
     const pinElements = container.querySelectorAll('[data-testid="canvas-pin"]');
     expect(pinElements).toHaveLength(4);
 
-    // Supply Air -> Blue (#0284c7)
+    // Supply Air -> deep blue
     expect(pinElements[0].getAttribute('data-discipline')).toBe('Supply');
-    expect(pinElements[0].querySelector('circle[stroke="#ffffff"]')?.getAttribute('fill')).toBe('#0284c7');
+    expect(pinElements[0].querySelector('circle[stroke="#FFFFFF"]')?.getAttribute('fill')).toBe('#2468A8');
 
-    // Return Air -> Green (#16a34a)
+    // Return Air -> deep blue
     expect(pinElements[1].getAttribute('data-discipline')).toBe('Return');
-    expect(pinElements[1].querySelector('circle[stroke="#ffffff"]')?.getAttribute('fill')).toBe('#16a34a');
+    expect(pinElements[1].querySelector('circle[stroke="#FFFFFF"]')?.getAttribute('fill')).toBe('#2468A8');
 
-    // Exhaust Air -> Amber (#d97706)
+    // Exhaust Air -> deep blue
     expect(pinElements[2].getAttribute('data-discipline')).toBe('Exhaust');
-    expect(pinElements[2].querySelector('circle[stroke="#ffffff"]')?.getAttribute('fill')).toBe('#d97706');
+    expect(pinElements[2].querySelector('circle[stroke="#FFFFFF"]')?.getAttribute('fill')).toBe('#2468A8');
 
-    // Fire Life Safety -> Red (#dc2626)
+    // Fire Life Safety -> semantic fire red
     expect(pinElements[3].getAttribute('data-discipline')).toBe('Fire Life Safety');
-    expect(pinElements[3].querySelector('circle[stroke="#ffffff"]')?.getAttribute('fill')).toBe('#dc2626');
+    expect(pinElements[3].querySelector('circle[stroke="#FFFFFF"]')?.getAttribute('fill')).toBe('#B3313D');
   });
 
   it('renders reconciliation status indicators on pins', () => {
@@ -169,8 +169,8 @@ describe('Ghost Pin Margin Staging & Radar Ring', () => {
     expect(ghostPins[2].y).toBe(170);
   });
 
-  it('renders amber sonar radar pulse rings for ghost pins', () => {
-    const { container } = render(
+  it('renders static amber rings for unmatched ghost pins', () => {
+    render(
       <SheetCanvas
         imageUrl="/api/page-image?x=1"
         widthPt={3024}
@@ -181,11 +181,11 @@ describe('Ghost Pin Margin Staging & Radar Ring', () => {
       />
     );
 
-    const ring = container.querySelector('.sonar-ring');
-    const ringDelayed = container.querySelector('.sonar-ring-delayed');
-    expect(ring).toBeInTheDocument();
-    expect(ring?.getAttribute('class')).toContain('stroke-amber-400');
-    expect(ringDelayed).toBeInTheDocument();
+    const ring = screen.getByTestId('ghost-pin-ring');
+    const ringDelayed = screen.getByTestId('ghost-pin-ring-dashed');
+    expect(ring.getAttribute('stroke')).toBe('#B45309');
+    expect(ring.getAttribute('class') ?? '').not.toContain('sonar');
+    expect(ringDelayed.getAttribute('stroke-dasharray')).toBe('2 2');
   });
 
   it('fires onPlaceGhostPin with translated 2D affine PDF coordinates on drop', () => {

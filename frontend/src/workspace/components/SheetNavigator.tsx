@@ -48,14 +48,14 @@ export const SheetNavigator: React.FC<SheetNavigatorProps> = ({
   const canNext = start + windowSize < sheets.length;
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 text-slate-200" data-testid="sheet-navigator">
-      <div className="p-2 border-b border-slate-800 flex items-center justify-between">
+    <div className="flex min-w-0 flex-col h-full overflow-x-hidden bg-bt-surface text-bt-text-primary" data-testid="sheet-navigator">
+      <div className="p-2 border-b border-bt-border-subtle flex items-center justify-between">
         <div className="flex items-center space-x-1.5">
-          <LayoutGrid className="w-3.5 h-3.5 text-cyan-400" />
-          <span className="font-semibold text-slate-100 uppercase tracking-wider text-[11px] font-mono">
+          <LayoutGrid className="w-4 h-4 text-bt-brand" />
+          <span className="font-semibold text-bt-text-primary uppercase tracking-wider text-[11px] font-mono">
             Sheets
           </span>
-          <span className="text-[10px] font-mono text-slate-400">
+          <span className="text-[10px] font-mono text-bt-text-secondary">
             {sheets.length === 0 ? '0' : `${start + 1}–${start + visible.length} of ${sheets.length}`}
           </span>
         </div>
@@ -66,7 +66,7 @@ export const SheetNavigator: React.FC<SheetNavigatorProps> = ({
               aria-label="Previous sheets"
               disabled={!canPrev}
               onClick={() => setWindowStart((s) => Math.max(0, s - windowSize))}
-              className="inline-flex items-center justify-center min-w-10 min-h-10 rounded text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+              className="inline-flex items-center justify-center min-w-10 min-h-10 rounded text-bt-text-secondary hover:bg-bt-panel hover:text-bt-on-brand disabled:opacity-30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -77,16 +77,16 @@ export const SheetNavigator: React.FC<SheetNavigatorProps> = ({
               onClick={() =>
                 setWindowStart((s) => Math.min(Math.max(0, sheets.length - windowSize), s + windowSize))
               }
-              className="inline-flex items-center justify-center min-w-10 min-h-10 rounded text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+              className="inline-flex items-center justify-center min-w-10 min-h-10 rounded text-bt-text-secondary hover:bg-bt-panel hover:text-bt-on-brand disabled:opacity-30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-2">
+      <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 space-y-2">
         {sheets.length === 0 ? (
-          <div className="p-6 text-center text-slate-500 font-mono italic text-[11px]">
+          <div className="p-6 text-center text-bt-text-tertiary font-mono italic text-[11px]">
             No sheets indexed yet.
           </div>
         ) : (

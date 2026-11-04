@@ -17,7 +17,7 @@ export const BlueprintRadarLoader: React.FC<BlueprintRadarLoaderProps> = ({
     <div className="flex flex-col items-center justify-center p-6 space-y-4 select-none">
       {/* Radar Disc Container */}
       <div
-        className={`relative ${dimensionClass} rounded-full overflow-hidden border border-cyan-500/30 bg-slate-950/80 shadow-[0_0_25px_rgba(14,165,233,0.15)] flex items-center justify-center`}
+        className={`relative ${dimensionClass} rounded-full overflow-hidden border border-cyan-500/30 bg-bt-inset/80 shadow-[0_0_25px_rgba(14,165,233,0.15)] flex items-center justify-center`}
       >
         {/* Concentric Range Rings */}
         <div className="absolute w-3/4 h-3/4 rounded-full border border-cyan-500/20" />
@@ -50,7 +50,7 @@ export const BlueprintRadarLoader: React.FC<BlueprintRadarLoaderProps> = ({
           <span>{label}</span>
         </div>
         {sublabel && (
-          <p className="text-[11px] text-slate-400 font-mono tracking-tight">{sublabel}</p>
+          <p className="text-[11px] text-bt-text-secondary font-mono tracking-tight">{sublabel}</p>
         )}
       </div>
     </div>

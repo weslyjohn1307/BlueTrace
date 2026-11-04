@@ -26,7 +26,7 @@ export const PinHoverCard: React.FC<PinHoverCardProps> = ({
 
   // Determine status color styling
   const status = pin.status || (pin.kind === 'ghost' ? 'UNPLACED_GHOST' : 'MATCHED');
-  let statusBadgeStyle = 'bg-slate-800 text-slate-300 border-slate-700';
+  let statusBadgeStyle = 'bg-bt-panel text-bt-text-secondary border-bt-border-strong';
   if (status === 'MATCHED') {
     statusBadgeStyle = 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40';
   } else if (status === 'UNDERCOUNT') {
@@ -46,17 +46,17 @@ export const PinHoverCard: React.FC<PinHoverCardProps> = ({
     <div
       data-testid="pin-hover-card"
       role="tooltip"
-      className="absolute z-50 pointer-events-auto w-[260px] rounded-xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md p-3 select-none text-xs transition-opacity duration-150 animate-fade-in"
+      className="absolute z-50 pointer-events-auto w-[260px] rounded-xl bg-bt-surface/95 border border-bt-border-strong/80 shadow-2xl backdrop-blur-md p-3 select-none text-xs transition-opacity duration-150 animate-fade-in"
       style={{ left: `${left}px`, top: `${top}px` }}
     >
       {/* Header: Tag + Status badge */}
-      <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+      <div className="flex items-center justify-between pb-1.5 border-b border-bt-border-subtle">
         <div className="flex items-center space-x-1.5 truncate">
           <span
             className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
             style={{ backgroundColor: disciplineColor }}
           />
-          <span className="font-mono font-bold text-slate-100 text-sm tracking-wide truncate">
+          <span className="font-mono font-bold text-bt-text-primary text-sm tracking-wide truncate">
             {tag}
           </span>
         </div>
@@ -69,12 +69,12 @@ export const PinHoverCard: React.FC<PinHoverCardProps> = ({
 
       {/* Equipment Type & Trade */}
       <div className="pt-1.5 pb-2 space-y-1">
-        <p className="text-slate-300 font-medium leading-tight truncate">{equipmentType}</p>
-        <div className="flex items-center space-x-2 text-[11px] text-slate-400">
+        <p className="text-bt-text-secondary font-medium leading-tight truncate">{equipmentType}</p>
+        <div className="flex items-center space-x-2 text-[11px] text-bt-text-secondary">
           <span className="capitalize">{pin.discipline || pin.system || 'Mechanical'}</span>
           {cfm && (
             <>
-              <span className="text-slate-600">•</span>
+              <span className="text-bt-text-tertiary">•</span>
               <span className="font-mono font-semibold text-cyan-300">{cfm}</span>
             </>
           )}
@@ -82,14 +82,14 @@ export const PinHoverCard: React.FC<PinHoverCardProps> = ({
       </div>
 
       {/* Scheduled vs Plan Qty & Confidence */}
-      <div className="py-1 px-2 rounded-lg bg-slate-950/80 border border-slate-800/80 flex items-center justify-between font-mono text-[11px] tabular-nums">
-        <div className="flex items-center space-x-2 text-slate-400">
+      <div className="py-1 px-2 rounded-lg bg-bt-inset/80 border border-bt-border-subtle/80 flex items-center justify-between font-mono text-[11px] tabular-nums">
+        <div className="flex items-center space-x-2 text-bt-text-secondary">
           <span>
-            Sched: <strong className="text-slate-200">{pin.scheduled_qty ?? '-'}</strong>
+            Sched: <strong className="text-bt-text-primary">{pin.scheduled_qty ?? '-'}</strong>
           </span>
-          <span className="text-slate-700">|</span>
+          <span className="text-bt-text-secondary">|</span>
           <span>
-            Plan: <strong className="text-slate-200">{pin.plan_qty ?? '-'}</strong>
+            Plan: <strong className="text-bt-text-primary">{pin.plan_qty ?? '-'}</strong>
           </span>
         </div>
         {pin.confidence !== undefined && (
@@ -100,7 +100,7 @@ export const PinHoverCard: React.FC<PinHoverCardProps> = ({
       </div>
 
       {/* Coordinate Telemetry */}
-      <div className="pt-2 flex items-center justify-between text-[10px] font-mono text-slate-500">
+      <div className="pt-2 flex items-center justify-between text-[10px] font-mono text-bt-text-tertiary">
         <span>
           [{pin.x.toFixed(1)}, {pin.y.toFixed(1)}] pt
         </span>
@@ -114,7 +114,7 @@ export const PinHoverCard: React.FC<PinHoverCardProps> = ({
 
       {/* Action Buttons if callbacks provided */}
       {(onPlaceOnCanvas || onSelect || onDismiss) && (
-        <div className="pt-2 mt-1.5 border-t border-slate-800 flex items-center gap-1.5">
+        <div className="pt-2 mt-1.5 border-t border-bt-border-subtle flex items-center gap-1.5">
           {pin.kind === 'ghost' && onPlaceOnCanvas && (
             <button
               type="button"
@@ -137,7 +137,7 @@ export const PinHoverCard: React.FC<PinHoverCardProps> = ({
             <button
               type="button"
               onClick={() => onDismiss(pin)}
-              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-mono cursor-pointer transition-colors"
+              className="px-2 py-1 rounded bg-bt-panel hover:bg-bt-panel text-bt-text-secondary hover:text-bt-text-primary text-[10px] font-mono cursor-pointer transition-colors"
             >
               Dismiss
             </button>

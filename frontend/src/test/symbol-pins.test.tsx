@@ -16,12 +16,12 @@ const SYMBOL_PINS: SymbolPin[] = [
 
 describe('SymbolPinsOverlay system colors', () => {
   it('maps each system to its SYM-005 spec color', () => {
-    expect(symbolSystemColor('Supply')).toBe('#2563EB');
-    expect(symbolSystemColor('Return Air')).toBe('#16A34A');
-    expect(symbolSystemColor('Exhaust')).toBe('#D97706');
-    expect(symbolSystemColor('Fire Life Safety')).toBe('#DC2626');
-    expect(symbolSystemColor('Mystery')).toBe('#64748B');
-    expect(symbolSystemColor(undefined)).toBe('#64748B');
+    expect(symbolSystemColor('Supply')).toBe('#2468A8');
+    expect(symbolSystemColor('Return Air')).toBe('#2468A8');
+    expect(symbolSystemColor('Exhaust')).toBe('#2468A8');
+    expect(symbolSystemColor('Fire Life Safety')).toBe('#B3313D');
+    expect(symbolSystemColor('Mystery')).toBe('#66717E');
+    expect(symbolSystemColor(undefined)).toBe('#66717E');
   });
 
   it('renders one glyph per pin with matching transformed coordinates', () => {
@@ -43,13 +43,13 @@ describe('SymbolPinsOverlay system colors', () => {
       expect(glyph.getAttribute('cx')).toBe(expected[index][0]);
       expect(glyph.getAttribute('cy')).toBe(expected[index][1]);
     });
-    expect(glyphs[0].getAttribute('fill')).toBe('#2563EB');
-    expect(glyphs[1].getAttribute('fill')).toBe('#16A34A');
-    expect(glyphs[2].getAttribute('fill')).toBe('#D97706');
-    expect(glyphs[3].getAttribute('fill')).toBe('#DC2626');
+    expect(glyphs[0].getAttribute('fill')).toBe('#2468A8');
+    expect(glyphs[1].getAttribute('fill')).toBe('#2468A8');
+    expect(glyphs[2].getAttribute('fill')).toBe('#2468A8');
+    expect(glyphs[3].getAttribute('fill')).toBe('#B3313D');
   });
 
-  it('shows a pulsing amber ring only on review_required pins', () => {
+  it('shows a static amber ring only on review_required pins', () => {
     render(
       <svg>
         <SymbolPinsOverlay pins={SYMBOL_PINS} />
@@ -58,15 +58,26 @@ describe('SymbolPinsOverlay system colors', () => {
     const rings = screen.getAllByTestId('symbol-pin-review-ring');
     expect(rings).toHaveLength(1);
     const ring = rings[0];
-    expect(ring.getAttribute('stroke')).toBe('#F59E0B');
+    expect(ring.getAttribute('stroke')).toBe('#B45309');
     expect(ring.getAttribute('cx')).toBe('780');
     expect(ring.getAttribute('cy')).toBe('840');
-    expect(ring.getAttribute('class')).toContain('animate-pulse');
+    expect(ring.getAttribute('class') ?? '').not.toContain('animate-pulse');
+    expect(ring.getAttribute('class') ?? '').not.toContain('sonar');
 
     const reviewPins = screen.getAllByTestId('symbol-pin');
     expect(reviewPins).toHaveLength(4);
     expect(reviewPins[3].getAttribute('data-review')).toBe('true');
     expect(reviewPins[0].getAttribute('data-review')).toBeNull();
+  });
+
+  it('hides review emphasis without hiding the component itself', () => {
+    render(
+      <svg>
+        <SymbolPinsOverlay pins={SYMBOL_PINS} reviewEmphasis={false} />
+      </svg>
+    );
+    expect(screen.queryAllByTestId('symbol-pin-review-ring')).toHaveLength(0);
+    expect(screen.getAllByTestId('symbol-pin')).toHaveLength(4);
   });
 
   it('forwards pin selection on click', () => {
@@ -79,6 +90,17 @@ describe('SymbolPinsOverlay system colors', () => {
     fireEvent.click(screen.getAllByTestId('symbol-pin')[1]);
     expect(onSelectPin).toHaveBeenCalledTimes(1);
     expect(onSelectPin.mock.calls[0][0]).toMatchObject({ id: 'sym-ret' });
+  });
+
+  it('renders bbox detections with a white halo and a system-colored review box', () => {
+    render(
+      <svg>
+        <SymbolPinsOverlay pins={[{ id: 'sym-bbox', x: 30, y: 40, system: 'Electrical', bbox: [10, 20, 50, 60], reviewRequired: true }]} />
+      </svg>
+    );
+    expect(screen.getByTestId('symbol-detection-halo').getAttribute('stroke')).toBe('#ffffff');
+    expect(screen.getByTestId('symbol-detection-bounds').getAttribute('stroke')).toBe('#A45214');
+    expect(screen.getByTestId('symbol-detection-bounds').getAttribute('stroke-dasharray')).toBe('6 3');
   });
 });
 
@@ -120,7 +142,7 @@ describe('SheetCanvas symbol pin layer wiring', () => {
     const glyph = within(overlay).getByTestId('symbol-pin-glyph');
     expect(glyph.getAttribute('cx')).toBe('500');
     expect(glyph.getAttribute('cy')).toBe('400');
-    expect(glyph.getAttribute('fill')).toBe('#2563EB');
+    expect(glyph.getAttribute('fill')).toBe('#2468A8');
     expect(within(overlay).getByTestId('symbol-pin-review-ring')).toBeTruthy();
     // The generic pin layer still renders the non-symbol pin exactly once.
     expect(screen.getAllByTestId('canvas-pin')).toHaveLength(1);
