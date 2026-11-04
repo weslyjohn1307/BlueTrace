@@ -33,13 +33,14 @@
   <rect x="20" y="20" width="1160" height="640" fill="url(#dot-grid)" rx="8"/>
 
   <!-- Header -->
-  <g transform="translate(60, 55)">
-    <!-- BlueTrace Logo Icon -->
-    <rect width="32" height="32" rx="6" fill="#005BFF"/>
-    <path d="M 8 20 L 16 8 L 24 20 Z" fill="#37C6FF" opacity="0.85"/>
-    <path d="M 12 24 L 20 12 L 24 20 Z" fill="#FFFFFF"/>
-    <text x="44" y="22" class="title">BlueTraceAI Architecture</text>
-    <text x="320" y="22" class="subtitle">|  Hybrid Deterministic Vector Engine + Meta Model Perception</text>
+  <g transform="translate(60, 52)">
+    <!-- Official BlueTrace Geometric Brand Symbol -->
+    <g transform="translate(0, -2) scale(0.18)">
+      <path d="M 6 35 L 58 5 L 118 40 L 118 105 L 91 121 L 91 76 L 58 57 L 6 88 Z" fill="#005BFF"/>
+      <path d="M 6 103 L 34 119 L 34 160 L 118 112 L 118 145 L 34 193 L 6 177 Z" fill="#123A78"/>
+    </g>
+    <text x="32" y="24" class="title">BlueTraceAI Architecture</text>
+    <text x="312" y="24" class="subtitle">|  Hybrid Deterministic Vector Engine + Meta Model Perception</text>
   </g>
 
   <!-- COLUMN 1: INPUT INTAKE -->

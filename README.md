@@ -38,30 +38,33 @@
   <img src="docs/assets/demo-workspace.png" alt="BlueTraceAI — Hardware-Accelerated 150 DPI Engineering CAD Workstation" width="100%">
 </p>
 
-BlueTraceAI is an AI-native takeoff workstation for mechanical, electrical, and plumbing (MEP) estimators. This entry is submitted to the **Meta Global AI Developer Hackathon** for the **Indie Developer** track (**Push the Frontier**). 
+BlueTraceAI is an AI-native takeoff workstation built for mechanical, electrical, and plumbing (MEP) estimators. Submitted to the **Meta Global AI Developer Hackathon** (**Indie Developer Track: Push the Frontier**). 
 
-The platform bridges probabilistic generative vision models and deterministic construction engineering. Estimators routinely spend 30 to 40 hours per commercial project manually measuring ductwork runs and counting diffusers across 50-page blueprint packages. Passing full large-format blueprints into general vision models downsamples text callouts and produces ungrounded, hallucinated measurements. BlueTraceAI enforces a strict **hybrid division of labor**: Meta foundation models interpret visual context and read text at the point of need, while local Python vector geometry calculates exact physical lengths from validated drawing scales.
+Estimators spend 30 to 40 hours per project manually measuring duct runs and counting fixtures across dense blueprints. General vision AI models fail on blueprints because downsampling large-format sheets destroys micro-text callouts, and generative models guess measurements rather than calculating them.
+
+BlueTraceAI solves this through a **hybrid division of labor**:
+- **Meta Foundation Models** interpret visual context and read text callouts at the point of need.
+- **Deterministic Python Geometry** extracts vector paths and calculates exact physical lengths from validated drawing scales.
+- **The Human Estimator** retains complete sovereignty to accept, correct, or reject every quantity.
 
 ---
 
 ## How It Works
 
-Commercial MEP drawing sets combine micro-typography callouts with dense vector linework and frequently mix scales across plan views and enlarged details (for example, a floor plan at $1/8" = 1'-0"$ alongside a mechanical room detail at $1/4" = 1'-0"$ or $1/2" = 1'-0"$). 
-
-BlueTraceAI separates visual interpretation from physical measurement so that every estimated quantity stays traceable to the sheet:
+BlueTraceAI separates visual interpretation from mathematical measurement so every quantity remains grounded in the physical sheet:
 
 <p align="center">
   <img src="docs/assets/architecture-diagram.svg" alt="BlueTraceAI Hybrid System Architecture" width="100%">
 </p>
 
-1. **Batch Intake & Sheet Reconnaissance:** Native PDF text parsing, title block metadata extraction, and discipline classification run across all pages (`POST /api/intake/batch`, `src/core_vector/pipeline.py`, `src/meta_services/sheet_scanner.py`), streaming discovery progress via Server-Sent Events (SSE).
-2. **Point-of-Need Vision at 150 DPI:** Instead of downsampling full sheets, the workspace sends localized $300 \times 300\text{ px}$ crops at 150 DPI, legend regions, and schedule tables to Meta models (`src/meta_services/client.py`, `src/meta_services/legend_scanner.py`) to read text, dimensions, and symbol exemplars.
-3. **Deterministic Vector Linework & Centerline Geometry:** Local Python modules extract vector path segments directly from the PDF graphics state via PyMuPDF (`src/core_vector/extractor.py`), pair parallel duct walls and compute medial-axis centerlines via Shapely (`src/core_vector/centerline.py`), and splice continuous routes and T-junctions via NetworkX (`src/core_vector/continuity.py`). PDF point lengths ($72\text{ pt/in}$, $864\text{ pt/ft}$) convert to physical linear feet only when the sheet scale is verified:
+1. **Intake & Title Block Reconnaissance:** Parses native PDF text, identifies sheet numbers and trade disciplines, and extracts scale candidates (`POST /api/intake/batch`).
+2. **Point-of-Need Vision:** Rather than downsampling full sheets, the workstation sends high-resolution 150 DPI crops ($300 \times 300\text{ px}$) around the cursor to Meta `muse-spark-1.3` to extract duct dimensions, tags, and airflow notes in sub-350ms.
+3. **Deterministic Vector Geometry:** PyMuPDF extracts raw PDF vector paths without rasterization loss; Shapely pairs parallel walls to compute medial-axis centerlines; NetworkX reconstructs duct run continuity. Point lengths convert to linear feet using validated scale ratios:
    $$L_{\text{ft}} = \frac{L_{\text{pt}} \times S_{\text{ratio}}}{864}$$
-4. **Fail-Closed Scale Invariant:** When a sheet has no detected scale or conflicting scale signals, the validator (`src/core_vector/scale_validator.py`) sets `scale_ratio = 0.0` and `review_required = True`. Uncalibrated items remain visible for review and return `HTTP 409 Conflict` if acceptance is attempted before two-point calibration (`PATCH /api/sheets/{sheet_id}/calibration`).
-5. **Human-in-the-Loop Takeoff Ledger:** Every proposed item enters the local SQLite WAL store (`src/store/takeoff_store.py`) as `SUGGESTED`. Estimators inspect items on the canvas, reconcile plan detections against schedule rows, record `ACCEPT`, `CORRECT`, or `REJECT` decisions with structured override reason codes in `review_events`, and export CSV or JSON summaries.
+4. **Fail-Closed Scale Rule:** If a drawing lacks a scale or has conflicting scale callouts, the system flags `scale_ratio = 0.0` and `review_required = True`. Measurements remain safely blocked until two-point calibration is confirmed.
+5. **Human-in-the-Loop Takeoff Ledger:** Proposed items enter a local SQLite store as `SUGGESTED`. Estimators review items on canvas with single-keystroke hotkeys (`A` to accept, `R` to reject, `C` to correct) and export verified CSV bid schedules.
 
-> **Core Principle:** Meta models interpret visual and language context; they never calculate physical lengths. Scale-dependent measurement belongs to local vector geometry and a validated scale ratio. The estimator decides whether a proposed item enters the commercial bid.
+> **Core Invariant:** Meta models interpret visual and language context; they never guess physical lengths. Scale-dependent measurement belongs to local vector geometry. The human estimator decides what enters the commercial bid.
 
 ---
 
@@ -70,32 +73,22 @@ BlueTraceAI separates visual interpretation from physical measurement so that ev
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/assets/demo-visual-hud.png" alt="Point-of-Need Visual HUD & Coordinate Inspection" width="100%">
-      <p><strong>Point-of-Need Visual HUD.</strong> Real-time coordinate inspection, sub-pixel vector alignment, and contextual toolbars across complex mechanical drawing sets.</p>
+      <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="docs/assets/showcase-layers.png" alt="Multi-Discipline Layer Decomposition" width="100%"></a>
+      <p><strong>Multi-Discipline Layer Filtering.</strong> Decompose complex drawing sheets into distinct trade layers: HVAC (Division 23), Electrical (26), Plumbing (22), and Architectural background.</p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/assets/demo-hover-badge.png" alt="Point-of-Need QuickDraw Hover Badge" width="100%">
-      <p><strong>Point-of-Need QuickDraw.</strong> Hovering over duct lines crops a 150 DPI tile; Meta <code>muse-spark-1.3</code> extracts dimensions in &lt;350ms, while vector math calculates lengths.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="docs/assets/demo-symbol-recon.png" alt="Legend-First Symbol Reconnaissance" width="100%">
-      <p><strong>Legend-First Reconnaissance.</strong> Parses symbol exemplars from mechanical legends before scanning plan sheets at 150 DPI, preventing generic false positives.</p>
-    </td>
-    <td width="50%" valign="top">
-      <img src="docs/assets/demo-copilot.png" alt="Evidence-Grounded Copilot-Judge" width="100%">
-      <p><strong>Grounded Copilot-Judge.</strong> Meta <code>muse-wonder-1.0</code> answers natural-language queries by executing read-only SQLite queries, citing coordinates that pan the canvas.</p>
+      <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="docs/assets/showcase-scale.png" alt="Two-Point Scale Calibration" width="100%"></a>
+      <p><strong>Fail-Closed Scale Calibration.</strong> Interactive two-point calibration with real-time ratio validation. Unverified scales are flagged immediately to prevent costly estimating errors.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/assets/demo-verified-reports.png" alt="Estimating Takeoff Ledger & Export" width="100%">
-      <p><strong>Takeoff Ledger & Audit Trail.</strong> Single-keystroke accept/reject controls, SMACNA-aligned pressure class grouping, and instant CSV/JSON estimating exports.</p>
+      <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="docs/assets/showcase-reconciliation.png" alt="Schedule vs Plan Reconciliation" width="100%"></a>
+      <p><strong>Schedule-to-Plan Reconciliation.</strong> Automatically cross-references mechanical equipment schedules against floor plan tags, identifying unplaced units with ghost pin callouts.</p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/assets/demo-layer-decomposition.png" alt="Multi-Discipline Layer Decomposition" width="100%">
-      <p><strong>Multi-Discipline Layer Controls.</strong> Filter PDF vector graphics states by MEP discipline: HVAC (Division 23), Electrical (26), Plumbing (22), and Architectural background.</p>
+      <a href="https://weslyjohn1307.github.io/BlueTrace/"><img src="docs/assets/showcase-ledger.png" alt="Human-in-the-Loop Takeoff Ledger" width="100%"></a>
+      <p><strong>Estimator Takeoff Ledger & Export.</strong> Single-keystroke review workflow with immutable SQLite audit events, SMACNA-aligned pressure classes, and verified CSV exports.</p>
     </td>
   </tr>
 </table>
